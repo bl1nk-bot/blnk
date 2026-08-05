@@ -102,6 +102,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | b
     && nvm install 22 \
     && nvm install 24 \
     && nvm alias default 22 \
+    && nvm use default \
     && npm install -g \
     npm@latest \
     yarn@latest \

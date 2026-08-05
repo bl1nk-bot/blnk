@@ -277,8 +277,7 @@ pub struct Identity { /* ... */ }
 - `FrameFlag`
 - `ParsedFrame`
 - `BuildFrameRequest`
-- `ParseFrameResponse
-`
+- `ParseFrameResponse`
 ## 8.3 Pairing
 
 - `PairCommit`
@@ -347,8 +346,8 @@ pub enum BlnkError { /* ... */ }
 
 ```rust
 let identity = Identity::generate()?;
-let mut signaling = SignalingClient::new("wss://bitba.ng").await?;
-signaling.connect().await?;
-let mut peer = PeerConnection::new(identity, signaling).await?;
-peer.connect().await?;
+let mut signaling = SignalingClient::new("wss://bitba.ng")?;
+signaling.connect()?;
+let mut peer = PeerConnection::new(identity, signaling)?;
+peer.connect()?;
 ```

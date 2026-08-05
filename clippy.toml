@@ -13,6 +13,6 @@ large-error-threshold = 256
 # started it, while an enrolled one dies with its scope. Allow with a reason
 # where a child is waited on or deliberately detached.
 #
-# Enforced by `cargo clippy` and `just lint-rs`. The Bazel lint aspect pins the
-# repo-root config instead, so crates this file does not reach carry a
-# crate-level allow.
+# These are documented safety targets. Actual clippy enforcement depends on
+# the configured lint set; if you want compile-time bans, add
+# `disallowed-methods` / `disallowed-types` rules here or in the CI config.

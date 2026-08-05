@@ -104,9 +104,10 @@ cargo run -- cp
 
 ## เอกสารเพิ่มเติม
 
-- `spec.md`
-- `architecture.md`
-- `api.md`
+- `specs/spec.md`
+- `docs/architecture.md`
+- `docs/api.md`
+- `docs/blueprint.md`
 - `STYLE.md`
 - `TODO.md`
 

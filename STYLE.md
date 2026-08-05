@@ -55,7 +55,7 @@
 
 ```rust
 /// Connects to the signaling server and registers the current device.
-pub async fn connect() -> Result<()> {
+pub async fn connect() -> Result<(), BlnkError> {
     Ok(())
 }
 ```

@@ -2,14 +2,7 @@ syntax = "proto3";
 
 package swsp;
 
-// SWSP (Simple WebRTC Streaming Protocol) Version
-int32 SWSP_VERSION = 3;
-
-// Maximum payload size per frame (32KB)
-int32 MAX_CHUNK_SIZE = 32768;
-
-// Frame header size in bytes
-int32 HEADER_SIZE = 8;
+// SWSP version, max chunk size, and header size are defined in Rust/docs.
 
 // ============================================================================
 // Frame Format
@@ -34,7 +27,6 @@ enum FrameFlag {
   FLAG_NONE = 0;    // No flags
   FLAG_SYN = 1;    // 0x0001: Start of stream, payload is JSON metadata
   FLAG_FIN = 4;    // 0x0004: End of stream
-  FLAG_DAT = 0;    // 0x0000: Data chunk (no flags)
   FLAG_MORE = 2;   // 0x0002: Non-final fragment (for WebSocket chunking)
 }
 

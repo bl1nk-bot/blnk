@@ -3,7 +3,7 @@ syntax = "proto3";
 package pairing;
 
 // Nonce length in bytes (32 bytes = 256 bits)
-int32 NONCE_LEN = 32;
+const NONCE_LEN: i32 = 32;
 
 // ============================================================================
 // Pairing Message Types
