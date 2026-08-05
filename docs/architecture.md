@@ -37,10 +37,16 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 
 ### 2.3 Signaling Layer
 เชื่อมต่อกับ signaling server ผ่าน WebSocket
-- register device
-- request connection
-- exchange offer/answer/candidate
-- handle pairing and error messages
++- register device
++- request connection
++- exchange offer/answer/candidate
++- handle pairing and error messages
++
++### 2.3.1 mDNS Discovery
++ทำ local discovery แบบ LAN โดยไม่พึ่ง signaling server เสมอไป
++- announce service ผ่าน mDNS
++- discover peer/device ในเครือข่ายเดียวกัน
++- fallback ไป signaling server เมื่อ mDNS ไม่พอใช้
 
 ### 2.4 Peer Layer
 สร้างและจัดการ WebRTC peer connection
@@ -130,8 +136,9 @@ blnk-rust/
 │   │   ├── shell.rs           # Shell stream handler
 │   │   ├── file.rs            # File transfer handler
 │   │   ├── proxy.rs           # HTTP proxy handler
-│   │   ├── tcp.rs              # TCP forwarding handler
-│   │   └── websocket.rs       # WebSocket handler
+│   │   ├── tcp.rs             # TCP forwarding handler
+│   │   ├── websocket.rs       # WebSocket handler
+│   │   └── http.rs            # HTTP stream handler
 │   ├── protocol/              # Protocol definitions
 │   │   ├── mod.rs
 │   │   ├── swsp.rs            # SWSP protocol
@@ -139,19 +146,6 @@ blnk-rust/
 │   ├── identity/              # Identity management
 │   │   ├── mod.rs
 │   │   └── key.rs
-│   ├── fileshare/             # File sharing
-│   │   ├── mod.rs
-│   │   └── share.rs
-│   ├── shell/                 # Shell functionality
-│   │   ├── mod.rs
-│   │   ├── pty.rs             # Pseudo-terminal
-│   │   └── terminal.rs        # Terminal emulation
-│   ├── proxy/                 # HTTP proxy
-│   │   ├── mod.rs
-│   │   └── http.rs
-│   ├── tcpforward/            # TCP forwarding
-│   │   ├── mod.rs
-│   │   └── forward.rs
 │   ├── utils/                 # Utilities
 │   │   ├── mod.rs
 │   │   ├── qr.rs              # QR code generation
@@ -170,8 +164,15 @@ blnk-rust/
 ---
 
 ## 4. Data Flow
-
-## 4.1 Device Start Flow
++
++### 4.0 mDNS Discovery Flow
++
++1. announce service บน LAN ผ่าน mDNS
++2. discover peer ที่มี service ที่คล้ายกัน
++3. กรอง/validate candidate
++4. ถ้าไม่เจอ => fallback ไป signaling server
++
++### 4.1 Device Start Flow
 
 1. CLI start `serve`
 2. load config

@@ -202,7 +202,10 @@ jobs:
           targets: ${{ matrix.target }}
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_TERM_COLOR: always
       - name: Create checksum
+        shell: bash
         run: |
           cd target/${{ matrix.target }}/release
           sha256sum ${{ matrix.artifact }} > ${{ matrix.artifact }}.sha256

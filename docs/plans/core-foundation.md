@@ -225,6 +225,8 @@ pub use key::Identity;
 **Step 2: Create `src/identity/key.rs`**
 
 ```rust
+use std::sync::atomic::{AtomicU32, Ordering};
+
 #[derive(Debug, Clone)]
 pub struct Identity {
     pub uid: String,
@@ -233,9 +235,11 @@ pub struct Identity {
 
 impl Identity {
     pub fn generate() -> Self {
+        static COUNTER: AtomicU32 = AtomicU32::new(0);
+        let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         Self {
             uid: uuid::Uuid::new_v4().to_string(),
-            pairing_code: format!("{:06}", rand::random::<u32>() % 1_000_000),
+            pairing_code: format!("{:06}", value % 1_000_000),
         }
     }
 }
@@ -244,7 +248,7 @@ impl Identity {
 **Step 3: Verify compile**
 
 Run: `cargo build`
-Expected: succeeds.
+Expected: succeeds without adding `rand`.
 
 ---
 
@@ -266,6 +270,7 @@ mod tests {
     #[test]
     fn config_has_defaults_when_file_missing() {
         std::env::set_var("BLNK_SIGNALING_URL", "wss://example.com");
+        std::env::set_var("BLNK_IDENTITY_PATH", "./identity.json");
         let cfg = Config::load().unwrap();
         assert_eq!(cfg.signaling_url, "wss://example.com");
     }

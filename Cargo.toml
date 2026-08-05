@@ -34,8 +34,11 @@ hyper = "1.11.0"
 http = "1.5.0"
 
 # System
-nix = { version = "0.31.3", features = ["term", "fs", "process", "signal"] }
-winapi = { version = "0.3", features = ["winuser", "winbase", "processthreadsapi"] }
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
 
 # CLI & Config
 clap = { version = "4.0", features = ["derive"] }

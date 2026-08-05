@@ -108,7 +108,8 @@ Config Layer
   │     ├─▶ File Handler
   │     ├─▶ Proxy Handler
   │     ├─▶ TCP Handler
-  │     └─▶ WebSocket Handler
+  │     ├─▶ WebSocket Handler
+  │     └─▶ HTTP Handler
   │
   └─▶ Direct commands (cp, version)
 ```
