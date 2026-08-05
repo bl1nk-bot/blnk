@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package stream;
+
+// ============================================================================
+// Stream Types
+// ============================================================================
+
+enum StreamType {
+  STREAM_TYPE_UNSPECIFIED = 0;
+  STREAM_TYPE_HTTP = 1;        // HTTP request/response
+  STREAM_TYPE_FILE = 2;        // File transfer
+  STREAM_TYPE_TCP = 3;         // Raw TCP forwarding
+  STREAM_TYPE_WEBSOCKET = 4;   // WebSocket bridging
+  STREAM_TYPE_SHELL = 5;       // Interactive shell
+}
+
+// ============================================================================
+// HTTP Stream Messages
+// ============================================================================
+
+// HTTP request metadata (SYN frame payload)
+message HTTPRequest {
+  string type = 1;            // "http" (optional, defaults to "http")
+  string method = 2;          // HTTP method (GET, POST, etc.)
+  string pathname = 3;        // Request path
+  string content_type = 4;   // Content-Type header
+  int64 content_length = 5;   // Content-Length in bytes
+  map<string, string> headers = 6;  // Request headers
+}
+
+// HTTP response metadata (SYN frame payload)
+message HTTPResponse {
+  int32 status = 1;           // HTTP status code
+  map<string, string> headers = 2;  // Response headers
+}
+
+// HTTP data chunk (DAT frame payload)
+message HTTPData {
+  bytes data = 1;             // Chunk of request/response body
+}
+
+// ============================================================================
+// File Stream Messages
+// ============================================================================
+
+// File operation type
+enum FileOpType {
+  FILE_OP_UNSPECIFIED = 0;
+  FILE_OP_GET = 1;           // Download file
+  FILE_OP_PUT = 2;           // Upload file
+  FILE_OP_LIST = 3;          // List directory
+  FILE_OP_STAT = 4;          // Get file stats
+  FILE_OP_DELETE = 5;        // Delete file
+}
+
+// File operation request (SYN frame payload)
+message FileOp {
+  string type = 1;            // "file"
+  FileOpType op = 2;          // Operation type
+  string path = 3;           // File path
+  int64 size = 4;            // For PUT: total bytes to send
+  bool overwrite = 5;        // For PUT: allow overwrite
+  repeated int64 range = 6;  // For GET: byte range [start, end]
+}
+
+// File metadata
+message FileInfo {
+  string name = 1;           // File name
+  int64 size = 2;            // File size in bytes
+  bool is_dir = 3;           // Is directory
+  string modified = 4;       // Last modified timestamp
+  string mode = 5;          // File permissions
+}
+
+// File list response
+message FileList {
+  string path = 1;           // Directory path
+  repeated FileInfo files = 2;  // Files in directory
+}
+
+// ============================================================================
+// TCP Stream Messages
+// ============================================================================
+
+// TCP connection request (SYN frame payload)
+message TCPOpen {
+  string type = 1;            // "tcp"
+  string host = 2;            // Target host
+  int32 port = 3;            // Target port
+}
+
+// TCP data
+message TCPData {
+  bytes data = 1;             // Raw TCP data
+}
+
+// ============================================================================
+// WebSocket Stream Messages
+// ============================================================================
+
+// WebSocket open request (SYN frame payload)
+message WebSocketOpen {
+  string type = 1;            // "websocket"
+  string target = 2;          // WebSocket target URL/path
+  map<string, string> headers = 3;  // WebSocket headers
+}
+
+// WebSocket message type
+enum WebSocketMessageType {
+  WS_TYPE_TEXT = 0;
+  WS_TYPE_BINARY = 1;
+}
+
+// WebSocket message (DAT frame payload)
+message WebSocketMessage {
+  WebSocketMessageType message_type = 1;
+  bytes data = 2;             // Message payload
+}
+
+// ============================================================================
+// Shell Stream Messages
+// ============================================================================
+
+// Shell input (from browser to device)
+message ShellInput {
+  bytes data = 1;             // Terminal input
+}
+
+// Shell output (from device to browser)
+message ShellOutput {
+  bytes data = 1;             // Terminal output
+}
+
+// Terminal resize
+message TerminalResize {
+  int32 cols = 1;            // New column count
+  int32 rows = 2;            // New row count
+}
+
+// ============================================================================
+// Stream Handler Interface
+// ============================================================================
+
+// Stream context for handlers
+message StreamContext {
+  uint32 stream_id = 1;
+  string connect_path = 2;   // Original connect path
+}
+
+// Stream handler capabilities
+message StreamHandlerInfo {
+  string type = 1;            // Stream type identifier
+}

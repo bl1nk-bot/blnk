@@ -1,0 +1,18 @@
+[toolchain]
+# เราใช้ latest stable ล่าสุด แต่ปรับเปลี่ยนเอง
+# เพื่อหลีกเลี่ยง avoid ที่ไม่จำเป็นและทําให้การตรวจจับง่ายขึ้น
+# - bump one point version at a time
+# - รออย่างน้อยสองสัปดาห์หลังจากวางจําหน่ายก่อนจะกดดัน
+# After bumping the version, run
+# ```
+# cargo check --all-targets --workspace
+# cargo clippy --all-targets --workspace
+# ```
+channel = "1.97.1"
+components = ["rustfmt", "clippy"]
+profile = "default" # this will override global preferred profile if such is set
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+] # host target will be added automatically
+# force CI

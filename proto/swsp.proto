@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package swsp;
+
+// SWSP (Simple WebRTC Streaming Protocol) Version
+int32 SWSP_VERSION = 3;
+
+// Maximum payload size per frame (32KB)
+int32 MAX_CHUNK_SIZE = 32768;
+
+// Frame header size in bytes
+int32 HEADER_SIZE = 8;
+
+// ============================================================================
+// Frame Format
+// ============================================================================
+
+// SWSP Frame Header (8 bytes, little-endian)
+// +-----------+-----------+-----------+-----------+
+// | StreamID  | Flags     | Length    | Payload   |
+// | 4 bytes   | 2 bytes   | 2 bytes   | variable  |
+// +-----------+-----------+-----------+-----------+
+
+// Frame on the wire
+message Frame {
+  uint32 stream_id = 1;   // Stream identifier (0 = control, 1+ = data)
+  uint32 flags = 2;       // Frame flags (SYN, FIN, DAT, MORE)
+  uint32 length = 3;      // Payload length in bytes
+  bytes payload = 4;      // Variable-length payload
+}
+
+// Frame flags
+enum FrameFlag {
+  FLAG_NONE = 0;    // No flags
+  FLAG_SYN = 1;    // 0x0001: Start of stream, payload is JSON metadata
+  FLAG_FIN = 4;    // 0x0004: End of stream
+  FLAG_DAT = 0;    // 0x0000: Data chunk (no flags)
+  FLAG_MORE = 2;   // 0x0002: Non-final fragment (for WebSocket chunking)
+}
+
+// ============================================================================
+// Frame Types
+// ============================================================================
+
+// Generic frame with parsed flags
+message ParsedFrame {
+  uint32 stream_id = 1;
+  FrameFlag flags = 2;
+  bytes payload = 3;
+  bool is_syn = 4;    // Flags & SYN != 0
+  bool is_fin = 5;    // Flags & FIN != 0
+  bool is_more = 6;   // Flags & MORE != 0
+}
+
+// ============================================================================
+// Frame Building Helpers
+// ============================================================================
+
+// Build frame request
+message BuildFrameRequest {
+  uint32 stream_id = 1;
+  FrameFlag flags = 2;
+  bytes payload = 3;
+}
+
+// Parse frame response
+message ParseFrameResponse {
+  uint32 stream_id = 1;
+  FrameFlag flags = 2;
+  bytes payload = 3;
+}

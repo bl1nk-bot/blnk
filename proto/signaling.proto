@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package signaling;
+
+// ============================================================================
+// Protocol Version
+// ============================================================================
+
+message ProtocolVersion {
+  int32 version = 1;  // Current: 3
+}
+
+// ============================================================================
+// Device Registration
+// ============================================================================
+
+// Device registration request (device -> server)
+message RegisterRequest {
+  string type = 1;          // "register"
+  string uid = 2;           // 22 base64url chars (128 bits)
+  string public_key = 3;    // base64-encoded DER public key (RSA 2048-bit)
+  int32 protocol = 4;       // Protocol version (3)
+  bool want_code = 5;      // Request 6-digit pairing code
+}
+
+// Device registration response (server -> device)
+message RegisterResponse {
+  string type = 1;  // "registered"
+  string code = 2;  // 6-digit pairing code (11 base64url chars)
+}
+
+// ============================================================================
+// Connection Request
+// ============================================================================
+
+// ICE Server configuration
+message ICEServer {
+  string urls = 1;         // e.g., "stun:bitba.ng:3478"
+  string username = 2;     // Optional
+  string credential = 3;   // Optional
+}
+
+// Connection request from browser to device (server -> device)
+message ConnectionRequest {
+  string type = 1;        // "request"
+  string client_id = 2;    // Unique client identifier
+  string browser_ip = 3;   // Browser IP address (from signaling server)
+  repeated ICEServer ice_servers = 4;  // ICE servers for NAT traversal
+  bool force_relay = 5;    // Force relay-only connection
+}
+
+// ============================================================================
+// WebRTC Signaling (Offer/Answer/Candidate)
+// ============================================================================
+
+// SDP offer (device -> server)
+message OfferMessage {
+  string type = 1;        // "offer"
+  string client_id = 2;    // Target client
+  string sdp = 3;          // SDP offer (Session Description Protocol)
+  map<string, bytes> streams = 4;  // Stream metadata (reserved for future)
+}
+
+// SDP answer (browser -> server -> device)
+message AnswerMessage {
+  string type = 1;                  // "answer"
+  string client_id = 2;              // Target client
+  string sdp = 3;                    // SDP answer
+  string encrypted_request = 4;      // Base64: RSA-OAEP/SHA-256 encrypted {fingerprint, nonce, code}
+}
+
+// ICE candidate for trickle ICE (device <-> server)
+message ICECandidateMessage {
+  string type = 1;        // "candidate"
+  string client_id = 2;    // Target client
+  map<string, string> candidate = 3;  // ICE candidate data (JSON-style)
+}
+
+// ============================================================================
+// Pairing Flow
+// ============================================================================
+
+// Pairing request (server -> device)
+message PairRequest {
+  string type = 1;        // "pair_request"
+  string client_id = 2;    // Pairing client identifier
+  string remote_ip = 3;    // Connector IP address (optional)
+  repeated ICEServer ice_servers = 4;  // ICE servers
+}
+
+// Pairing answer (device -> server)
+message PairAnswer {
+  string type = 1;        // "pair_answer"
+  string client_id = 2;    // Pairing client identifier
+  string sdp = 3;          // SDP answer for pairing connection
+}
+
+// Pairing approved (device -> server)
+message PairApproved {
+  string type = 1;        // "pair_approved"
+  string client_id = 2;    // Pairing client identifier
+}
+
+// Pairing rejected (device -> server)
+message PairRejected {
+  string type = 1;        // "pair_rejected"
+  string client_id = 2;    // Pairing client identifier
+  string reason = 3;      // Rejection reason: "sas_mismatch", "timeout", "user_declined"
+}
+
+// ============================================================================
+// Error Messages
+// ============================================================================
+
+// Error message (server <-> device)
+message ErrorMessage {
+  string type = 1;    // "error"
+  string message = 2; // Error description
+}
+
+// ============================================================================
+// Video Streaming (Optional)
+// ============================================================================
+
+// Video answer (browser -> device)
+message VideoAnswerMessage {
+  string type = 1;    // "video_answer"
+  string sdp = 2;      // SDP for video stream
+}
+
+// Video ICE candidate (browser -> device)
+message VideoCandidateMessage {
+  string type = 1;        // "video_candidate"
+  map<string, string> candidate = 2;  // Video ICE candidate
+}
