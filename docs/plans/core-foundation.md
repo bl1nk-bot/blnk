@@ -68,6 +68,7 @@ enum Commands {
     Serve,
     Connect,
     Cp,
+    Devices,
     Version,
 }
 
@@ -75,10 +76,11 @@ enum Commands {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Serve => blnk::serve::run().await,
-        Commands::Connect => blnk::connect::run().await,
-        Commands::Cp => blnk::cp::run().await,
-        Commands::Version => blnk::version::print(),
+        Commands::Serve => println!("serve"),
+        Commands::Connect => println!("connect"),
+        Commands::Cp => println!("cp"),
+        Commands::Devices => println!("devices"),
+        Commands::Version => println!("blnk 0.1.0"),
     }
 }
 ```

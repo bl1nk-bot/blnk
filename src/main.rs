@@ -9,18 +9,20 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Serve,
-    Connect,
-    Cp,
+    Serve(ServeArgs),
+    Connect(ConnectArgs),
+    Cp(CpArgs),
+    Devices(DevicesArgs),
     Version,
 }
 
 fn main() {
     let cli = Cli::parse();
     match cli.command {
-        Commands::Serve => println!("serve"),
-        Commands::Connect => println!("connect"),
-        Commands::Cp => println!("cp"),
-        Commands::Version => println!("blnk 0.1.0"),
+        Commands::Serve(args) => run_serve(args),
+        Commands::Connect(args) => run_connect(args),
+        Commands::Cp(args) => run_cp(args),
+        Commands::Devices(args) => run_devices(args),
+        Commands::Version => print_version(),
     }
 }
