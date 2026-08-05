@@ -3,8 +3,6 @@ syntax = "proto3";
 package swsp;
 
 // SWSP version, max chunk size, and header size are defined in Rust/docs.
-
-// ============================================================================
 // Frame Format
 // ============================================================================
 
