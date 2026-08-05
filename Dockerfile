@@ -79,7 +79,9 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /
     && rm -rf /var/lib/apt/lists/*
 
 # Install Ona CLI
-RUN curl -fsSL https://ona.com/install.sh | bash \
+RUN curl -fsSL https://ona.com/install.sh -o /tmp/ona-install.sh \
+    && bash /tmp/ona-install.sh \
+    && rm -f /tmp/ona-install.sh \
     && ona --version
 
 # Install additional development tools
@@ -97,7 +99,9 @@ USER vscode
 
 # Install Node.js 22 + 24 (via nvm) and global npm packages including bun
 ENV NVM_DIR="/home/vscode/.nvm"
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash \
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh -o /tmp/nvm-install.sh \
+    && bash /tmp/nvm-install.sh \
+    && rm -f /tmp/nvm-install.sh \
     && . "$NVM_DIR/nvm.sh" \
     && nvm install 22 \
     && nvm install 24 \
@@ -119,13 +123,17 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | b
 ENV RUSTUP_HOME="/home/vscode/.rustup"
 ENV CARGO_HOME="/home/vscode/.cargo"
 ENV PATH="/home/vscode/.cargo/bin:${PATH}"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.0 --profile default -w \
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh \
+    && sh /tmp/rustup-init.sh -y --default-toolchain 1.97.0 --profile default \
+    && rm -f /tmp/rustup-init.sh \
     && rustc --version \
     && cargo --version
 
 # Install Hermes Agent (non-interactive — skip setup wizard and browser/Playwright)
 RUN . "$NVM_DIR/nvm.sh" \
-    && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash -s -- --skip-setup --skip-browser \
+    && curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh -o /tmp/hermes-install.sh \
+    && bash /tmp/hermes-install.sh --skip-setup --skip-browser \
+    && rm -f /tmp/hermes-install.sh \
     && hermes --version
 
 # Configure shell
