@@ -239,7 +239,11 @@ impl Identity {
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         Self {
             uid: uuid::Uuid::new_v4().to_string(),
-            pairing_code: format!("{:06}", value % 1_000_000),
+            pairing_code: {
+                let mut buf = [0u8; 4];
+                getrandom::fill(&mut buf).expect("secure random failed");
+                format!("{:06}", u32::from_le_bytes(buf) % 1_000_000)
+            },
         }
     }
 }
