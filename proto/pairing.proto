@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package pairing;
+
+// Nonce length in bytes (32 bytes = 256 bits)
+message NonceConfig {
+  int32 NONCE_LEN = 32;
+}
+
+// ============================================================================
+// Pairing Message Types
+// ============================================================================
+
+// Data channel pairing message types
+enum PairMessageType {
+  PAIR_COMMIT = 0;       // Connector -> Device: { commit }
+  PAIR_CHALLENGE = 1;    // Device -> Connector: { nonce_d }
+  PAIR_REVEAL = 2;       // Connector -> Device: { nonce_c }
+  PAIR_CREDENTIALS = 3;  // Device -> Connector: { uid, public_key, access_code }
+}
+
+// ============================================================================
+// Pairing Messages
+// ============================================================================
+
+// Pair commit message (Connector -> Device)
+// Connector commits its nonce before seeing the device's challenge
+message PairCommit {
+  string type = 1;        // "pair_commit"
+  string commit = 2;      // Base64(SHA-256(nonce_c)) - hiding commitment
+}
+
+// Pair challenge message (Device -> Connector)
+// Device challenges with a fresh nonce
+message PairChallenge {
+  string type = 1;        // "pair_challenge"
+  bytes nonce_d = 2;      // 32 random bytes (base64 encoded in JSON)
+}
+
+// Pair reveal message (Connector -> Device)
+// Connector reveals its nonce to prove it matches the commitment
+message PairReveal {
+  string type = 1;        // "pair_reveal"
+  bytes nonce_c = 2;      // 32 bytes - must match the commitment
+}
+
+// Pair credentials message (Device -> Connector)
+// Device sends credentials over the verified data channel
+message PairCredentials {
+  string type = 1;        // "pair_credentials"
+  string uid = 2;         // 22 base64url chars
+  string public_key = 3;  // Base64 DER public key
+  string access_code = 4; // 11 base64url chars (64 bits)
+}
+
+// ============================================================================
+// SAS Computation
+// ============================================================================
+
+// SAS (Short Authentication String) computation input
+message SASInput {
+  bytes nonce_c = 1;       // Connector nonce (32 bytes)
+  bytes nonce_d = 2;       // Device nonce (32 bytes)
+  string local_fp = 3;     // Local DTLS fingerprint (SHA-256)
+  string remote_fp = 4;    // Remote DTLS fingerprint (SHA-256)
+}
+
+// SAS computation result
+message SASResult {
+  string sas = 1;         // 6-digit code (000000-999999)
+}
+
+// ============================================================================
+// Commitment Verification
+// ============================================================================
+
+// Verify commitment request
+message VerifyCommitmentRequest {
+  string commit = 1;      // Base64(SHA-256(nonce))
+  bytes nonce = 2;        // The nonce to verify
+}
+
+// Verify commitment response
+message VerifyCommitmentResponse {
+  bool valid = 1;         // Whether commitment matches nonce
+}
+
+// ============================================================================
+// Nonce Generation
+// ============================================================================
+
+// Generate nonce request
+message GenerateNonceRequest {
+  int32 length = 1;       // Default: 32 bytes
+}
+
+// Generate nonce response
+message GenerateNonceResponse {
+  bytes nonce = 1;        // Random bytes
+}

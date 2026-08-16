@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package identity;
+
+// ============================================================================
+// Identity Structure
+// ============================================================================
+
+// RSA key pair for identity
+message RSAKeyPair {
+  bytes private_key_der = 1;    // PKCS#8 private key (DER encoded)
+  bytes public_key_der = 2;     // PKIX public key (DER encoded)
+}
+
+// Device identity
+message Identity {
+  RSAKeyPair key_pair = 1;
+  string uid = 2;                // 22 base64url chars (128 bits)
+  string code = 3;               // 11 base64url chars (64 bits)
+  string public_key_b64 = 4;    // Base64-encoded DER public key
+}
+
+// ============================================================================
+// Identity Generation
+// ============================================================================
+
+// Generate identity request
+message GenerateIdentityRequest {
+  string program_name = 1;      // Identity program name (for storage path)
+  bool ephemeral = 2;           // Don't persist to disk
+}
+
+// Generate identity response
+message GenerateIdentityResponse {
+  Identity identity = 1;
+}
+
+// ============================================================================
+// Identity Persistence
+// ============================================================================
+
+// Identity storage path
+message IdentityPath {
+  string home_dir = 1;          // User home directory
+  string program_name = 2;      // Program name
+}
+
+// PEM block types
+enum PEMBlockType {
+  PEMBLOCK_PRIVATE_KEY = 0;
+  PEMBLOCK_ACCESS_CODE = 1;
+}
+
+// PEM encoded identity file
+message PEMIdentity {
+  bytes private_key_pem = 1;    // PEM-encoded private key
+  bytes access_code_pem = 2;   // PEM-encoded access code
+}
+
+// ============================================================================
+// Identity Loading
+// ============================================================================
+
+// Load identity request
+message LoadIdentityRequest {
+  string program_name = 1;
+  bool ephemeral = 2;
+}
+
+// Load identity response
+message LoadIdentityResponse {
+  Identity identity = 1;
+  bool generated_new = 2;        // True if new identity was created
+}
+
+// ============================================================================
+// Cryptographic Operations
+// ============================================================================
+
+// Sign request
+message SignRequest {
+  bytes data = 1;                 // Data to sign
+}
+
+// Sign response
+message SignResponse {
+  bytes signature = 1;           // RSASSA-PKCS1-v1_5 + SHA-256 signature
+}
+
+// Decrypt request (RSA-OAEP/SHA-256)
+message DecryptRequest {
+  bytes ciphertext = 1;          // Encrypted data
+}
+
+// Decrypt response
+message DecryptResponse {
+  bytes plaintext = 1;           // Decrypted data
+}
+
+// Bidirectional verify payload (encrypted by browser)
+message BidirectionalVerifyPayload {
+  string fingerprint = 1;        // DTLS fingerprint
+  bytes nonce = 2;              // Random nonce
+  string code = 3;              // Access code
+}
+
+// Verify nonce hash (sent by device on stream 0)
+message VerifyNonceHash {
+  bytes nonce_hash = 1;         // SHA-256(nonce)
+}

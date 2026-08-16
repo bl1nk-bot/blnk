@@ -1,0 +1,96 @@
+syntax = "proto3";
+
+package control;
+
+// ============================================================================
+// Control Messages (Stream ID 0)
+// ============================================================================
+
+// Control message types
+enum ControlMessageType {
+  CONTROL_UNSPECIFIED = 0;
+  CONTROL_CONNECT = 1;        // Browser -> Device: Start session
+  CONTROL_AUTH_REQUIRED = 2;  // Device -> Browser: PIN required
+  CONTROL_AUTH = 3;           // Browser -> Device: PIN submission
+  CONTROL_AUTH_RESULT = 4;   // Device -> Browser: Auth result
+  CONTROL_READY = 5;         // Device -> Browser: Session ready
+  CONTROL_ERROR = 6;          // Either -> Either: Error
+}
+
+// ============================================================================
+// Control Messages
+// ============================================================================
+
+// Connect message (browser -> device)
+message ConnectMessage {
+  string type = 1;            // "connect"
+  string path = 2;            // Requested path (defaults to "/")
+  int32 version = 3;          // SWSP version (optional)
+}
+
+// Auth required message (device -> browser)
+message AuthRequiredMessage {
+  string type = 1;            // "auth_required"
+}
+
+// Auth message (browser -> device)
+message AuthMessage {
+  string type = 1;            // "auth"
+  string pin = 2;              // PIN submission
+}
+
+// Auth result message (device -> browser)
+message AuthResultMessage {
+  string type = 1;            // "auth_result"
+  bool success = 2;           // Authentication success
+}
+
+// Ready message (device -> browser)
+message ReadyMessage {
+  string type = 1;            // "ready"
+  int32 server_version = 2;   // SWSP version
+  repeated string caps = 3;   // Supported capabilities (stream types)
+  string routing = 4;         // "target-prefix" or "direct"
+}
+
+// Error message (either -> either)
+message ErrorMessage {
+  string type = 1;            // "error"
+  string message = 2;         // Error description
+}
+
+// ============================================================================
+// Session State
+// ============================================================================
+
+// Session configuration
+message SessionConfig {
+  bool pin_required = 1;      // Whether PIN authentication is enabled
+  int32 max_auth_fails = 2;  // Max PIN attempts before disconnect (default: 3)
+  int32 pin_fail_delay_ms = 3; // Delay between PIN attempts in ms (default: 2000)
+}
+
+// Session statistics
+message SessionStats {
+  uint64 bytes_received = 1;
+  uint64 bytes_sent = 2;
+  uint64 frames_received = 3;
+  uint64 frames_sent = 4;
+  uint64 active_streams = 5;
+}
+
+// ============================================================================
+// Video Control Messages (Optional)
+// ============================================================================
+
+// Video answer control message
+message VideoAnswerControl {
+  string type = 1;            // "video_answer"
+  string sdp = 2;              // Video SDP
+}
+
+// Video candidate control message
+message VideoCandidateControl {
+  string type = 1;            // "video_candidate"
+  map<string, string> candidate = 2;  // Video ICE candidate
+}
