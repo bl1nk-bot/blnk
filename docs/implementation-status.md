@@ -1,11 +1,11 @@
 # Implementation Status and Readiness
 
-**ตรวจสอบฐาน:** branch `main` ณ commit `ac5aa2d`; branch งานนี้ต่อจาก foundation implementation ใน Issue #5
-**สถานะเอกสารฉบับนี้:** foundation runnable และ identity/pairing primitives ถูก implement ใน Issue #7 branch แล้ว; signaling/WebRTC integration และ production readiness ยังไม่เสร็จ
+**ตรวจสอบฐาน:** branch งานนี้ต่อจาก foundation implementation ใน Issue #5 และ identity/pairing primitives ใน Issue #7
+**สถานะเอกสารฉบับนี้:** foundation runnable, identity/pairing primitives และ SWSP raw frame codec ถูก implement ใน dependency branches แล้ว; signaling/WebRTC integration และ production readiness ยังไม่เสร็จ
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา signaling, WebRTC peer/data-channel integration, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ interoperability tests [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives ขณะที่ Issue #9 เพิ่ม SWSP raw frame codec ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา signaling, WebRTC peer/data-channel integration, session/auth, stream handlers, web integration, cross-platform adapters และ interoperability tests [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -15,9 +15,10 @@ blnk Rust **มี runnable foundation ตามสถาปัตยกรร�
 |---|---|---|
 | CLI surface | มี `serve`, `connect`, `cp`, `devices`, `version` ใน `src/main.rs` แต่ handler ยังเป็น stub output [3] | Not implemented |
 | Architecture | มี module layout, data flow, runtime model, security และ testing principles [4] | Design ready |
-| Protocol design | มี `.proto` สำหรับ signaling, identity, pairing, control, stream และ SWSP [5] | Schema draft |
+| Protocol design | มี `.proto` สำหรับ signaling, identity, pairing, control, stream และ SWSP [5]; มี raw SWSP codec แยกใน `src/protocol/swsp.rs` | Schema plus codec boundary |
 | Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader และ explicit CLI placeholders [4] [6] | Implemented in foundation |
 | Identity and pairing | มี RSA 2048 identity generate/load/save, sign/verify, OAEP encrypt/decrypt, 6-digit `pairing_code`, `access_code`, nonce, commit-reveal และ provisional SAS ใน Issue #7 branch | Implemented; integration/fixture pending |
+| SWSP codec | มี typed flags, canonical 8-byte little-endian header, max-payload enforcement, incomplete-frame handling และ round-trip/negative tests ใน Issue #9; ยังไม่มี upstream interoperability fixture หรือ WebRTC integration | Implemented; interoperability pending |
 | Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Deferred |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
 | CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
@@ -66,7 +67,7 @@ cargo clippy --all --all-targets -- -D warnings
 | 2 | เพิ่ม `build.rs`/protobuf generation หรือบันทึกเหตุผลที่เลือก hand-written codec | generation deterministic และมี compile test |
 | 3 | เพิ่ม typed errors, logging, config และ CLI routing | CLI เรียก business logic จริง ไม่มี stub output |
 | 4 | Implement identity และ pairing | **อยู่ใน Issue #7:** primitives และ unit tests ผ่าน; เหลือ interoperability fixture และ integration กับ session/signaling |
-| 5 | Implement SWSP/control codec | round-trip, invalid frame, fragmentation และ max-size tests ผ่าน |
+| 5 | Implement SWSP/control codec | **อยู่ใน Issue #9:** round-trip, invalid frame, incomplete-frame และ max-size tests ผ่าน; เหลือ upstream interoperability fixture และการเชื่อมกับ data channel |
 | 6 | Implement signaling และ WebRTC peer/data channel | เชื่อมกับ client/browser เดิมได้จริง |
 | 7 | Implement session/auth และ stream registry | lifecycle, PIN retry/delay และ cleanup มี integration tests |
 | 8 | เพิ่ม shell/file/HTTP/TCP/WebSocket, mDNS และ QR | แต่ละ capability มี unit/integration coverage และ platform notes |
