@@ -1,6 +1,7 @@
 pub mod config;
 pub mod identity;
 pub mod peer;
+pub mod proto_generated;
 pub mod protocol;
 pub mod session;
 pub mod signaling;
