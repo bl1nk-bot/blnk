@@ -4,7 +4,7 @@
 
 **Goal:** Implement the minimal runnable foundation for blnk: library root, typed errors, config loading, identity stubs, and CLI wiring, with tests.
 
-**Architecture:** Follow `docs/architecture.md` module layout. Keep `docs/architecture.md` untouched. Implement real code, not stubs.
+**Architecture:** Follow `docs/architecture.md` module layout. Keep the module layout stable; documentation-only status and decision records may be added without changing runtime design. Implement real code, not stubs.
 
 **Tech Stack:** Rust 2024, tokio, clap derive, config, serde, thiserror, anyhow, tracing.
 

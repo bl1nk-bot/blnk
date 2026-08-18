@@ -1,9 +1,13 @@
-# TODO.md - แผนการพัฒนา blnk-rust
+# blnk Rust Implementation Roadmap
 
-# Milestone 0: CI/CD & Git Workflow
+> **สถานะ ณ 2026-08-18:** เอกสารนี้เป็น roadmap ของงานที่ต้องทำ ไม่ใช่รายการงานที่เสร็จแล้ว ปัจจุบัน repository อยู่ในช่วง pre-foundation: CLI surface และ schema มีอยู่บางส่วน แต่ build บน Linux ยังไม่ผ่าน และ module หลัก/test/release pipeline ยังไม่ครบ ให้ใช้ [`docs/implementation-status.md`](docs/implementation-status.md) เป็นแหล่งอ้างอิงสถานะล่าสุด
+
+> **กติกาเอกสาร:** architecture และ specification กำหนด behavior/canonical contract; TODO กำหนดลำดับงานเท่านั้น การเปลี่ยน protocol semantics ต้องมี decision record และ compatibility test
+
+## Milestone 0: CI/CD & Git Workflow
 
 ## 0.1 สร้าง .github/workflows/ci.yml
-**ทำไป:** ตั้งค่า CI pipeline ให้ run ทุกครั้ง push/PR
+**แผนงาน:** ตั้งค่า CI pipeline ให้ run ทุกครั้ง push/PR
 **ทำอย่างไร:**
 - สร้าง `.github/workflows/ci.yml`
 - jobs:
@@ -20,8 +24,9 @@
   - Windows: windows-latest (x86_64)
   - Android: ubuntu-latest ด้วย NDK
 - ทุก job ต้อง pass ก่อน merge
-**ได้อะไร:** `.github/workflows/ci.yml` ที่ complete
-**เสร็จเมื่อไร:** Push ไป repo แล้ว CI run ได้
+**ได้อะไร:** `.github/workflows/ci.yml` ที่ตรวจสอบ foundation quality gates ได้
+**สถานะปัจจุบัน:** มีเฉพาะ fmt, clippy และ test บน Ubuntu; ยังไม่มี audit หรือ cross-platform matrix ใน workflow จริง
+**เสร็จเมื่อไร:** ทุก job ที่ประกาศไว้รันผ่านบน implementation ที่ build ได้จริง
 
 ### ci.yml content:
 ```yaml
@@ -133,7 +138,7 @@ jobs:
 ---
 
 ## 0.2 สร้าง .github/workflows/release.yml
-**ทำไป:** ตั้งค่า release pipeline
+**แผนงาน:** ตั้งค่า release pipeline
 **ทำอย่างไร:**
 - สร้าง `.github/workflows/release.yml`
 - trigger: tag push (v*.*.*)
@@ -141,8 +146,9 @@ jobs:
 - create GitHub release
 - upload binaries + checksums
 - sign binaries (optional)
-**ได้อะไร:** `.github/workflows/release.yml` ที่ complete
-**เสร็จเมื่อไร:** Tag push แล้ว release ถูกสร้าง
+**ได้อะไร:** `.github/workflows/release.yml` สำหรับ release artifacts
+**สถานะปัจจุบัน:** ยังไม่มี release workflow ใน repository
+**เสร็จเมื่อไร:** Tag push แล้ว release ที่มี binaries และ checksums ถูกสร้างและตรวจสอบได้
 
 ### release.yml content:
 ```yaml
@@ -234,7 +240,7 @@ jobs:
 ---
 
 ## 0.3 สร้าง CONTRIBUTING.md
-**ทำไป:** ให้ guide สำหรับ contributors
+**แผนงาน:** ให้ guide สำหรับ contributors
 **ทำอย่างไร:**
 - สร้าง `CONTRIBUTING.md` ที่ root
 - sections:
@@ -408,7 +414,7 @@ cargo build --release
 ---
 
 ## 0.4 สร้าง .github/ISSUE_TEMPLATE/
-**ทำไป:** ให้ template สำหรับ issue
+**แผนงาน:** ให้ template สำหรับ issue
 **ทำอย่างไร:**
 - สร้าง `.github/ISSUE_TEMPLATE/bug_report.yml`
 - สร้าง `.github/ISSUE_TEMPLATE/feature_request.yml`
@@ -429,7 +435,7 @@ contact_links:
 ---
 
 ## 0.5 สร้าง .github/pull_request_template.md
-**ทำไป:** ให้ template สำหรับ PR
+**แผนงาน:** ให้ template สำหรับ PR
 **ทำอย่างไร:**
 - สร้าง `.github/pull_request_template.md`
 
@@ -471,7 +477,7 @@ Related to #(issue number)
 ---
 
 ## 0.6 สร้าง .gitignore
-**ทำไป:** ไม่ commit ไฟล์ที่ไม่ควร
+**แผนงาน:** ไม่ commit ไฟล์ที่ไม่ควร
 **ทำอย่างไร:**
 - สร้าง `.gitignore`
 
@@ -521,7 +527,7 @@ config.toml
 
 ## 0.7 สร้าง Makefile (optional)
 
-**ทำไป:** ให้ shortcuts สำหรับ common tasks
+**แผนงาน:** ให้ shortcuts สำหรับ common tasks
 **ทำอย่างไร:**
 - สร้าง `Makefile`
 
@@ -578,11 +584,11 @@ ci: fmt lint test audit
 ## Milestone 1: ตั้งค่าโปรเจกต์และ Build Foundation
 
 ### 1.1 สร้าง Cargo.toml
-**ทำไป:** ตั้งค่า metadata และ dependencies ของโปรเจกต์
+**แผนงาน:** ตั้งค่า metadata และ dependencies ของโปรเจกต์
 **ทำอย่างไร:**
 - ชื่อ package: `blnk`
-- edition: `2021`
-- version: `0.1.0-alpha`
+- edition: `2024` (canonical; ต้องตรงกับ `Cargo.toml`)
+- version: ใช้ version จาก `Cargo.toml` เป็น source of truth (ปัจจุบัน `0.1.0`; ค่า `0.1.0-alpha` ใน roadmap เดิมเป็น historical note)
 - dependencies:
   - `tokio` (async runtime) - features: full
   - `clap` (CLI parsing) - features: derive
@@ -626,7 +632,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** `cargo check` ผ่านโดยไม่มี missing module error
 
 ### 1.3 สร้าง build.rs สำหรับ protobuf compilation
-**ทำไป:** ตั้งค่า code generation จาก `.proto`
+**แผนงาน:** ตั้งค่า code generation จาก `.proto`
 **ทำอย่างไร:**
 - สร้าง `build.rs` ที่ root
 - ใช้ `prost_build::Config::new()`
@@ -640,7 +646,7 @@ ci: fmt lint test audit
 ## Milestone 2: Error Handling และ Logging
 
 ### 2.1 สร้าง error type ใน src/utils/error.rs
-**ทำไป:** นิยาม error variants ทั้งหมดที่ใช้ในโปรเจกต์
+**แผนงาน:** นิยาม error variants ทั้งหมดที่ใช้ในโปรเจกต์
 **ทำอย่างไร:**
 - สร้าง `AppError` enum ด้วย `#[derive(thiserror::Error)]`
 - variants:
@@ -660,7 +666,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** ใช้ `AppResult<T>` ในฟังก์ชันได้
 
 ### 2.2 ตั้งค่า tracing logging ใน src/utils/logging.rs
-**ทำไป:** เตรียมระบบ logging
+**แผนงาน:** เตรียมระบบ logging
 **ทำอย่างไร:**
 - สร้างฟังก์ชัน `pub fn init_logging(level: &str) -> AppResult<()>`
 - ใช้ `tracing_subscriber::fmt()`
@@ -676,7 +682,7 @@ ci: fmt lint test audit
 ## Milestone 3: Configuration System
 
 ### 3.1 สร้าง AppConfig struct ใน src/config/mod.rs
-**ทำไป:** นิยาม configuration data types
+**แผนงาน:** นิยาม configuration data types
 **ทำอย่างไร:**
 - สร้าง `AppConfig` struct:
   - `host: String` (default: `127.0.0.1`)
@@ -696,7 +702,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** `AppConfig::load()` ทำงานได้
 
 ### 3.2 สร้าง config.toml.example
-**ทำไป:** ให้ template config ให้ user
+**แผนงาน:** ให้ template config ให้ user
 **ทำอย่างไร:**
 - สร้าง `config.toml` ที่ examples
 - ใส่ทุก field พร้อม comment
@@ -710,7 +716,7 @@ ci: fmt lint test audit
 ## Milestone 4: CLI Argument Parsing
 
 ### 4.1 สร้าง CLI structure ใน src/config/args.rs
-**ทำไป:** นิยาม CLI commands และ flags
+**แผนงาน:** นิยาม CLI commands และ flags
 **ทำอย่างไร:**
 - สร้าง `Cli` struct ด้วย `#[derive(Parser)]`
 - subcommands enum:
@@ -736,7 +742,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** `cargo run -- --help` แสดง commands ทั้งหมด
 
 ### 4.2 ผูก CLI เข้ากับ main.rs
-**ทำไป:** เชื่อม CLI parser กับ business logic
+**แผนงาน:** เชื่อม CLI parser กับ business logic
 **ทำอย่างไร:**
 - ใน `src/main.rs`:
   - parse CLI args: `let cli = Cli::parse()`
@@ -751,7 +757,7 @@ ci: fmt lint test audit
 ## Milestone 5: Identity Management
 
 ### 5.1 สร้าง Identity system ใน src/identity/key.rs
-**ทำไป:** สร้างและเก็บ device identity
+**แผนงาน:** สร้างและเก็บ device identity
 **ทำอย่างไร:**
 - สร้าง `Identity` struct:
   - `device_id: String` (unique identifier)
@@ -770,10 +776,10 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Device มี persistent unique identity
 
 ### 5.2 สร้าง Pairing Code flow ใน src/protocol/pairing.rs
-**ทำไป:** implement pairing ระหว่าง devices
+**แผนงาน:** implement pairing ระหว่าง devices
 **ทำอย่างไร:**
 - สร้าง `PairingCode` struct:
-  - `code: String` (6-8 digit)
+  - `pairing_code: String` (6-digit user-visible code; persistent `access_code` ต้องแยกชื่อและ semantics)
   - `created_at: Timestamp`
   - `expires_at: Timestamp`
 - implement methods:
@@ -789,38 +795,29 @@ ci: fmt lint test audit
 ## Milestone 6: Protocol Definitions
 
 ### 6.1 นิยาม SWSP frame format ใน src/protocol/swsp.rs
-**ทำไป:** ออกแบบ message frame structure
+**แผนงาน:** ออกแบบ message frame structure
 **ทำอย่างไร:**
-- นิยาม frame header (8 bytes):
-  - Version (1 byte)
-  - Frame type (1 byte)
-  - Flags (1 byte)
-  - Reserved (1 byte)
-  - Length (4 bytes, big-endian)
-- frame types:
-  - `0x01` - Shell
-  - `0x02` - File
-  - `0x03` - Proxy
-  - `0x04` - TCP
-  - `0x05` - WebSocket
-  - `0x06` - Control
+- นิยาม raw frame header (8 bytes, little-endian) ตาม `specs/spec.md`:
+  - Stream ID (4 bytes)
+  - Flags (2 bytes: SYN, MORE, FIN และ reserved bitsตาม compatibility contract)
+  - Payload length (2 bytes)
+- protobuf messages ใน `proto/swsp.proto` เป็น schema/control representation ไม่ใช่ raw header encoder จนกว่าจะมี fixture ยืนยัน
+- stream type mapping ต้องยึด protocol ของต้นฉบับและบันทึกเป็น compatibility fixture ก่อนกำหนดค่าคงที่ ห้ามเดาเลขใหม่
 - payload ตามหลัง header
-- สร้าง `Frame` struct
+- สร้าง `Frame` struct ที่แยก `stream_id`, `flags`, `length` และ payload ชัดเจน
 - implement `FrameParser::parse(data: &[u8]) -> AppResult<Frame>`
   - validate header
-  - extract frame type
-  - extract payload
-  - handle incomplete frames
+  - extract stream id, flags และ payload length
+  - reject invalid flags และ length เกิน max frame size
+  - handle incomplete/fragmented frames โดยไม่ทำให้ session ล่ม
 - implement `FrameBuilder`:
-  - `new(frame_type: u8) -> Self`
-  - `set_payload(data: Vec<u8>) -> Self`
-  - `set_flags(flags: u8) -> Self`
+  - รับ stream id, flags และ payload
   - `build() -> Vec<u8>` (complete frame)
 **ได้อะไร:** Frame parsing และ building logic
 **เสร็จเมื่อไร:** Parse valid frames และ reject invalid ones
 
 ### 6.2 นิยาม signaling messages ใน src/signaling/messages.rs
-**ทำไป:** ออกแบบ signaling protocol messages
+**แผนงาน:** ออกแบบ signaling protocol messages
 **ทำอย่างไร:**
 - สร้าง `SignalingMessage` enum:
   - `Register { device_id: String, public_key: Vec<u8> }`
@@ -830,7 +827,7 @@ ci: fmt lint test audit
   - `Answer { peer_id: String, sdp: String }`
   - `IceCandidate { peer_id: String, candidate: String }`
   - `PairingRequest { device_id: String }`
-  - `PairingCode { code: String }`
+  - `PairingCode { pairing_code: String }`
   - `Error { code: u32, message: String }`
 - implement serialization/deserialization
 **ได้อะไร:** Signaling message definitions
@@ -841,7 +838,7 @@ ci: fmt lint test audit
 ## Milestone 7: Signaling Client
 
 ### 7.1 สร้าง SignalingClient ใน src/signaling/client.rs
-**ทำไป:** เชื่อมต่อกับ signaling server
+**แผนงาน:** เชื่อมต่อกับ signaling server
 **ทำอย่างไร:**
 - สร้าง `SignalingClient` struct
 - implement WebSocket connection ไปยัง signaling URL
@@ -864,7 +861,7 @@ ci: fmt lint test audit
 ## Milestone 8: WebRTC Peer Connection
 
 ### 8.1 สร้าง PeerConnection ใน src/peer/connection.rs
-**ทำไป:** สร้างและจัดการ WebRTC peer connection
+**แผนงาน:** สร้างและจัดการ WebRTC peer connection
 **ทำอย่างไร:**
 - สร้าง `PeerConnection` struct
 - ใช้ `webrtc` crate สร้าง connection
@@ -882,7 +879,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Exchange SDP และ establish connection
 
 ### 8.2 สร้าง DataChannel ใน src/peer/connection.rs
-**ทำไป:** ส่ง/รับข้อมูลผ่าน P2P
+**แผนงาน:** ส่ง/รับข้อมูลผ่าน P2P
 **ทำอย่างไร:**
 - สร้าง `DataChannel` struct
 - implement methods:
@@ -897,7 +894,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Send/receive data ระหว่าง peers
 
 ### 8.3 ตั้งค่า STUN/TURN ใน src/peer/ice.rs
-**ทำไป:** ตั้งค่า NAT traversal
+**แผนงาน:** ตั้งค่า NAT traversal
 **ทำอย่างไร:**
 - โหลด STUN servers จาก config
 - โหลด TURN servers จาก config
@@ -911,7 +908,7 @@ ci: fmt lint test audit
 ## Milestone 9: Session Management
 
 ### 9.1 สร้าง Session ใน src/session/session.rs
-**ทำไป:** ดูแล lifecycle ของ session
+**แผนงาน:** ดูแล lifecycle ของ session
 **ทำอย่างไร:**
 - สร้าง `Session` struct:
   - `session_id: String` (unique per connection)
@@ -933,7 +930,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Create/track/cleanup sessions
 
 ### 9.2 สร้าง PIN Authentication ใน src/session/auth.rs
-**ทำไป:** implement PIN verification
+**แผนงาน:** implement PIN verification
 **ทำอย่างไร:**
 - สร้าง `PinAuth` struct
 - implement methods:
@@ -949,7 +946,7 @@ ci: fmt lint test audit
 ## Milestone 10: Stream Handler Base
 
 ### 10.1 สร้าง StreamHandler trait ใน src/stream/handler.rs
-**ทำไป:** นิยาม interface สำหรับ stream processors
+**แผนงาน:** นิยาม interface สำหรับ stream processors
 **ทำอย่างไร:**
 - สร้าง trait `StreamHandler`:
   ```rust
@@ -972,7 +969,7 @@ ci: fmt lint test audit
 ## Milestone 11: Stream Handlers Implementation
 
 ### 11.1 Shell Handler ใน src/stream/shell.rs
-**ทำไป:** Execute remote shell commands
+**แผนงาน:** Execute remote shell commands
 **ทำอย่างไร:**
 - สร้าง `ShellHandler` implement `StreamHandler`
 - frame type: `0x01`
@@ -991,7 +988,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Run commands และ get output
 
 ### 11.2 File Transfer Handler ใน src/stream/file.rs
-**ทำไป:** Transfer files ระหว่าง devices
+**แผนงาน:** Transfer files ระหว่าง devices
 **ทำอย่างไร:**
 - สร้าง `FileHandler` implement `StreamHandler`
 - frame type: `0x02`
@@ -1008,7 +1005,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** List/upload/download/delete files
 
 ### 11.3 HTTP Proxy Handler ใน src/stream/proxy.rs
-**ทำไป:** Forward HTTP requests
+**แผนงาน:** Forward HTTP requests
 **ทำอย่างไร:**
 - สร้าง `ProxyHandler` implement `StreamHandler`
 - frame type: `0x03`
@@ -1028,7 +1025,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Proxy HTTP requests
 
 ### 11.4 TCP Forwarding Handler ใน src/stream/tcp.rs
-**ทำไป:** Forward raw TCP traffic
+**แผนงาน:** Forward raw TCP traffic
 **ทำอย่างไร:**
 - สร้าง `TcpHandler` implement `StreamHandler`
 - frame type: `0x04`
@@ -1040,7 +1037,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Forward TCP connections
 
 ### 11.5 WebSocket Handler ใน src/stream/websocket.rs
-**ทำไป:** Bridge WebSocket connections
+**แผนงาน:** Bridge WebSocket connections
 **ทำอย่างไร:**
 - สร้าง `WebSocketHandler` implement `StreamHandler`
 - frame type: `0x05`
@@ -1057,7 +1054,7 @@ ci: fmt lint test audit
 ## Milestone 12: Web Server Integration
 
 ### 12.1 สร้าง HTTP Server ใน src/web/mod.rs
-**ทำไป:** Start web server
+**แผนงาน:** Start web server
 **ทำอย่างไร:**
 - ใช้ `axum` framework
 - สร้าง router ด้วย routes:
@@ -1075,7 +1072,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Server start และ routes respond
 
 ### 12.2 Static File Serving ใน src/web/mod.rs
-**ทำไป:** Serve frontend assets
+**แผนงาน:** Serve frontend assets
 **ทำอย่างไร:**
 - สร้าง route `GET /static/<path>`
 - serve files จาก `static/` directory
@@ -1085,7 +1082,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Serve CSS, JS, HTML files
 
 ### 12.3 WebSocket Endpoint ใน src/web/mod.rs
-**ทำไป:** Real-time communication
+**แผนงาน:** Real-time communication
 **ทำอย่างไร:**
 - สร้าง `WS /ws` route
 - handle WebSocket upgrade
@@ -1100,7 +1097,7 @@ ci: fmt lint test audit
 ## Milestone 13: CLI Commands Implementation
 
 ### 13.1 Implement `serve` command
-**ทำไป:** Start server
+**แผนงาน:** Start server
 **ทำอย่างไร:**
 - ใน `src/main.rs` หรือ `src/commands/serve.rs`:
   - load config
@@ -1114,7 +1111,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Server start และ listen on configured port
 
 ### 13.2 Implement `connect` command
-**ทำไป:** Connect to peer
+**แผนงาน:** Connect to peer
 **ทำอย่างไร:**
 - accept `<DEVICE_ID>` argument
 - accept optional `--code <CODE>` flag
@@ -1127,7 +1124,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Connection established และ ready
 
 ### 13.3 Implement `cp` command
-**ทำไป:** Copy files
+**แผนงาน:** Copy files
 **ทำอย่างไร:**
 - accept `<SOURCE>` และ `<DEST>` arguments
 - require `--device <ID>` flag
@@ -1140,7 +1137,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Files transferred successfully
 
 ### 13.4 Implement `devices` command
-**ทำไป:** List paired devices
+**แผนงาน:** List paired devices
 **ทำอย่างไร:**
 - load device list จาก config/cache
 - accept `--format <FORMAT>` flag (json/table)
@@ -1155,7 +1152,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Show all paired devices
 
 ### 13.5 Add version และ help
-**ทำไป:** Show program info
+**แผนงาน:** Show program info
 **ทำอย่างไร:**
 - implement `--version` flag
 - show version จาก `Cargo.toml`
@@ -1170,7 +1167,7 @@ ci: fmt lint test audit
 ## Milestone 14: Testing
 
 ### 14.1 Write unit tests
-**ทำไป:** Test individual components
+**แผนงาน:** Test individual components
 **ทำอย่างไร:**
 - test error types
 - test frame parsing/building
@@ -1183,7 +1180,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** `cargo test` ผ่าน
 
 ### 14.2 Write integration tests
-**ทำไป:** Test component interactions
+**แผนงาน:** Test component interactions
 **ทำอย่างไร:**
 - test signaling flow
 - test peer connection flow
@@ -1195,7 +1192,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** End-to-end flows ทำงาน
 
 ### 14.3 Test cross-platform build
-**ทำไป:** Verify builds on multiple OS
+**แผนงาน:** Verify builds on multiple OS
 **ทำอย่างไร:**
 - build on Linux
 - build on Windows
@@ -1208,7 +1205,7 @@ ci: fmt lint test audit
 ## Milestone 15: Performance, Security & Release
 
 ### 15.1 Performance testing
-**ทำไป:** Measure performance
+**แผนงาน:** Measure performance
 **ทำอย่างไร:**
 - benchmark frame parsing
 - benchmark file transfer speed
@@ -1218,7 +1215,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Meets performance targets
 
 ### 15.2 Security audit
-**ทำไป:** Check for vulnerabilities
+**แผนงาน:** Check for vulnerabilities
 **ทำอย่างไร:**
 - review crypto implementation
 - check for buffer overflows
@@ -1229,7 +1226,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** No critical issues found
 
 ### 15.3 Write documentation
-**ทำไป:** Create user และ developer docs
+**แผนงาน:** Create user และ developer docs
 **ทำอย่างไร:**
 - write `README.md`
 - write `ARCHITECTURE.md`
@@ -1241,7 +1238,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** All docs written และ reviewed
 
 ### 15.4 Setup CI/CD
-**ทำไป:** Automate testing และ releases
+**แผนงาน:** Automate testing และ releases
 **ทำอย่างไร:**
 - create GitHub Actions workflows
 - test on every push
@@ -1251,7 +1248,7 @@ ci: fmt lint test audit
 **เสร็จเมื่อไร:** Automated builds และ tests ทำงาน
 
 ### 15.5 Create release binaries
-**ทำไป:** Package สำหรับ distribution
+**แผนงาน:** Package สำหรับ distribution
 **ทำอย่างไร:**
 - build static binaries
 - create installers ถ้าต้องการ

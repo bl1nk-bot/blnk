@@ -4,7 +4,6 @@
 
 เอกสารนี้อธิบาย API ภายในของ blnk Rust สำหรับการพอร์ตจาก bitbang-cli ต้นฉบับ โดยอิงจาก protocol และ module structure ที่ออกแบบไว้
 API ในเอกสารนี้แบ่งเป็น:
-
 - CLI API
 - Signaling API
 - Peer API
@@ -13,6 +12,10 @@ API ในเอกสารนี้แบ่งเป็น:
 - Identity API
 - Protocol API
 - Utility API
+
+### 1.1 Contract Status
+
+เอกสารนี้เป็น **target API contract** สำหรับการ implement ไม่ใช่รายการของ public symbols ที่มีอยู่แล้วใน source tree ฟังก์ชันหรือ type ใดจะถือว่าใช้งานได้ก็ต่อเมื่อมี Rust implementation, error handling, tests และ protocol compatibility evidence รองรับ สถานะล่าสุดให้ดู [`docs/implementation-status.md`](implementation-status.md)
 
 ---
 
@@ -250,7 +253,7 @@ pub struct Identity { /* ... */ }
 
 ### Responsibilities
 - keypair management
-- uid/code generation
+- uid, user-visible pairing code และ persistent access_code generation
 - persistence
 - cryptographic ops
 
@@ -337,6 +340,7 @@ pub enum BlnkError { /* ... */ }
 - ทุก API ที่ล้มเหลวต้อง return `Result`
 - message ที่รับจาก network ต้อง validate ก่อนใช้งาน
 - protocol decode error ต้องไม่ทำให้ process crash
+- raw SWSP framing ต้องยึด 8-byte header contract ใน `specs/spec.md`
 - public API ควรมี docs ครบ
 - function ที่เกี่ยวกับ crypto ต้องระวัง side effects
 

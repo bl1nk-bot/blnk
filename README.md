@@ -48,9 +48,14 @@ blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-pe
 
 ## สถานะการพัฒนา
 
-[NOTE!] เอกสารนี้เป็นจุดเริ่มต้นของการพัฒนา โปรเจคยังอยู่ในระยะวางโครงสร้าง
+**สถานะปัจจุบัน: pre-foundation / ยังไม่พร้อมใช้งานจริง** โครงการมี architecture, protocol drafts และ CLI surface เป็นฐาน แต่ implementation หลักของ signaling, WebRTC, identity, pairing, session, stream handlers และ web integration ยังอยู่ใน roadmap การมีคำสั่ง CLI หรือ protobuf schema ไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
+
+ผลตรวจสอบล่าสุดและรายการงานที่ต้องทำอยู่ใน [`docs/implementation-status.md`](docs/implementation-status.md) ส่วนลำดับความสำคัญและกติกาแก้ความขัดแย้งของเอกสารอยู่ใน [`docs/plans/core-foundation.md`](docs/plans/core-foundation.md)
 
 ## Quick Start
+
+> **หมายเหตุ:** คำสั่งด้านล่างเป็น intended workflow ของโปรเจค ปัจจุบันต้องทำ foundation work ให้เสร็จก่อนจึงจะ build และ run ได้ครบตามที่เอกสารกำหนด
+
 
 ### สร้างโปรเจค
 
@@ -64,6 +69,17 @@ cd blnk
 ```bash
 cargo build
 ```
+
+สำหรับการตรวจสอบก่อนเปิด Pull Request ให้รันคำสั่งต่อไปนี้เมื่อ foundation build พร้อม:
+
+```bash
+cargo fmt --all -- --check
+cargo check --all-targets
+cargo test --all
+cargo clippy --all --all-targets -- -D warnings
+```
+
+> **หมายเหตุสถานะปัจจุบัน:** `cargo fmt` ผ่านบน Linux แล้ว แต่ `cargo check`, `cargo test` และ `cargo clippy` ยังเป็น intended/future gates ที่ไม่สามารถผ่านได้จนกว่าจะแก้ปัญหา scope ของ dependency `clap` ตามที่บันทึกไว้ใน [`docs/implementation-status.md`](docs/implementation-status.md) ดังนั้นอย่าถือว่าคำสั่งสามรายการหลังเป็น gate ที่ผ่านแล้วใน snapshot ปัจจุบัน
 
 ### run
 
