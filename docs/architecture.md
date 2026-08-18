@@ -10,6 +10,12 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - stream protocol เป็น abstraction สำหรับแต่ละ service
 - handler แต่ละประเภทแยกเป็น module ชัดเจน
 
+### 1.1 Architecture Status and Source of Truth
+
+เอกสารนี้เป็น **canonical architecture** สำหรับ module boundary, runtime model และ data flow ของ Rust implementation ส่วนสถานะว่า module ใด implement แล้วให้ยึด [`docs/implementation-status.md`](implementation-status.md) ไม่ใช่จากการที่ชื่อ module ปรากฏอยู่ในเอกสารหรือ schema
+
+เมื่อเอกสารขัดแย้งกัน ให้ใช้ลำดับ `docs/architecture.md` > `specs/spec.md` > `docs/api.md` > `STYLE.md` > `README.md` > `TODO.md` ตามที่ระบุใน foundation plan โดยการเปลี่ยน protocol semantics ต้องมี decision record และ compatibility test รองรับ
+
 ---
 
 ## 2. High-Level Components
@@ -37,16 +43,16 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 
 ### 2.3 Signaling Layer
 เชื่อมต่อกับ signaling server ผ่าน WebSocket
-+- register device
-+- request connection
-+- exchange offer/answer/candidate
-+- handle pairing and error messages
-+
-+### 2.3.1 mDNS Discovery
-+ทำ local discovery แบบ LAN โดยไม่พึ่ง signaling server เสมอไป
-+- announce service ผ่าน mDNS
-+- discover peer/device ในเครือข่ายเดียวกัน
-+- fallback ไป signaling server เมื่อ mDNS ไม่พอใช้
+- register device
+- request connection
+- exchange offer/answer/candidate
+- handle pairing and error messages
+
+### 2.3.1 mDNS Discovery
+ทำ local discovery แบบ LAN โดยไม่พึ่ง signaling server เสมอไป
+- announce service ผ่าน mDNS
+- discover peer/device ในเครือข่ายเดียวกัน
+- fallback ไป signaling server เมื่อ mDNS ไม่พอใช้
 
 ### 2.4 Peer Layer
 สร้างและจัดการ WebRTC peer connection
@@ -164,15 +170,15 @@ blnk-rust/
 ---
 
 ## 4. Data Flow
-+
-+### 4.0 mDNS Discovery Flow
-+
-+1. announce service บน LAN ผ่าน mDNS
-+2. discover peer ที่มี service ที่คล้ายกัน
-+3. กรอง/validate candidate
-+4. ถ้าไม่เจอ => fallback ไป signaling server
-+
-+### 4.1 Device Start Flow
+
+### 4.0 mDNS Discovery Flow
+
+1. announce service บน LAN ผ่าน mDNS
+2. discover peer ที่มี service ที่คล้ายกัน
+3. กรอง/validate candidate
+4. ถ้าไม่เจอ => fallback ไป signaling server
+
+### 4.1 Device Start Flow
 
 1. CLI start `serve`
 2. load config

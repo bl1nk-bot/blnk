@@ -135,7 +135,7 @@ blnk Rust เป็น CLI tool สำหรับ remote access แบบ peer-
 ### 5.4 Identity Protocol
 - ใช้ RSA 2048-bit key pair
 - identity ต้อง persist ได้
-- code และ uid ต้อง generate ได้ตรงตาม format
+- uid และ user-visible pairing code (6 หลัก) ต้อง generate ได้ตรงตาม format; persistent access credential ถ้ามีต้องใช้ชื่อ `access_code` แยกต่างหาก
 - ต้องรองรับ sign/decrypt ตามที่ protocol ระบุ
 
 ---
@@ -186,3 +186,27 @@ blnk Rust เป็น CLI tool สำหรับ remote access แบบ peer-
 - ต้องใช้ Rust ecosystem ให้มากที่สุด
 - service worker ไม่อยู่ใน scope ของ Rust backend
 - ต้องเตรียมความพร้อมสำหรับ integration กับ frontend เดิม
+
+---
+
+## 9. Protocol Decisions and Open Risks
+
+ส่วนนี้เป็น decision record ที่ใช้ปิดความกำกวมก่อนเริ่มเขียน codec และ interoperability tests โดยไม่เปลี่ยน protocol semantics ของต้นฉบับ
+
+### 9.1 Pairing Code Naming
+
+**Pairing code ที่แสดงต่อผู้ใช้ต้องเป็นตัวเลข 6 หลัก** ตาม functional requirement ในเอกสารนี้ หาก implementation ต้องมี credential ภายใน 64-bit หรือ 11 ตัวอักษร base64url ให้ใช้ชื่อ `access_code` และแยก lifecycle จาก pairing code อย่างชัดเจน ห้ามใช้ field ชื่อ `code` แทนค่าทั้งสองประเภท
+
+### 9.2 SWSP Wire Format
+
+SWSP raw frame ใช้ header ขนาด 8 bytes ตามลำดับ little-endian ดังนี้: `stream_id` 4 bytes, `flags` 2 bytes และ `length` 2 bytes ตามด้วย payload ความยาว `length` ส่วน protobuf messages ใน `proto/swsp.proto` ใช้เป็น schema/control representation และยังไม่ถือว่าเป็น raw wire encoder จนกว่าจะมี compatibility fixture ยืนยัน
+
+การ implement ต้องกำหนด max frame size, fragmentation/incomplete-frame behavior, invalid flag handling และ round-trip fixtures ก่อนผูกเข้ากับ WebRTC data channel
+
+### 9.3 Rust Toolchain and Versioning
+
+ใช้ Rust 2024 ตาม foundation plan และให้ `Cargo.toml`, `rust-toolchain.toml` หรือ container configuration เป็น source of truth เดียวกัน ข้อความ edition 2021 หรือ version ที่อยู่ใน roadmap เก่าให้ถือเป็น historical planning note จนกว่าจะมีการแก้ให้ตรงกับ manifest จริง
+
+### 9.4 Implementation Status
+
+ข้อกำหนดในเอกสารนี้อธิบาย target behavior ไม่ใช่หลักฐานว่า feature ถูก implement แล้ว ให้ตรวจสถานะจาก [`docs/implementation-status.md`](../docs/implementation-status.md) และใช้ acceptance criteria ในหมวด 7 เป็น release gate

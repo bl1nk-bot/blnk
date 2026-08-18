@@ -1,15 +1,19 @@
 # blnk Project Blueprint
 
-> Generated from `spec.md`, `architecture.md`, `api.md`, `TODO.md`, `README.md`
+> Generated from `spec.md`, `architecture.md`, `api.md`, `TODO.md`, `README.md` และตรวจสถานะจาก `implementation-status.md`
 
 ---
+
+## 0. Documentation and Implementation Status
+
+This blueprint describes the target product and module behavior. It does not assert that the corresponding Rust modules already exist. For readiness, build results, known risks and acceptance gates, see [`implementation-status.md`](implementation-status.md).
 
 ## 1. Product Voice Card
 
 **Name:** blnk Rust  
 **Type:** Remote access multitool (peer-to-peer via WebRTC)  
 **Platform:** CLI binary (Linux / Windows / Android)  
-**Auth:** Optional PIN + pairing code (6-digit)  
+**Auth:** Optional PIN + user-visible pairing code (6-digit); persistent `access_code` is separate if required by the original protocol
 **Transport:** WebRTC data channel over signaling server  
 **Discovery:** mDNS (LAN) + signaling server (WAN)  
 **Output:** Single static binary, async-first, memory-safe  
@@ -56,15 +60,15 @@
 
 ### 2.7 Protocol Layer
 - **Signaling schema:** JSON/protobuf-compatible
-- **SWSP frame:** length-prefixed, max SCTP-safe size
-- **Pairing:** commit-reveal, nonce challenge, SAS computation
+- **SWSP frame:** 8-byte little-endian header (`stream_id` 4 bytes, `flags` 2 bytes, `length` 2 bytes) followed by payload; max SCTP-safe size
+- **Pairing:** commit-reveal, nonce challenge, SAS computation; user-visible pairing code is 6 digits
 - **Control:** Connect, AuthRequired, Auth, AuthResult, Ready, Error
 
 ### 2.8 Identity Layer
 - **Keys:** RSA 2048-bit
 - **Persistence:** file-based identity store
 - **Operations:** generate, load, save, sign, decrypt
-- **Outputs:** UID, 6-digit pairing code
+- **Outputs:** UID, 6-digit pairing code; persistent access credential must be named separately as `access_code`
 
 ### 2.9 Web/HTTP Layer
 - **Server:** `axum`
