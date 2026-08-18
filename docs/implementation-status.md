@@ -1,11 +1,11 @@
 # Implementation Status and Readiness
 
-**ตรวจสอบฐาน:** branch `main` ณ commit `a80f483`
-**สถานะเอกสารฉบับนี้:** เป็น snapshot สำหรับการวางแผน ไม่ใช่การประกาศว่า feature เสร็จแล้ว
+**ตรวจสอบฐาน:** branch `main` ณ commit `ac5aa2d` และ foundation implementation ในชุดงาน Issue #5
+**สถานะเอกสารฉบับนี้:** foundation อยู่ในสถานะ runnable เมื่อชุดงานนี้ถูกรวม; protocol capabilities และ production readiness ยังไม่เสร็จ
 
 ## Executive Summary
 
-blnk Rust **ทำได้ตามสถาปัตยกรรมและข้อกำหนดในเชิง feasibility** แต่ implementation ปัจจุบันยังอยู่ในช่วง **pre-foundation** และยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลักยังต้องพัฒนาอีกหลายชั้น ได้แก่ signaling, WebRTC peer, identity, pairing, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ tests [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนาอีกหลายชั้น ได้แก่ signaling, WebRTC peer, identity persistence/pairing, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ tests [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -16,16 +16,16 @@ blnk Rust **ทำได้ตามสถาปัตยกรรมและ�
 | CLI surface | มี `serve`, `connect`, `cp`, `devices`, `version` ใน `src/main.rs` แต่ handler ยังเป็น stub output [3] | Not implemented |
 | Architecture | มี module layout, data flow, runtime model, security และ testing principles [4] | Design ready |
 | Protocol design | มี `.proto` สำหรับ signaling, identity, pairing, control, stream และ SWSP [5] | Schema draft |
-| Library foundation | ยังไม่มี `src/lib.rs`, module tree ตาม architecture หรือ typed error implementation [4] [6] | Not started |
-| Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Blocked |
-| Build | `cargo fmt --all -- --check` ผ่าน; `cargo check`, `cargo test` และ `cargo clippy` ยังล้มเหลวจากการ resolve `clap` บน Unix เนื่องจาก manifest dependency scope [7] | Failing |
+| Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader, identity boundary และ explicit CLI placeholders [4] [6] | Implemented in foundation |
+| Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Deferred |
+| Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
 | CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
-| Tests | ยังไม่มี integration test suite และยังไม่มีหลักฐาน protocol interoperability | Not started |
+| Tests | มี unit tests สำหรับ config และ identity; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation coverage only |
 | Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
 
 ## Acceptance Gates
 
-โครงการจะเลื่อนจาก pre-foundation ไปยังสถานะ runnable foundation ได้เมื่อ `src/lib.rs`, error/config/CLI wiring, identity boundary และ test harness ถูกสร้างขึ้น และคำสั่งต่อไปนี้ผ่านบน Linux:
+โครงการผ่าน gate ของ runnable foundation แล้วเมื่อ `src/lib.rs`, error/config/CLI wiring, identity boundary และ test harness ถูกสร้างขึ้น และคำสั่งต่อไปนี้ผ่านบน Linux:
 
 ```bash
 cargo fmt --all -- --check
@@ -60,7 +60,7 @@ cargo clippy --all --all-targets -- -D warnings
 
 | ลำดับ | งาน | Definition of done |
 |---:|---|---|
-| 1 | แก้ dependency scope และสร้าง library/build foundation | คำสั่ง verification ทั้งสี่ผ่านบน Linux |
+| 1 | แก้ dependency scope และสร้าง library/build foundation | **ผ่านใน Issue #5:** คำสั่ง verification ทั้งสี่ผ่านบน Linux |
 | 2 | เพิ่ม `build.rs`/protobuf generation หรือบันทึกเหตุผลที่เลือก hand-written codec | generation deterministic และมี compile test |
 | 3 | เพิ่ม typed errors, logging, config และ CLI routing | CLI เรียก business logic จริง ไม่มี stub output |
 | 4 | Implement identity และ pairing | มี test vectors สำหรับ generate/load/save/sign/decrypt/commit-reveal/SAS |
