@@ -1,11 +1,11 @@
 # Implementation Status and Readiness
 
-**ตรวจสอบฐาน:** branch งานนี้ต่อจาก foundation implementation ใน Issue #5 และ identity/pairing primitives ใน Issue #7
-**สถานะเอกสารฉบับนี้:** foundation runnable, identity/pairing primitives และ SWSP raw frame codec ถูก implement ใน dependency branches แล้ว; signaling/WebRTC integration และ production readiness ยังไม่เสร็จ
+**ตรวจสอบฐาน:** branch งานนี้ต่อจาก foundation implementation ใน Issue #5, identity/pairing primitives ใน Issue #7 และ SWSP raw frame codec ใน Issue #9
+**สถานะเอกสารฉบับนี้:** foundation runnable, identity/pairing primitives, SWSP raw frame codec และ transport-independent signaling/session/stream boundaries ถูก implement ใน dependency branches แล้ว; WebRTC integration, concrete handlers และ production readiness ยังไม่เสร็จ
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives ขณะที่ Issue #9 เพิ่ม SWSP raw frame codec ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา signaling, WebRTC peer/data-channel integration, session/auth, stream handlers, web integration, cross-platform adapters และ interoperability tests [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives, Issue #9 เพิ่ม SWSP raw frame codec และ Issue #11 เพิ่ม transport-independent signaling/session/stream boundaries ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา real signaling transport, WebRTC peer/data-channel integration, protobuf/interoperability fixtures, stream handlers, web integration และ cross-platform adapters [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -19,10 +19,13 @@ blnk Rust **มี runnable foundation ตามสถาปัตยกรร�
 | Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader และ explicit CLI placeholders [4] [6] | Implemented in foundation |
 | Identity and pairing | มี RSA 2048 identity generate/load/save, sign/verify, OAEP encrypt/decrypt, 6-digit `pairing_code`, `access_code`, nonce, commit-reveal และ provisional SAS ใน Issue #7 branch | Implemented; integration/fixture pending |
 | SWSP codec | มี typed flags, canonical 8-byte little-endian header, max-payload enforcement, incomplete-frame handling และ round-trip/negative tests ใน Issue #9; ยังไม่มี upstream interoperability fixture หรือ WebRTC integration | Implemented; interoperability pending |
+| Signaling boundary | Issue #11 มี typed register/request/offer/answer/candidate/pairing/error messages และ protocol-version validation แต่ยังไม่มี WebSocket transport หรือ protobuf bindings | Boundary implemented; transport/fixture pending |
+| Session/auth | Issue #11 มี explicit connecting/authenticating/ready/closed state machine, PIN retry/delay policy, typed control messages และ cleanup on terminal failure | Foundation implemented; integration pending |
+| Stream registry | Issue #11 มี non-zero stream ID allocation, lifecycle validation, counters และ cleanup แต่ยังไม่มี shell/file/HTTP/TCP/WebSocket handlers | Registry implemented; handlers pending |
 | Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Deferred |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
 | CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
-| Tests | มี unit tests สำหรับ config, identity และ pairing primitives; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation/protocol-boundary coverage only |
+| Tests | มี unit tests สำหรับ config, identity, pairing, SWSP, signaling validation, session/auth lifecycle และ stream registry; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation/protocol-boundary coverage |
 | Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
 
 ## Acceptance Gates
@@ -68,8 +71,8 @@ cargo clippy --all --all-targets -- -D warnings
 | 3 | เพิ่ม typed errors, logging, config และ CLI routing | CLI เรียก business logic จริง ไม่มี stub output |
 | 4 | Implement identity และ pairing | **อยู่ใน Issue #7:** primitives และ unit tests ผ่าน; เหลือ interoperability fixture และ integration กับ session/signaling |
 | 5 | Implement SWSP/control codec | **อยู่ใน Issue #9:** round-trip, invalid frame, incomplete-frame และ max-size tests ผ่าน; เหลือ upstream interoperability fixture และการเชื่อมกับ data channel |
-| 6 | Implement signaling และ WebRTC peer/data channel | เชื่อมกับ client/browser เดิมได้จริง |
-| 7 | Implement session/auth และ stream registry | lifecycle, PIN retry/delay และ cleanup มี integration tests |
+| 6 | Implement signaling และ WebRTC peer/data channel | เชื่อม typed signaling boundary กับ real transport/client/browser เดิมได้จริง |
+| 7 | Implement session/auth และ stream registry | **อยู่ใน Issue #11:** typed lifecycle, PIN retry/delay และ cleanup unit tests ผ่าน; เหลือ transport/integration tests |
 | 8 | เพิ่ม shell/file/HTTP/TCP/WebSocket, mDNS และ QR | แต่ละ capability มี unit/integration coverage และ platform notes |
 | 9 | ทำ cross-platform, security, performance และ release validation | CI matrix ผ่าน, audit ไม่มี critical issue, artifacts ใช้งานได้ |
 

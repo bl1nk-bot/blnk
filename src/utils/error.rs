@@ -17,6 +17,9 @@ pub enum BlnkError {
     #[error("session error: {0}")]
     Session(String),
 
+    #[error("stream error: {0}")]
+    Stream(String),
+
     #[error("protocol error: {0}")]
     Protocol(String),
 
