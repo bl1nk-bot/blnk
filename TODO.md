@@ -827,7 +827,7 @@ ci: fmt lint test audit
   - `Answer { peer_id: String, sdp: String }`
   - `IceCandidate { peer_id: String, candidate: String }`
   - `PairingRequest { device_id: String }`
-  - `PairingCode { code: String }`
+  - `PairingCode { pairing_code: String }`
   - `Error { code: u32, message: String }`
 - implement serialization/deserialization
 **ได้อะไร:** Signaling message definitions
