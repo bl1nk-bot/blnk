@@ -8,6 +8,14 @@ use std::collections::BTreeMap;
 
 use crate::utils::error::BlnkError;
 
+pub mod transport;
+
+pub use transport::{
+    DEFAULT_MAX_MESSAGE_SIZE, FixtureConfig, FixtureSnapshot, LocalFixtureServer, ReconnectPolicy,
+    SignalingClient, SignalingConnection, SignalingMessage, TransportResult, decode_message,
+    encode_message,
+};
+
 pub const PROTOCOL_VERSION: i32 = 3;
 pub type SignalingResult<T> = Result<T, BlnkError>;
 

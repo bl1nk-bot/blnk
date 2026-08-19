@@ -1,11 +1,11 @@
 # Implementation Status and Readiness
 
 **ตรวจสอบฐาน:** branch งานนี้ต่อจาก foundation implementation ใน Issue #5, identity/pairing primitives ใน Issue #7 และ SWSP raw frame codec ใน Issue #9
-**สถานะเอกสารฉบับนี้:** foundation runnable, identity/pairing primitives, SWSP raw frame codec, transport-independent signaling/session/stream boundaries และ deterministic protobuf generation boundary ถูก implement ใน dependency branches แล้ว; WebRTC integration, concrete handlers, interoperability fixtures และ production readiness ยังไม่เสร็จ
+**สถานะเอกสารฉบับนี้:** foundation runnable, identity/pairing primitives, SWSP raw frame codec, typed signaling/session/stream boundaries, deterministic protobuf generation boundary และ local WebSocket signaling transport ถูก implement ใน dependency branches แล้ว; WebRTC integration, concrete handlers, external interoperability fixtures และ production readiness ยังไม่เสร็จ
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives, Issue #9 เพิ่ม SWSP raw frame codec, Issue #11 เพิ่ม transport-independent signaling/session/stream boundaries และ Issue #13 เพิ่ม deterministic protobuf generation boundary ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา real signaling transport, WebRTC peer/data-channel integration, protobuf interoperability fixtures, stream handlers, web integration และ cross-platform adapters [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives, Issue #9 เพิ่ม SWSP raw frame codec, Issue #11 เพิ่ม typed signaling/session/stream boundaries, Issue #13 เพิ่ม deterministic protobuf generation boundary และ Issue #33 เพิ่ม JSON-over-WebSocket transport กับ local loopback fixture ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา WebRTC peer/data-channel integration, protobuf หรือ external-provider interoperability fixtures, stream handlers, web integration และ cross-platform adapters [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -19,13 +19,13 @@ blnk Rust **มี runnable foundation ตามสถาปัตยกรร�
 | Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader และ explicit CLI placeholders [4] [6] | Implemented in foundation |
 | Identity and pairing | มี RSA 2048 identity generate/load/save, sign/verify, OAEP encrypt/decrypt, 6-digit `pairing_code`, `access_code`, nonce, commit-reveal และ provisional SAS ใน Issue #7 branch | Implemented; integration/fixture pending |
 | SWSP codec | มี typed flags, canonical 8-byte little-endian header, max-payload enforcement, incomplete-frame handling และ round-trip/negative tests ใน Issue #9; ยังไม่มี upstream interoperability fixture หรือ WebRTC integration | Implemented; interoperability pending |
-| Signaling boundary | Issue #11 มี typed register/request/offer/answer/candidate/pairing/error messages และ protocol-version validation; Issue #13 เพิ่ม generated protobuf bindings ใต้ namespace แยก แต่ยังไม่มี WebSocket transport หรือ compatibility fixtures | Boundary and generation implemented; transport/fixture pending |
+| Signaling boundary | Issue #11 มี typed register/request/offer/answer/candidate/pairing/error messages และ protocol-version validation; Issue #13 เพิ่ม generated protobuf bindings ใต้ namespace แยก; Issue #33 เพิ่ม JSON-over-WebSocket codec/client, message-size guard, close/error propagation, reconnect policy และ local loopback fixture tests | Local transport and fixture implemented; external interoperability pending |
 | Session/auth | Issue #11 มี explicit connecting/authenticating/ready/closed state machine, PIN retry/delay policy, typed control messages และ cleanup on terminal failure | Foundation implemented; integration pending |
 | Stream registry | Issue #11 มี non-zero stream ID allocation, lifecycle validation, counters และ cleanup แต่ยังไม่มี shell/file/HTTP/TCP/WebSocket handlers | Registry implemented; handlers pending |
 | Protobuf build | Issue #13 มี `build.rs`, vendored `protoc`, explicit schema input list และ generated modules ใต้ `src/proto_generated.rs` พร้อม encode/decode compile test [6] [7] [9] [10] | Implemented; interoperability pending |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
 | CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
-| Tests | มี unit tests สำหรับ config, identity, pairing, SWSP, signaling validation, session/auth lifecycle และ stream registry; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation/protocol-boundary coverage |
+| Tests | มี unit tests สำหรับ config, identity, pairing, SWSP, signaling validation, session/auth lifecycle และ stream registry; Issue #33 เพิ่ม deterministic request/response, wire-name mapping, malformed JSON, size limit, clean disconnect, reconnect และ typed fixture-error tests; ยังไม่มี external interoperability evidence | Foundation plus local transport coverage |
 | Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
 
 ## Acceptance Gates
@@ -52,6 +52,7 @@ cargo clippy --all --all-targets -- -D warnings
 | Persistent access credential | หากยังต้องมี credential ภายใน 64-bit ให้ใช้ชื่อ `access_code` แยกจาก pairing code และห้ามเรียกปนกันว่า `code` |
 | SWSP | `Frame` raw wire format เป็น header 8 bytes ตาม specification ของ SWSP: `stream_id` 4 bytes, `flags` 2 bytes, `length` 2 bytes, ตามด้วย payload; protobuf ใช้เป็น schema/control representation เท่านั้นจนกว่าจะมี compatibility fixture ยืนยันอย่างอื่น |
 | Protocol compatibility | ห้ามเปลี่ยน signaling, pairing, identity หรือ SWSP semantics เพื่อให้ implement ง่ายขึ้น; หากจำเป็นต้องเปลี่ยนต้องมี decision record และ fixture จากต้นฉบับ |
+| Signaling transport scope | Issue #33 ใช้ JSON text frames บน WebSocket; adapter แปลงชื่อภายใน `message_type`/`pairing_code` เป็น wire schema `type`/`code`; local fixture พิสูจน์เฉพาะ local request/response และ failure handling ไม่ใช่หลักฐาน original-client หรือ provider interoperability |
 | Pairing SAS | Issue #7 ใช้ deterministic provisional construction จาก nonce และ DTLS fingerprints; ต้องยืนยัน exact upstream encoding ด้วย interoperability fixture ก่อนผูกเข้ากับ client/server จริง |
 | Service worker | ไม่สร้าง service worker ใหม่ใน Rust; frontend/service worker เดิมอยู่นอก scope ตาม specification |
 | Platform scope | รองรับ Linux, Windows และ Android; macOS อยู่นอก scope |
