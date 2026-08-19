@@ -26,7 +26,7 @@ pub struct PairReveal {
     pub nonce_c: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairCredentials {
     pub message_type: String,
     pub uid: String,
