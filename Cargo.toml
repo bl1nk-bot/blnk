@@ -9,6 +9,14 @@ readme = "README.md"
 homepage = "https://github.com/bl1nk-bot/blnk"
 repository = "https://github.com/bl1nk-bot/blnk"
 
+[lib]
+name = "blnk"
+path = "src/lib.rs"
+
+[[bin]]
+name = "blnk"
+path = "src/main.rs"
+
 [dependencies]
 # Core
 tokio = { version = "1.53.1", features = ["full"] }
@@ -33,13 +41,6 @@ reqwest = { version = "0.13.4", features = ["json"] }
 hyper = "1.11.0"
 http = "1.5.0"
 
-# System
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
-
 # CLI & Config
 clap = { version = "4.0", features = ["derive"] }
 config = "0.15.25"
@@ -55,10 +56,17 @@ uuid = { version = "1.0", features = ["v4"] }
 qrcode = "0.14.1"
 mdns = "3.0.0"
 url = "2.0"
+getrandom = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.11"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
 
 [profile.release]
 opt-level = 3

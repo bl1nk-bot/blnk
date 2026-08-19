@@ -70,7 +70,7 @@ cd blnk
 cargo build
 ```
 
-สำหรับการตรวจสอบก่อนเปิด Pull Request ให้รันคำสั่งต่อไปนี้เมื่อ foundation build พร้อม:
+สำหรับการตรวจสอบก่อนเปิด Pull Request ให้รันคำสั่ง foundation verification ต่อไปนี้:
 
 ```bash
 cargo fmt --all -- --check
@@ -79,7 +79,7 @@ cargo test --all
 cargo clippy --all --all-targets -- -D warnings
 ```
 
-> **หมายเหตุสถานะปัจจุบัน:** `cargo fmt` ผ่านบน Linux แล้ว แต่ `cargo check`, `cargo test` และ `cargo clippy` ยังเป็น intended/future gates ที่ไม่สามารถผ่านได้จนกว่าจะแก้ปัญหา scope ของ dependency `clap` ตามที่บันทึกไว้ใน [`docs/implementation-status.md`](docs/implementation-status.md) ดังนั้นอย่าถือว่าคำสั่งสามรายการหลังเป็น gate ที่ผ่านแล้วใน snapshot ปัจจุบัน
+บน Linux คำสั่งทั้งสี่ผ่านสำหรับ runnable foundation ในปัจจุบัน ส่วนการผ่าน acceptance ของ protocol และการใช้งานจริงยังต้องมี compatibility, integration และ cross-platform evidence ตาม [`docs/implementation-status.md`](docs/implementation-status.md)
 
 ### run
 
