@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
@@ -37,12 +38,19 @@ struct PersistedIdentity {
     access_code: String,
 }
 
+/// Selects the on-disk representation for an identity file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityFormat {
+    Json,
+    Pem,
+}
+
 impl Identity {
     pub fn generate() -> Result<Self, BlnkError> {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS)
             .map_err(|error| BlnkError::Identity(format!("generate RSA key: {error}")))?;
-        let uid = generate_uid()?;
+        let uid = derive_uid(&private_key)?;
         let pairing_code = generate_pairing_code()?;
         let access_code = generate_access_code()?;
 
@@ -99,14 +107,86 @@ impl Identity {
         })
     }
 
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<(), BlnkError> {
+    /// Loads either the existing JSON representation or the upstream two-block PEM representation.
+    ///
+    /// This method only detects the representation; it does not rewrite or migrate the file.
+    pub fn load_auto(path: impl AsRef<Path>) -> Result<Self, BlnkError> {
         let path = path.as_ref();
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            ensure_private_parent(parent)?;
+        let contents = fs::read(path)?;
+        if looks_like_pem(&contents) {
+            Self::load_pem(&contents)
+        } else {
+            Self::load(path)
+        }
+    }
+
+    /// Loads the two-block PEM representation used by the upstream BitBang client.
+    ///
+    /// This explicit boundary is intentionally separate from [`Self::load`]. The
+    /// default JSON persistence remains unchanged; PEM persistence is opt-in and
+    /// no file is silently migrated.
+    pub fn load_pem(contents: &[u8]) -> Result<Self, BlnkError> {
+        let text = std::str::from_utf8(contents)
+            .map_err(|error| BlnkError::Identity(format!("decode identity PEM: {error}")))?;
+        let private_key_der = decode_pem_block(text, "PRIVATE KEY")?;
+        let access_code_bytes = decode_pem_block(text, "BITBANG ACCESS CODE")?;
+        if access_code_bytes.len() != ACCESS_CODE_BYTES {
+            return Err(BlnkError::Identity(format!(
+                "access-code block has wrong length: {} (want {ACCESS_CODE_BYTES})",
+                access_code_bytes.len()
+            )));
         }
 
+        let private_key = RsaPrivateKey::from_pkcs8_der(&private_key_der)
+            .map_err(|error| BlnkError::Identity(format!("decode private key: {error}")))?;
+        validate_rsa_key_size(&private_key)?;
+        let uid = derive_uid(&private_key)?;
+        let access_code = URL_SAFE_NO_PAD.encode(access_code_bytes);
+
+        Ok(Self {
+            private_key,
+            uid,
+            pairing_code: generate_pairing_code()?,
+            access_code,
+        })
+    }
+
+    /// Encodes the upstream-compatible two-block PEM representation.
+    pub fn save_pem(&self) -> Result<Vec<u8>, BlnkError> {
+        validate_rsa_key_size(&self.private_key)?;
+        let derived_uid = derive_uid(&self.private_key)?;
+        if self.uid != derived_uid {
+            return Err(BlnkError::Identity(
+                "cannot export a legacy identity to PEM because its UID is not key-derived"
+                    .to_owned(),
+            ));
+        }
+
+        let private_key_der = self
+            .private_key
+            .to_pkcs8_der()
+            .map_err(|error| BlnkError::Identity(format!("encode private key: {error}")))?;
+        let access_code_bytes = URL_SAFE_NO_PAD
+            .decode(self.access_code.as_bytes())
+            .map_err(|error| BlnkError::Identity(format!("decode access code: {error}")))?;
+        if access_code_bytes.len() != ACCESS_CODE_BYTES {
+            return Err(BlnkError::Identity(format!(
+                "access code has wrong length: {} (want {ACCESS_CODE_BYTES})",
+                access_code_bytes.len()
+            )));
+        }
+
+        let mut output = Vec::new();
+        output.extend_from_slice(
+            encode_pem_block("PRIVATE KEY", private_key_der.as_bytes()).as_bytes(),
+        );
+        output.extend_from_slice(
+            encode_pem_block("BITBANG ACCESS CODE", &access_code_bytes).as_bytes(),
+        );
+        Ok(output)
+    }
+
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<(), BlnkError> {
         let private_key_pem = self
             .private_key
             .to_pkcs8_pem(LineEnding::LF)
@@ -120,24 +200,21 @@ impl Identity {
         })
         .map_err(|error| BlnkError::Identity(format!("encode identity file: {error}")))?;
 
-        let temporary_path = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
-        let write_result = (|| -> Result<(), BlnkError> {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temporary_path)?;
-            set_private_permissions(&file)?;
-            file.write_all(&payload)?;
-            file.sync_all()?;
-            replace_file(&temporary_path, path)?;
-            Ok(())
-        })();
+        write_atomic(path.as_ref(), &payload)
+    }
 
-        if write_result.is_err() {
-            let _ = fs::remove_file(&temporary_path);
+    /// Saves the identity using an explicit JSON or upstream-compatible PEM representation.
+    pub fn save_as(&self, path: impl AsRef<Path>, format: IdentityFormat) -> Result<(), BlnkError> {
+        match format {
+            IdentityFormat::Json => self.save(path),
+            IdentityFormat::Pem => self.save_pem_file(path),
         }
+    }
 
-        write_result
+    /// Saves the upstream-compatible two-block PEM representation atomically to a file.
+    pub fn save_pem_file(&self, path: impl AsRef<Path>) -> Result<(), BlnkError> {
+        let payload = self.save_pem()?;
+        write_atomic(path.as_ref(), &payload)
     }
 
     pub fn uid(&self) -> &str {
@@ -195,11 +272,96 @@ impl Identity {
     }
 }
 
+#[cfg(test)]
 fn generate_uid() -> Result<String, BlnkError> {
-    let mut bytes = [0_u8; UID_BYTES];
+    let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
         .map_err(|error| BlnkError::Identity(format!("generate uid: {error}")))?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
+}
+
+fn derive_uid(private_key: &RsaPrivateKey) -> Result<String, BlnkError> {
+    let public_key_der = private_key
+        .to_public_key()
+        .to_public_key_der()
+        .map_err(|error| BlnkError::Identity(format!("encode public key: {error}")))?;
+    let digest = Sha256::digest(public_key_der.as_ref());
+    Ok(URL_SAFE_NO_PAD.encode(&digest[..16]))
+}
+
+fn validate_rsa_key_size(private_key: &RsaPrivateKey) -> Result<(), BlnkError> {
+    if private_key.n().bits() != RSA_BITS {
+        return Err(BlnkError::Identity(format!(
+            "identity key must be exactly {RSA_BITS} bits"
+        )));
+    }
+    Ok(())
+}
+
+fn looks_like_pem(contents: &[u8]) -> bool {
+    std::str::from_utf8(contents)
+        .map(|text| text.trim_start().starts_with("-----BEGIN "))
+        .unwrap_or(false)
+}
+
+fn write_atomic(path: &Path, payload: &[u8]) -> Result<(), BlnkError> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        ensure_private_parent(parent)?;
+    }
+
+    let temporary_path = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
+    let write_result = (|| -> Result<(), BlnkError> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)?;
+        set_private_permissions(&file)?;
+        file.write_all(payload)?;
+        file.sync_all()?;
+        replace_file(&temporary_path, path)?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+
+    write_result
+}
+
+fn decode_pem_block(contents: &str, block_type: &str) -> Result<Vec<u8>, BlnkError> {
+    let begin = format!("-----BEGIN {block_type}-----");
+    let end = format!("-----END {block_type}-----");
+    let begin_index = contents.find(&begin).ok_or_else(|| {
+        BlnkError::Identity(format!("identity PEM is missing {block_type} block"))
+    })?;
+    let body_start = begin_index + begin.len();
+    let end_index = contents[body_start..]
+        .find(&end)
+        .map(|index| body_start + index)
+        .ok_or_else(|| {
+            BlnkError::Identity(format!("identity PEM has unterminated {block_type} block"))
+        })?;
+    let encoded: String = contents[body_start..end_index]
+        .lines()
+        .map(str::trim)
+        .collect();
+    STANDARD
+        .decode(encoded.as_bytes())
+        .map_err(|error| BlnkError::Identity(format!("decode {block_type} block: {error}")))
+}
+
+fn encode_pem_block(block_type: &str, bytes: &[u8]) -> String {
+    let encoded = STANDARD.encode(bytes);
+    let mut output = format!("-----BEGIN {block_type}-----\n");
+    for chunk in encoded.as_bytes().chunks(64) {
+        output.push_str(std::str::from_utf8(chunk).expect("base64 output is ASCII"));
+        output.push('\n');
+    }
+    let _ = writeln!(output, "-----END {block_type}-----");
+    output
 }
 
 fn generate_pairing_code() -> Result<String, BlnkError> {
@@ -440,6 +602,20 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[test]
+    fn identity_save_pem_rejects_non_2048_bit_keys() {
+        let mut rng = OsRng;
+        let private_key = RsaPrivateKey::new(&mut rng, 1024).expect("test key should be generated");
+        let identity = Identity {
+            private_key,
+            uid: "2iuGA9MzJw9GJY35ilAiHA".to_owned(),
+            pairing_code: "123456".to_owned(),
+            access_code: "ASNFZ4mrze8".to_owned(),
+        };
+
+        assert!(identity.save_pem().is_err());
+    }
+
     #[cfg(unix)]
     #[test]
     fn identity_persistence_uses_private_modes() {
@@ -507,6 +683,88 @@ mod tests {
         }
         assert!(parent.is_dir());
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn upstream_pem_fixture_loads_with_derived_identity() {
+        let fixture = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/bitbang_identity.pem"
+        ));
+        let identity = Identity::load_pem(fixture).expect("upstream PEM fixture should load");
+
+        assert_eq!(identity.access_code(), "ASNFZ4mrze8");
+        assert_eq!(identity.uid(), "2iuGA9MzJw9GJY35ilAiHA");
+        assert_eq!(identity.uid().len(), 22);
+        assert_eq!(identity.pairing_code().len(), 6);
+        assert!(identity.public_key_b64().is_ok());
+    }
+
+    #[test]
+    fn upstream_pem_round_trips_without_losing_access_code() {
+        let fixture = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/bitbang_identity.pem"
+        ));
+        let identity = Identity::load_pem(fixture).expect("upstream PEM fixture should load");
+        let encoded = identity.save_pem().expect("identity should encode as PEM");
+        let reloaded = Identity::load_pem(&encoded).expect("encoded PEM should reload");
+
+        assert_eq!(identity.access_code(), reloaded.access_code());
+        assert_eq!(identity.uid(), reloaded.uid());
+        assert_eq!(
+            identity.public_key_b64().ok(),
+            reloaded.public_key_b64().ok()
+        );
+        assert!(encoded.starts_with(b"-----BEGIN PRIVATE KEY-----\n"));
+        assert!(
+            encoded
+                .windows(b"-----BEGIN BITBANG ACCESS CODE-----".len())
+                .any(|window| { window == b"-----BEGIN BITBANG ACCESS CODE-----" })
+        );
+    }
+
+    #[test]
+    fn identity_load_auto_detects_json_and_pem() {
+        let (root, json_path) = temporary_identity_path();
+        let identity = Identity::generate().expect("identity generation should succeed");
+        identity
+            .save_as(&json_path, IdentityFormat::Json)
+            .expect("JSON identity should save");
+        let json_loaded = Identity::load_auto(&json_path).expect("JSON identity should load");
+        assert_eq!(identity.uid(), json_loaded.uid());
+        assert_eq!(identity.pairing_code(), json_loaded.pairing_code());
+        assert_eq!(identity.access_code(), json_loaded.access_code());
+
+        let pem_path = root.join("nested").join("identity.pem");
+        identity
+            .save_as(&pem_path, IdentityFormat::Pem)
+            .expect("PEM identity should save");
+        let pem_loaded = Identity::load_auto(&pem_path).expect("PEM identity should load");
+        let derived_uid = derive_uid(&identity.private_key).expect("UID should derive");
+        assert_eq!(derived_uid, pem_loaded.uid());
+        assert_eq!(identity.access_code(), pem_loaded.access_code());
+        assert_eq!(
+            identity.public_key_b64().ok(),
+            pem_loaded.public_key_b64().ok()
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn upstream_pem_rejects_wrong_access_code_length() {
+        let fixture = include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/bitbang_identity.pem"
+        ));
+        let fixture = String::from_utf8(fixture.to_vec()).expect("fixture should be UTF-8");
+        let invalid = fixture.replace("ASNFZ4mrze8=", "AQ==");
+
+        let error = match Identity::load_pem(invalid.as_bytes()) {
+            Ok(_) => panic!("short code must fail"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("wrong length"));
     }
 
     #[test]
