@@ -34,7 +34,7 @@ pub struct PairCredentials {
     pub access_code: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SasInput {
     pub nonce_c: Vec<u8>,
     pub nonce_d: Vec<u8>,
