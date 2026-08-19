@@ -24,7 +24,7 @@ pub struct Identity {
     access_code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct PersistedIdentity {
     private_key_pem: String,
     uid: String,
