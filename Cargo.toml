@@ -58,6 +58,13 @@ mdns = "3.0.0"
 url = "2.0"
 getrandom = "0.3"
 
+# System
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
+
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.11"
