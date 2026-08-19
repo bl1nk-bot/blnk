@@ -77,6 +77,16 @@ impl Identity {
             ));
         }
 
+        if persisted.access_code.len() != 11
+            || !persisted.access_code.chars().all(|character| {
+                character.is_ascii_alphanumeric() || character == '-' || character == '_'
+            })
+        {
+            return Err(BlnkError::Identity(
+                "identity file contains an invalid access_code".to_owned(),
+            ));
+        }
+
         Ok(Self {
             private_key,
             uid: persisted.uid,
