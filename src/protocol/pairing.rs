@@ -14,7 +14,7 @@ pub struct PairCommit {
     pub commit: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairChallenge {
     pub message_type: String,
     pub nonce_d: Vec<u8>,
