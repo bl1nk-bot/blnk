@@ -112,8 +112,13 @@ pub fn compute_sas(input: &SasInput) -> Result<SasResult, BlnkError> {
     let mut digest = Sha256::new();
     digest.update(&input.nonce_c);
     digest.update(&input.nonce_d);
-    digest.update(input.local_fp.as_bytes());
-    digest.update(input.remote_fp.as_bytes());
+    let (first_fp, second_fp) = if input.local_fp <= input.remote_fp {
+        (&input.local_fp, &input.remote_fp)
+    } else {
+        (&input.remote_fp, &input.local_fp)
+    };
+    digest.update(first_fp.as_bytes());
+    digest.update(second_fp.as_bytes());
     let digest = digest.finalize();
     let value = u64::from_le_bytes(
         digest[..8]
