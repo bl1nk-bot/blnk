@@ -11,6 +11,15 @@ use crate::utils::error::BlnkError;
 pub const PROTOCOL_VERSION: i32 = 3;
 pub type SignalingResult<T> = Result<T, BlnkError>;
 
+fn require_message_type(actual: &str, expected: &str) -> SignalingResult<()> {
+    if actual != expected {
+        return Err(BlnkError::Signaling(format!(
+            "message_type must be {expected}, got {actual}"
+        )));
+    }
+    Ok(())
+}
+
 fn require_non_empty(value: &str, field: &str) -> SignalingResult<()> {
     if value.trim().is_empty() {
         return Err(BlnkError::Signaling(format!("{field} must not be empty")));
@@ -77,6 +86,7 @@ impl RegisterRequest {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "register")?;
         require_non_empty(&self.uid, "uid")?;
         require_non_empty(&self.public_key, "public_key")?;
         ProtocolVersion {
@@ -103,6 +113,7 @@ impl RegisterResponse {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "registered")?;
         validate_pairing_code(&self.pairing_code)
     }
 }
@@ -153,6 +164,7 @@ impl ConnectionRequest {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "request")?;
         require_non_empty(&self.client_id, "client_id")?;
         for server in &self.ice_servers {
             server.validate()?;
@@ -182,6 +194,7 @@ impl OfferMessage {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "offer")?;
         require_non_empty(&self.client_id, "client_id")?;
         require_non_empty(&self.sdp, "sdp")
     }
@@ -196,20 +209,26 @@ pub struct AnswerMessage {
 }
 
 impl AnswerMessage {
-    pub fn new(client_id: impl Into<String>, sdp: impl Into<String>) -> SignalingResult<Self> {
+    pub fn new(
+        client_id: impl Into<String>,
+        sdp: impl Into<String>,
+        encrypted_request: impl Into<String>,
+    ) -> SignalingResult<Self> {
         let message = Self {
             message_type: "answer".into(),
             client_id: client_id.into(),
             sdp: sdp.into(),
-            encrypted_request: String::new(),
+            encrypted_request: encrypted_request.into(),
         };
         message.validate()?;
         Ok(message)
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "answer")?;
         require_non_empty(&self.client_id, "client_id")?;
-        require_non_empty(&self.sdp, "sdp")
+        require_non_empty(&self.sdp, "sdp")?;
+        require_non_empty(&self.encrypted_request, "encrypted_request")
     }
 }
 
@@ -235,6 +254,7 @@ impl IceCandidateMessage {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "candidate")?;
         require_non_empty(&self.client_id, "client_id")?;
         if self.candidate.is_empty() {
             return Err(BlnkError::Signaling("candidate must not be empty".into()));
@@ -264,6 +284,7 @@ impl PairRequest {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "pair_request")?;
         require_non_empty(&self.client_id, "client_id")?;
         for server in &self.ice_servers {
             server.validate()?;
@@ -291,6 +312,7 @@ impl PairAnswer {
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "pair_answer")?;
         require_non_empty(&self.client_id, "client_id")?;
         require_non_empty(&self.sdp, "sdp")
     }
@@ -308,8 +330,13 @@ impl PairApproved {
             message_type: "pair_approved".into(),
             client_id: client_id.into(),
         };
-        require_non_empty(&message.client_id, "client_id")?;
+        message.validate()?;
         Ok(message)
+    }
+
+    pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "pair_approved")?;
+        require_non_empty(&self.client_id, "client_id")
     }
 }
 
@@ -327,9 +354,14 @@ impl PairRejected {
             client_id: client_id.into(),
             reason: reason.into(),
         };
-        require_non_empty(&message.client_id, "client_id")?;
-        require_non_empty(&message.reason, "reason")?;
+        message.validate()?;
         Ok(message)
+    }
+
+    pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "pair_rejected")?;
+        require_non_empty(&self.client_id, "client_id")?;
+        require_non_empty(&self.reason, "reason")
     }
 }
 
@@ -341,12 +373,17 @@ pub struct SignalingError {
 
 impl SignalingError {
     pub fn new(message: impl Into<String>) -> SignalingResult<Self> {
-        let message = message.into();
-        require_non_empty(&message, "message")?;
-        Ok(Self {
+        let message = Self {
             message_type: "error".into(),
-            message,
-        })
+            message: message.into(),
+        };
+        message.validate()?;
+        Ok(message)
+    }
+
+    pub fn validate(&self) -> SignalingResult<()> {
+        require_message_type(&self.message_type, "error")?;
+        require_non_empty(&self.message, "message")
     }
 }
 
@@ -373,6 +410,23 @@ mod tests {
         assert!(ConnectionRequest::new("").is_err());
         assert!(OfferMessage::new("client", "").is_err());
         assert!(IceCandidateMessage::new("client", BTreeMap::new()).is_err());
+    }
+
+    #[test]
+    fn signaling_messages_reject_wrong_discriminators() {
+        let mut request = RegisterRequest::new("uid", "key", true).expect("valid request");
+        request.message_type = "answer".into();
+        assert!(request.validate().is_err());
+
+        let mut response = RegisterResponse::new("123456").expect("valid response");
+        response.message_type = "register".into();
+        assert!(response.validate().is_err());
+    }
+
+    #[test]
+    fn answer_requires_encrypted_request() {
+        assert!(AnswerMessage::new("client", "sdp", "").is_err());
+        assert!(AnswerMessage::new("client", "sdp", "ciphertext").is_ok());
     }
 
     #[test]

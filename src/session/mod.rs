@@ -2,6 +2,8 @@
 
 use std::time::{Duration, Instant};
 
+use subtle::ConstantTimeEq;
+
 use crate::stream::{StreamEntry, StreamKind, StreamRegistry};
 use crate::utils::error::BlnkError;
 
@@ -186,7 +188,13 @@ pub struct Session {
 impl Session {
     pub fn new(config: SessionConfig, expected_pin: Option<String>) -> SessionResult<Self> {
         config.validate()?;
-        if config.pin_required && expected_pin.as_deref().unwrap_or_default().is_empty() {
+        if config.pin_required
+            && expected_pin
+                .as_deref()
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
             return Err(BlnkError::Session(
                 "expected PIN is required when PIN auth is enabled".into(),
             ));
@@ -210,7 +218,7 @@ impl Session {
         self.auth_attempts
     }
 
-    pub fn begin_authentication(&mut self) -> SessionResult<AuthRequiredMessage> {
+    pub fn begin_authentication(&mut self) -> SessionResult<Option<AuthRequiredMessage>> {
         if self.state != SessionState::Connecting {
             return Err(BlnkError::Session(format!(
                 "cannot begin authentication from {:?}",
@@ -219,12 +227,10 @@ impl Session {
         }
         if self.config.pin_required {
             self.state = SessionState::Authenticating;
-            Ok(AuthRequiredMessage::default())
+            Ok(Some(AuthRequiredMessage::default()))
         } else {
             self.state = SessionState::Ready;
-            Err(BlnkError::Session(
-                "authentication is disabled; session is already ready".into(),
-            ))
+            Ok(None)
         }
     }
 
@@ -241,7 +247,11 @@ impl Session {
             return Err(BlnkError::Session("PIN retry delay has not elapsed".into()));
         }
 
-        if self.expected_pin.as_deref() == Some(pin) {
+        if self
+            .expected_pin
+            .as_deref()
+            .is_some_and(|expected_pin| expected_pin.as_bytes().ct_eq(pin.as_bytes()).into())
+        {
             self.state = SessionState::Ready;
             self.next_auth_allowed_at = None;
             Ok(AuthOutcome::Ready)
@@ -251,7 +261,10 @@ impl Session {
                 self.close();
                 Ok(AuthOutcome::Closed)
             } else {
-                self.next_auth_allowed_at = Some(now + self.config.pin_fail_delay);
+                self.next_auth_allowed_at =
+                    Some(now.checked_add(self.config.pin_fail_delay).ok_or_else(|| {
+                        BlnkError::Session("PIN retry delay is too large".into())
+                    })?);
                 Ok(AuthOutcome::Rejected {
                     attempts_remaining: self.config.max_auth_fails - self.auth_attempts,
                 })
@@ -307,11 +320,53 @@ mod tests {
     use super::*;
 
     #[test]
+    fn whitespace_expected_pin_is_rejected() {
+        let result = Session::new(SessionConfig::default(), Some("   \t".into()));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn no_auth_transitions_to_ready_without_error() {
+        let config = SessionConfig {
+            pin_required: false,
+            ..SessionConfig::default()
+        };
+        let mut session = Session::new(config, None).expect("valid no-auth session");
+        assert_eq!(
+            session.begin_authentication().expect("no-auth transition"),
+            None
+        );
+        assert_eq!(session.state(), SessionState::Ready);
+    }
+
+    #[test]
+    fn oversized_retry_delay_returns_error_instead_of_panicking() {
+        let config = SessionConfig {
+            pin_fail_delay: Duration::MAX,
+            ..SessionConfig::default()
+        };
+        let mut session = Session::new(config, Some("123456".into())).expect("valid session");
+        session
+            .begin_authentication()
+            .expect("auth required")
+            .expect("PIN auth should be enabled");
+        let error = session
+            .authenticate("wrong", Instant::now())
+            .expect_err("unrepresentable retry delay should be rejected");
+        assert!(error.to_string().contains("PIN retry delay is too large"));
+    }
+
+    #[test]
     fn pin_auth_reaches_ready_and_tracks_stats() {
         let mut session =
             Session::new(SessionConfig::default(), Some("123456".into())).expect("valid session");
         assert_eq!(session.state(), SessionState::Connecting);
-        session.begin_authentication().expect("auth required");
+        assert!(
+            session
+                .begin_authentication()
+                .expect("auth required")
+                .is_some()
+        );
         assert_eq!(
             session
                 .authenticate("123456", Instant::now())
@@ -336,7 +391,12 @@ mod tests {
             ..SessionConfig::default()
         };
         let mut session = Session::new(config, Some("123456".into())).expect("valid session");
-        session.begin_authentication().expect("auth required");
+        assert!(
+            session
+                .begin_authentication()
+                .expect("auth required")
+                .is_some()
+        );
         let now = Instant::now();
         assert_eq!(
             session.authenticate("bad", now).expect("rejection"),
@@ -362,7 +422,12 @@ mod tests {
     fn retry_delay_blocks_immediate_retry() {
         let mut session =
             Session::new(SessionConfig::default(), Some("123456".into())).expect("valid session");
-        session.begin_authentication().expect("auth required");
+        assert!(
+            session
+                .begin_authentication()
+                .expect("auth required")
+                .is_some()
+        );
         let now = Instant::now();
         session.authenticate("bad", now).expect("rejection");
         assert!(session.authenticate("123456", now).is_err());
@@ -373,7 +438,12 @@ mod tests {
         let mut session =
             Session::new(SessionConfig::default(), Some("123456".into())).expect("valid session");
         assert!(session.open_stream(StreamKind::Shell, "/shell").is_err());
-        session.begin_authentication().expect("auth required");
+        assert!(
+            session
+                .begin_authentication()
+                .expect("auth required")
+                .is_some()
+        );
         assert!(session.begin_authentication().is_err());
     }
 }
