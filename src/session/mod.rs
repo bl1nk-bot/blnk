@@ -251,7 +251,11 @@ impl Session {
                 self.close();
                 Ok(AuthOutcome::Closed)
             } else {
-                self.next_auth_allowed_at = Some(now + self.config.pin_fail_delay);
+                self.next_auth_allowed_at = Some(
+                    now.checked_add(self.config.pin_fail_delay).ok_or_else(|| {
+                        BlnkError::Session("PIN retry delay is too large".into())
+                    })?,
+                );
                 Ok(AuthOutcome::Rejected {
                     attempts_remaining: self.config.max_auth_fails - self.auth_attempts,
                 })
