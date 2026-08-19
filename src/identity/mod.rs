@@ -1,3 +1,3 @@
 pub mod key;
 
-pub use key::Identity;
+pub use key::{Identity, IdentityFormat};
