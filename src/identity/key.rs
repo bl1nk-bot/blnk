@@ -1,12 +1,16 @@
 use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::Path;
+
+#[cfg(windows)]
+use std::os::windows::ffi::OsStrExt;
 
 use base64::Engine;
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use rsa::pkcs1v15::Pkcs1v15Sign;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::rand_core::OsRng;
+use rsa::traits::PublicKeyParts;
 use rsa::{Oaep, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -16,6 +20,7 @@ use crate::utils::error::BlnkError;
 const RSA_BITS: usize = 2048;
 const PAIRING_CODE_SPACE: u32 = 1_000_000;
 const ACCESS_CODE_BYTES: usize = 8;
+const UID_BYTES: usize = 16;
 
 pub struct Identity {
     private_key: RsaPrivateKey,
@@ -24,7 +29,7 @@ pub struct Identity {
     access_code: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct PersistedIdentity {
     private_key_pem: String,
     uid: String,
@@ -56,11 +61,14 @@ impl Identity {
         let private_key = RsaPrivateKey::from_pkcs8_pem(&persisted.private_key_pem)
             .map_err(|error| BlnkError::Identity(format!("decode private key: {error}")))?;
 
-        if persisted.uid.len() != 22
-            || !persisted.uid.chars().all(|character| {
-                character.is_ascii_alphanumeric() || character == '-' || character == '_'
-            })
-        {
+        if private_key.size() * 8 != RSA_BITS {
+            return Err(BlnkError::Identity(format!(
+                "identity file contains an RSA key with {} bits; expected {RSA_BITS}",
+                private_key.size() * 8
+            )));
+        }
+
+        if !is_valid_uid(&persisted.uid) {
             return Err(BlnkError::Identity(
                 "identity file contains an invalid uid".to_owned(),
             ));
@@ -77,6 +85,12 @@ impl Identity {
             ));
         }
 
+        if !is_valid_access_code(&persisted.access_code) {
+            return Err(BlnkError::Identity(
+                "identity file contains an invalid access_code".to_owned(),
+            ));
+        }
+
         Ok(Self {
             private_key,
             uid: persisted.uid,
@@ -90,7 +104,7 @@ impl Identity {
         if let Some(parent) = path.parent()
             && !parent.as_os_str().is_empty()
         {
-            fs::create_dir_all(parent)?;
+            ensure_private_parent(parent)?;
         }
 
         let private_key_pem = self
@@ -115,7 +129,7 @@ impl Identity {
             set_private_permissions(&file)?;
             file.write_all(&payload)?;
             file.sync_all()?;
-            fs::rename(&temporary_path, path)?;
+            replace_file(&temporary_path, path)?;
             Ok(())
         })();
 
@@ -182,7 +196,7 @@ impl Identity {
 }
 
 fn generate_uid() -> Result<String, BlnkError> {
-    let mut bytes = [0_u8; 16];
+    let mut bytes = [0_u8; UID_BYTES];
     getrandom::fill(&mut bytes)
         .map_err(|error| BlnkError::Identity(format!("generate uid: {error}")))?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
@@ -203,6 +217,70 @@ fn generate_access_code() -> Result<String, BlnkError> {
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
+fn is_valid_uid(value: &str) -> bool {
+    value.len() == 22
+        && URL_SAFE_NO_PAD
+            .decode(value)
+            .map(|bytes| bytes.len() == UID_BYTES)
+            .unwrap_or(false)
+}
+
+fn is_valid_access_code(value: &str) -> bool {
+    value.len() == 11
+        && URL_SAFE_NO_PAD
+            .decode(value)
+            .map(|bytes| bytes.len() == ACCESS_CODE_BYTES)
+            .unwrap_or(false)
+}
+
+fn ensure_private_parent(parent: &Path) -> Result<(), BlnkError> {
+    let mut missing = Vec::new();
+    let mut current = Some(parent);
+
+    while let Some(candidate) = current {
+        match fs::metadata(candidate) {
+            Ok(metadata) => {
+                if !metadata.is_dir() {
+                    return Err(BlnkError::Identity(format!(
+                        "identity parent is not a directory: {}",
+                        candidate.display()
+                    )));
+                }
+                break;
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                missing.push(candidate.to_path_buf());
+                current = candidate.parent();
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+
+    for directory in missing.iter().rev() {
+        fs::create_dir(directory)?;
+        set_private_directory_permissions(directory)?;
+    }
+
+    Ok(())
+}
+
+fn set_private_directory_permissions(path: &Path) -> Result<(), BlnkError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
+    }
+
+    #[cfg(windows)]
+    {
+        // Windows inherits the parent ACL for newly-created directories. The
+        // caller must keep the identity root under a user-private location.
+        let _ = path;
+    }
+
+    Ok(())
+}
+
 fn set_private_permissions(file: &std::fs::File) -> Result<(), BlnkError> {
     #[cfg(unix)]
     {
@@ -213,17 +291,70 @@ fn set_private_permissions(file: &std::fs::File) -> Result<(), BlnkError> {
     Ok(())
 }
 
+#[cfg(not(windows))]
+fn replace_file(temporary_path: &Path, path: &Path) -> io::Result<()> {
+    fs::rename(temporary_path, path)
+}
+
+#[cfg(windows)]
+fn replace_file(temporary_path: &Path, path: &Path) -> io::Result<()> {
+    use winapi::um::winbase::{MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW};
+
+    let temporary_wide: Vec<u16> = temporary_path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let path_wide: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let result = unsafe {
+        MoveFileExW(
+            temporary_wide.as_ptr(),
+            path_wide.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    };
+    if result == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    fn temporary_identity_path() -> std::path::PathBuf {
+    fn temporary_identity_path() -> (PathBuf, PathBuf) {
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("test clock should be after epoch")
             .as_nanos();
-        std::env::temp_dir().join(format!("blnk-identity-{suffix}.json"))
+        let root = std::env::temp_dir().join(format!("blnk-identity-{suffix}"));
+        (root.clone(), root.join("nested").join("identity.json"))
+    }
+
+    fn write_persisted(path: &Path, identity: &Identity, access_code: &str) {
+        let private_key_pem = identity
+            .private_key
+            .to_pkcs8_pem(LineEnding::LF)
+            .expect("private key should encode")
+            .to_string();
+        let payload = serde_json::to_vec(&PersistedIdentity {
+            private_key_pem,
+            uid: identity.uid.clone(),
+            pairing_code: identity.pairing_code.clone(),
+            access_code: access_code.to_owned(),
+        })
+        .expect("identity fixture should encode");
+        fs::create_dir_all(path.parent().expect("fixture has parent"))
+            .expect("fixture directory should be created");
+        fs::write(path, payload).expect("identity fixture should be written");
     }
 
     #[test]
@@ -252,7 +383,7 @@ mod tests {
 
     #[test]
     fn identity_round_trips_through_atomic_persistence() {
-        let path = temporary_identity_path();
+        let (root, path) = temporary_identity_path();
         let identity = Identity::generate().expect("identity generation should succeed");
         identity.save(&path).expect("identity should save");
         let loaded = Identity::load(&path).expect("identity should load");
@@ -261,7 +392,58 @@ mod tests {
         assert_eq!(identity.pairing_code(), loaded.pairing_code());
         assert_eq!(identity.access_code(), loaded.access_code());
         assert_eq!(identity.public_key_b64().ok(), loaded.public_key_b64().ok());
-        let _ = fs::remove_file(path);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn identity_load_rejects_invalid_access_code() {
+        let (root, path) = temporary_identity_path();
+        let identity = Identity::generate().expect("identity generation should succeed");
+        write_persisted(&path, &identity, "not-valid");
+
+        assert!(Identity::load(&path).is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn identity_load_rejects_non_2048_bit_keys() {
+        let (root, path) = temporary_identity_path();
+        let mut rng = OsRng;
+        let private_key = RsaPrivateKey::new(&mut rng, 1024).expect("test key should be generated");
+        let identity = Identity {
+            private_key,
+            uid: generate_uid().expect("uid should be generated"),
+            pairing_code: "123456".to_owned(),
+            access_code: generate_access_code().expect("access code should be generated"),
+        };
+        write_persisted(&path, &identity, identity.access_code());
+
+        assert!(Identity::load(&path).is_err());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn identity_persistence_uses_private_modes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (root, path) = temporary_identity_path();
+        let identity = Identity::generate().expect("identity generation should succeed");
+        identity.save(&path).expect("identity should save");
+
+        let directory_mode = fs::metadata(path.parent().expect("identity has parent"))
+            .expect("identity parent should exist")
+            .permissions()
+            .mode()
+            & 0o777;
+        let file_mode = fs::metadata(&path)
+            .expect("identity file should exist")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(directory_mode, 0o700);
+        assert_eq!(file_mode, 0o600);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
