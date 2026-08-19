@@ -1,74 +1,83 @@
 # Implementation Status and Readiness
 
-**ตรวจสอบฐาน:** branch `main` ณ commit `ac5aa2d` และ foundation implementation ในชุดงาน Issue #5
-**สถานะเอกสารฉบับนี้:** foundation อยู่ในสถานะ runnable เมื่อชุดงานนี้ถูกรวม; protocol capabilities และ production readiness ยังไม่เสร็จ
+**Verified base:** `main` includes the merged foundation, identity/pairing, SWSP, signaling/session/stream boundary, protobuf-generation, review-remediation, and CI-recovery work from PRs #6, #8, #10, #12, #14, #22, #24, #25, #26, #28, and #29. PR #30 is an open compatibility slice for Issue #23.
+
+**Status of this document:** The Rust foundation and protocol boundaries are implemented and locally verifiable. The user-facing remote-access path is not complete: signaling transport, WebRTC lifecycle, runtime session wiring, stream handlers, CLI dispatch, cross-platform builds, and original-client interoperability remain in progress.
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนาอีกหลายชั้น ได้แก่ signaling, WebRTC peer, identity persistence/pairing, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ tests [1] [2]
+blnk Rust has a runnable foundation, generated protobuf bindings, identity/pairing primitives, the SWSP raw-frame codec, and typed signaling/session/stream boundaries. These components are tested at unit and boundary level, but they do not yet constitute a usable remote-access product. The next work is to connect the boundaries to a local signaling transport and WebRTC data channel, then wire session control, stream handlers, and CLI operations.
 
-การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
+A compiled schema, dependency, or CLI command is not an acceptance result by itself. The implementation must provide business logic, negative tests, local end-to-end evidence, and—before claiming interoperability—fixtures or a live compatibility test against the original client/server.
 
 ## Evidence Matrix
 
-| พื้นที่ | สิ่งที่มีอยู่ใน repository | สถานะ |
+| Area | Present in repository | Status |
 |---|---|---|
-| CLI surface | มี `serve`, `connect`, `cp`, `devices`, `version` ใน `src/main.rs` แต่ handler ยังเป็น stub output [3] | Not implemented |
-| Architecture | มี module layout, data flow, runtime model, security และ testing principles [4] | Design ready |
-| Protocol design | มี `.proto` สำหรับ signaling, identity, pairing, control, stream และ SWSP [5] | Schema draft |
-| Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader, identity boundary และ explicit CLI placeholders [4] [6] | Implemented in foundation |
-| Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Deferred |
-| Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
-| CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
-| Tests | มี unit tests สำหรับ config และ identity; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation coverage only |
-| Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
+| CLI surface | `serve`, `connect`, `cp`, `devices`, and `version` exist in `src/main.rs`, but the remote-operation handlers still contain placeholder behavior | Boundary only; not user-ready |
+| Architecture | Module layout, data flow, runtime model, security principles, and testing principles are documented | Design ready |
+| Protocol schemas | `.proto` files cover signaling, identity, pairing, control, stream, and SWSP | Schema present |
+| Protobuf build | `build.rs` uses `prost-build` with vendored `protoc`; generated bindings are included through `src/proto_generated.rs` | Implemented; wire compatibility still needs fixtures |
+| Library foundation | `src/lib.rs`, typed errors, config loader, module boundaries, and CLI wiring are present | Implemented |
+| Identity and pairing | RSA-2048 identity, load/save, signing, OAEP encryption, six-digit `pairing_code`, `access_code`, nonce, commit-reveal, and provisional SAS are implemented. JSON remains the existing default path; PR #30 adds an explicit upstream-compatible PEM boundary and fixtures without silently changing the default | Primitives implemented; compatibility slice in progress |
+| SWSP codec | Typed flags, canonical eight-byte little-endian header, max-payload enforcement, incomplete-frame handling, round-trip tests, and negative tests are implemented | Codec implemented; data-channel integration pending |
+| Signaling/session/stream boundaries | Typed message boundaries, discriminator validation, PIN policy, retry handling, state machine, and stream registry are implemented | Boundary implemented; runtime transport integration pending |
+| Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all`, and `cargo clippy --all --all-targets -- -D warnings` pass on Linux after the dependency and CI fixes | Passing on Linux |
+| CI | Format, test, and clippy jobs run on the main workflow; a cross-platform matrix and release workflow are not yet present | Partial |
+| Tests | Unit and boundary tests cover configuration, identity, pairing, SWSP, signaling, session, and generated-protobuf compilation; there is no complete two-peer remote-access test | Boundary coverage only |
+| Release | No verified Linux/Windows/Android binary artifacts, checksums, or installation flow are published | Not started |
 
 ## Acceptance Gates
 
-โครงการผ่าน gate ของ runnable foundation แล้วเมื่อ `src/lib.rs`, error/config/CLI wiring, identity boundary และ test harness ถูกสร้างขึ้น และคำสั่งต่อไปนี้ผ่านบน Linux:
+The runnable-foundation gate is satisfied when the library boundaries and test harness exist and the following commands pass on Linux:
 
 ```bash
 cargo fmt --all -- --check
 cargo check --all-targets
 cargo test --all
 cargo clippy --all --all-targets -- -D warnings
+git diff --check
 ```
 
-โครงการจะถือว่าผ่าน specification ก็ต่อเมื่อ signaling, WebRTC data channel, pairing/PIN, shell, file, proxy, TCP และ WebSocket flow ทำงานได้จริง พร้อม test ครอบคลุมส่วนสำคัญ และ build ได้บน Linux, Windows และ Android ตาม scope ที่ประกาศไว้ [2]
+The next gate is the local remote-access MVP. It requires a deterministic local signaling fixture, two Rust peers, a completed WebRTC data-channel handshake, authenticated session transitions, SWSP data transfer, and at least one file and one shell operation with negative-path tests. This gate must not require production credentials or an external secret.
+
+The specification gate is stricter: signaling, WebRTC data channel, pairing/PIN, shell, file, proxy, TCP, and WebSocket flows must work with the declared protocol, have meaningful test coverage, and build on Linux, Windows, and Android within the stated scope. A local Rust-to-Rust harness is evidence for implementation correctness, not proof of interoperability with the original Go/browser system.
 
 ## Canonical Decisions
 
-ลำดับความสำคัญเมื่อเอกสารขัดแย้งกันคือ `docs/architecture.md` > `specs/spec.md` > `docs/api.md` > `STYLE.md` > `README.md` > `TODO.md` ตาม foundation plan [6]
+When documents conflict, use `docs/architecture.md` > `specs/spec.md` > `docs/api.md` > `STYLE.md` > `README.md` > `TODO.md`.
 
-| หัวข้อ | การตัดสินใจที่ใช้ต่อจากนี้ |
+| Topic | Decision used for implementation |
 |---|---|
-| Rust toolchain | ใช้ Rust 2024 และ toolchain ตาม `rust-toolchain.toml`/container configuration; ไม่ใช้ข้อความ edition 2021 จาก roadmap เก่า |
-| User-visible pairing code | ใช้ pairing code 6 หลักตาม functional specification |
-| Persistent access credential | หากยังต้องมี credential ภายใน 64-bit ให้ใช้ชื่อ `access_code` แยกจาก pairing code และห้ามเรียกปนกันว่า `code` |
-| SWSP | `Frame` raw wire format เป็น header 8 bytes ตาม specification ของ SWSP: `stream_id` 4 bytes, `flags` 2 bytes, `length` 2 bytes, ตามด้วย payload; protobuf ใช้เป็น schema/control representation เท่านั้นจนกว่าจะมี compatibility fixture ยืนยันอย่างอื่น |
-| Protocol compatibility | ห้ามเปลี่ยน signaling, pairing, identity หรือ SWSP semantics เพื่อให้ implement ง่ายขึ้น; หากจำเป็นต้องเปลี่ยนต้องมี decision record และ fixture จากต้นฉบับ |
-| Service worker | ไม่สร้าง service worker ใหม่ใน Rust; frontend/service worker เดิมอยู่นอก scope ตาม specification |
-| Platform scope | รองรับ Linux, Windows และ Android; macOS อยู่นอก scope |
+| Rust toolchain | Use Rust 2024 and the toolchain pinned by repository/container configuration. |
+| User-visible pairing code | Use the six-digit `pairing_code` defined by the functional specification. |
+| Persistent credential naming | Keep `access_code` distinct from `pairing_code`; do not use a generic `code` field. |
+| Identity persistence compatibility | Keep the existing JSON load/save behavior as the non-breaking default. Add PEM read/write as an explicit compatibility path, with format detection, fixtures, and migration tests. Do not claim that the default on-disk format has changed until Issue #23 is completed. |
+| SWSP | Keep the raw eight-byte little-endian frame header (`stream_id`, `flags`, `length`) and enforce the existing size/error semantics. Protobuf remains the schema/control representation until a compatibility fixture proves another wire contract. |
+| Pairing SAS | Treat the current deterministic construction as provisional until exact upstream encoding is demonstrated by an interoperability fixture. |
+| Security | Implement deny-by-default boundaries, bounded resources, constant-time credential comparisons, path/target validation, and platform-specific permission handling as part of each feature—not as a substitute for completing the feature. |
+| Credentials and secrets | Local fixtures and two-peer tests must use generated test keys and explicit test data. Production secrets are not required for the local MVP; secret-backed integration belongs to a later evidence gate. |
+| Platform scope | Support Linux, Windows, and Android. macOS is out of scope. |
 
-## Known Risks
+## Known Risks and Non-Claims
 
-ความเสี่ยงสูงสุดคือ interoperability กับ client/browser และ signaling server เดิม เพราะ schema ที่มีอยู่ยังไม่ได้ถูกเชื่อมเข้ากับ Rust codec หรือ end-to-end tests การ compile ผ่านเพียงอย่างเดียวจึงไม่เพียงพอที่จะยืนยันว่า protocol ใช้งานร่วมกับต้นฉบับได้
+The largest remaining risk is interoperability with the original client/browser and signaling server. The repository contains schemas and typed boundaries, but the end-to-end mapping to the original runtime has not yet been demonstrated. Compilation and Rust-to-Rust tests must not be reported as original-client interoperability.
 
-ความเสี่ยงรองลงมาคือ cross-platform behavior ของ PTY, filesystem, networking และ Android packaging รวมถึง security boundary ของ file path, TCP target, PIN retry, key persistence และ resource limits ก่อนเปิดใช้งานจริงต้องมี negative tests และ audit evidence สำหรับขอบเขตเหล่านี้
+Other risks include PTY and filesystem differences, networking behavior, Android packaging, identity migration, PIN retry policy, TCP target validation, resource limits, and lifecycle cleanup. Each feature must add negative tests and platform notes before it is considered ready.
 
 ## Recommended Implementation Order
 
-| ลำดับ | งาน | Definition of done |
+| Order | Work item | Definition of done |
 |---:|---|---|
-| 1 | แก้ dependency scope และสร้าง library/build foundation | **ผ่านใน Issue #5:** คำสั่ง verification ทั้งสี่ผ่านบน Linux |
-| 2 | เพิ่ม `build.rs`/protobuf generation หรือบันทึกเหตุผลที่เลือก hand-written codec | generation deterministic และมี compile test |
-| 3 | เพิ่ม typed errors, logging, config และ CLI routing | CLI เรียก business logic จริง ไม่มี stub output |
-| 4 | Implement identity และ pairing | มี test vectors สำหรับ generate/load/save/sign/decrypt/commit-reveal/SAS |
-| 5 | Implement SWSP/control codec | round-trip, invalid frame, fragmentation และ max-size tests ผ่าน |
-| 6 | Implement signaling และ WebRTC peer/data channel | เชื่อมกับ client/browser เดิมได้จริง |
-| 7 | Implement session/auth และ stream registry | lifecycle, PIN retry/delay และ cleanup มี integration tests |
-| 8 | เพิ่ม shell/file/HTTP/TCP/WebSocket, mDNS และ QR | แต่ละ capability มี unit/integration coverage และ platform notes |
-| 9 | ทำ cross-platform, security, performance และ release validation | CI matrix ผ่าน, audit ไม่มี critical issue, artifacts ใช้งานได้ |
+| 1 | Documentation/status synchronization (Issue #31) | Canonical status matches merged code, open PRs, known gaps, and evidence limits. |
+| 2 | Identity compatibility slice (Issue #23 / PR #30) | JSON remains compatible; PEM boundary has deterministic fixtures; migration/read-both/write policy is tested; issue remains open until the compatibility contract is complete. |
+| 3 | Signaling transport and local fixture | Real WebSocket transport is connected to typed signaling messages; deterministic local server/client fixture covers offer, answer, candidate, errors, reconnect, and shutdown without production secrets. |
+| 4 | WebRTC peer/data-channel integration | Two local Rust peers complete signaling, ICE/DTLS setup, data-channel open/close, backpressure, and cleanup with observable tests. |
+| 5 | Session runtime integration | Pairing/auth/PIN state machine is driven by real control messages, retry/deadline behavior is exercised end to end, and unauthorized transitions are rejected. |
+| 6 | Stream MVP | File and shell handlers are connected through the stream registry and SWSP framing with size, timeout, path, process, cancellation, and cleanup tests. |
+| 7 | CLI workflow | `serve`, `connect`, `cp`, and `devices` invoke real business logic; placeholders are removed; local two-process workflow is documented and tested. |
+| 8 | Additional capabilities | HTTP, TCP, WebSocket, mDNS, QR, and Android adapters are implemented one capability at a time with separate acceptance tests and platform notes. |
+| 9 | Interoperability and release | Original Go/browser fixtures or live compatibility tests, Linux/Windows/Android CI evidence, security audit, performance/resource checks, artifacts, and release documentation are complete. |
 
 ## References
 
@@ -77,6 +86,11 @@ cargo clippy --all --all-targets -- -D warnings
 [3]: ../src/main.rs "Current CLI entry point"
 [4]: architecture.md "Architecture and module layout"
 [5]: ../proto/ "Protocol schemas"
-[6]: plans/core-foundation.md "Foundation plan and conflict resolution order"
-[7]: ../Cargo.toml "Cargo manifest"
-[8]: ../.github/workflows/ci.yml "Current CI workflow"
+[6]: ../Cargo.toml "Cargo manifest"
+[7]: ../build.rs "Deterministic protobuf generation"
+[8]: ../src/proto_generated.rs "Generated protobuf bindings"
+[9]: ../.github/workflows/ci.yml "Current CI workflow"
+[10]: https://github.com/bl1nk-bot/blnk/issues/23 "Issue #23: identity persistence compatibility"
+[11]: https://github.com/bl1nk-bot/blnk/pull/30 "PR #30: identity compatibility slice"
+[12]: https://github.com/bl1nk-bot/blnk/issues/31 "Issue #31: documentation/status synchronization"
+[13]: decisions/identity-persistence.md "Identity persistence decision record"
