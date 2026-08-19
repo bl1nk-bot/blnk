@@ -183,11 +183,11 @@ fn validate_maximum(maximum: usize) -> Result<(), FrameError> {
 }
 
 fn validate_payload_len(length: usize, maximum: usize) -> Result<(), FrameError> {
-    if length > maximum {
-        return Err(FrameError::PayloadTooLarge { length, maximum });
-    }
     if length > usize::from(u16::MAX) {
         return Err(FrameError::LengthOverflow { length });
+    }
+    if length > maximum {
+        return Err(FrameError::PayloadTooLarge { length, maximum });
     }
     Ok(())
 }
