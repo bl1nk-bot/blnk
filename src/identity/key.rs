@@ -38,6 +38,13 @@ struct PersistedIdentity {
     access_code: String,
 }
 
+/// Selects the on-disk representation for an identity file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IdentityFormat {
+    Json,
+    Pem,
+}
+
 impl Identity {
     pub fn generate() -> Result<Self, BlnkError> {
         let mut rng = OsRng;
@@ -100,11 +107,24 @@ impl Identity {
         })
     }
 
+    /// Loads either the existing JSON representation or the upstream two-block PEM representation.
+    ///
+    /// This method only detects the representation; it does not rewrite or migrate the file.
+    pub fn load_auto(path: impl AsRef<Path>) -> Result<Self, BlnkError> {
+        let path = path.as_ref();
+        let contents = fs::read(path)?;
+        if looks_like_pem(&contents) {
+            Self::load_pem(&contents)
+        } else {
+            Self::load(path)
+        }
+    }
+
     /// Loads the two-block PEM representation used by the upstream BitBang client.
     ///
     /// This explicit boundary is intentionally separate from [`Self::load`]. The
-    /// default JSON persistence remains unchanged until Issue #23 records the
-    /// migration and compatibility decision.
+    /// default JSON persistence remains unchanged; PEM persistence is opt-in and
+    /// no file is silently migrated.
     pub fn load_pem(contents: &[u8]) -> Result<Self, BlnkError> {
         let text = std::str::from_utf8(contents)
             .map_err(|error| BlnkError::Identity(format!("decode identity PEM: {error}")))?;
@@ -158,13 +178,6 @@ impl Identity {
     }
 
     pub fn save(&self, path: impl AsRef<Path>) -> Result<(), BlnkError> {
-        let path = path.as_ref();
-        if let Some(parent) = path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            ensure_private_parent(parent)?;
-        }
-
         let private_key_pem = self
             .private_key
             .to_pkcs8_pem(LineEnding::LF)
@@ -178,24 +191,21 @@ impl Identity {
         })
         .map_err(|error| BlnkError::Identity(format!("encode identity file: {error}")))?;
 
-        let temporary_path = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
-        let write_result = (|| -> Result<(), BlnkError> {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&temporary_path)?;
-            set_private_permissions(&file)?;
-            file.write_all(&payload)?;
-            file.sync_all()?;
-            replace_file(&temporary_path, path)?;
-            Ok(())
-        })();
+        write_atomic(path.as_ref(), &payload)
+    }
 
-        if write_result.is_err() {
-            let _ = fs::remove_file(&temporary_path);
+    /// Saves the identity using an explicit JSON or upstream-compatible PEM representation.
+    pub fn save_as(&self, path: impl AsRef<Path>, format: IdentityFormat) -> Result<(), BlnkError> {
+        match format {
+            IdentityFormat::Json => self.save(path),
+            IdentityFormat::Pem => self.save_pem_file(path),
         }
+    }
 
-        write_result
+    /// Saves the upstream-compatible two-block PEM representation atomically to a file.
+    pub fn save_pem_file(&self, path: impl AsRef<Path>) -> Result<(), BlnkError> {
+        let payload = self.save_pem()?;
+        write_atomic(path.as_ref(), &payload)
     }
 
     pub fn uid(&self) -> &str {
@@ -276,6 +286,39 @@ fn validate_rsa_key_size(private_key: &RsaPrivateKey) -> Result<(), BlnkError> {
         )));
     }
     Ok(())
+}
+
+fn looks_like_pem(contents: &[u8]) -> bool {
+    std::str::from_utf8(contents)
+        .map(|text| text.trim_start().starts_with("-----BEGIN "))
+        .unwrap_or(false)
+}
+
+fn write_atomic(path: &Path, payload: &[u8]) -> Result<(), BlnkError> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        ensure_private_parent(parent)?;
+    }
+
+    let temporary_path = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
+    let write_result = (|| -> Result<(), BlnkError> {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)?;
+        set_private_permissions(&file)?;
+        file.write_all(payload)?;
+        file.sync_all()?;
+        replace_file(&temporary_path, path)?;
+        Ok(())
+    })();
+
+    if write_result.is_err() {
+        let _ = fs::remove_file(&temporary_path);
+    }
+
+    write_result
 }
 
 fn decode_pem_block(contents: &str, block_type: &str) -> Result<Vec<u8>, BlnkError> {
@@ -654,6 +697,33 @@ mod tests {
                 .windows(b"-----BEGIN BITBANG ACCESS CODE-----".len())
                 .any(|window| { window == b"-----BEGIN BITBANG ACCESS CODE-----" })
         );
+    }
+
+    #[test]
+    fn identity_load_auto_detects_json_and_pem() {
+        let (root, json_path) = temporary_identity_path();
+        let identity = Identity::generate().expect("identity generation should succeed");
+        identity
+            .save_as(&json_path, IdentityFormat::Json)
+            .expect("JSON identity should save");
+        let json_loaded = Identity::load_auto(&json_path).expect("JSON identity should load");
+        assert_eq!(identity.uid(), json_loaded.uid());
+        assert_eq!(identity.pairing_code(), json_loaded.pairing_code());
+        assert_eq!(identity.access_code(), json_loaded.access_code());
+
+        let pem_path = root.join("nested").join("identity.pem");
+        identity
+            .save_as(&pem_path, IdentityFormat::Pem)
+            .expect("PEM identity should save");
+        let pem_loaded = Identity::load_auto(&pem_path).expect("PEM identity should load");
+        let derived_uid = derive_uid(&identity.private_key).expect("UID should derive");
+        assert_eq!(derived_uid, pem_loaded.uid());
+        assert_eq!(identity.access_code(), pem_loaded.access_code());
+        assert_eq!(
+            identity.public_key_b64().ok(),
+            pem_loaded.public_key_b64().ok()
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
