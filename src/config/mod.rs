@@ -38,8 +38,7 @@ impl Config {
             .set_default("identity_path", defaults.identity_path)?
             .set_default("pin", defaults.pin)?
             .add_source(config::File::with_name("blnk.toml").required(false))
-            .add_source(config::Environment::with_prefix("BLNK").separator("_"))
-            .build()?;
+.add_source(config::Environment::with_prefix("BLNK"))
 
         Ok(settings.try_deserialize()?)
     }
