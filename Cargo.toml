@@ -69,12 +69,6 @@ winapi = { version = "0.3", default-features = false, features = ["winuser", "wi
 tokio-test = "0.4"
 mockall = "0.11"
 
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
-
-[target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
-
 [profile.release]
 opt-level = 3
 lto = true
