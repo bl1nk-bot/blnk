@@ -20,7 +20,7 @@ pub struct PairChallenge {
     pub nonce_d: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairReveal {
     pub message_type: String,
     pub nonce_c: Vec<u8>,
