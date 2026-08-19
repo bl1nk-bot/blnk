@@ -50,7 +50,7 @@ impl Identity {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS)
             .map_err(|error| BlnkError::Identity(format!("generate RSA key: {error}")))?;
-        let uid = generate_uid()?;
+        let uid = derive_uid(&private_key)?;
         let pairing_code = generate_pairing_code()?;
         let access_code = generate_access_code()?;
 
@@ -153,6 +153,15 @@ impl Identity {
 
     /// Encodes the upstream-compatible two-block PEM representation.
     pub fn save_pem(&self) -> Result<Vec<u8>, BlnkError> {
+        validate_rsa_key_size(&self.private_key)?;
+        let derived_uid = derive_uid(&self.private_key)?;
+        if self.uid != derived_uid {
+            return Err(BlnkError::Identity(
+                "cannot export a legacy identity to PEM because its UID is not key-derived"
+                    .to_owned(),
+            ));
+        }
+
         let private_key_der = self
             .private_key
             .to_pkcs8_der()
@@ -263,6 +272,7 @@ impl Identity {
     }
 }
 
+#[cfg(test)]
 fn generate_uid() -> Result<String, BlnkError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes)
@@ -592,6 +602,20 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[test]
+    fn identity_save_pem_rejects_non_2048_bit_keys() {
+        let mut rng = OsRng;
+        let private_key = RsaPrivateKey::new(&mut rng, 1024).expect("test key should be generated");
+        let identity = Identity {
+            private_key,
+            uid: "2iuGA9MzJw9GJY35ilAiHA".to_owned(),
+            pairing_code: "123456".to_owned(),
+            access_code: "ASNFZ4mrze8".to_owned(),
+        };
+
+        assert!(identity.save_pem().is_err());
+    }
+
     #[cfg(unix)]
     #[test]
     fn identity_persistence_uses_private_modes() {
@@ -670,6 +694,7 @@ mod tests {
         let identity = Identity::load_pem(fixture).expect("upstream PEM fixture should load");
 
         assert_eq!(identity.access_code(), "ASNFZ4mrze8");
+        assert_eq!(identity.uid(), "2iuGA9MzJw9GJY35ilAiHA");
         assert_eq!(identity.uid().len(), 22);
         assert_eq!(identity.pairing_code().len(), 6);
         assert!(identity.public_key_b64().is_ok());
