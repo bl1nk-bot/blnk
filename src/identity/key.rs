@@ -238,6 +238,10 @@ fn ensure_private_parent(parent: &Path) -> Result<(), BlnkError> {
     let mut current = Some(parent);
 
     while let Some(candidate) = current {
+        if candidate.as_os_str().is_empty() {
+            break;
+        }
+
         match fs::metadata(candidate) {
             Ok(metadata) => {
                 if !metadata.is_dir() {
@@ -250,15 +254,29 @@ fn ensure_private_parent(parent: &Path) -> Result<(), BlnkError> {
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 missing.push(candidate.to_path_buf());
-                current = candidate.parent();
+                current = candidate
+                    .parent()
+                    .filter(|parent| !parent.as_os_str().is_empty());
             }
             Err(error) => return Err(error.into()),
         }
     }
 
     for directory in missing.iter().rev() {
-        fs::create_dir(directory)?;
-        set_private_directory_permissions(directory)?;
+        match fs::create_dir(directory) {
+            Ok(()) => set_private_directory_permissions(directory)?,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                let metadata = fs::metadata(directory)?;
+                if !metadata.is_dir() {
+                    return Err(BlnkError::Identity(format!(
+                        "identity parent is not a directory: {}",
+                        directory.display()
+                    )));
+                }
+                set_private_directory_permissions(directory)?;
+            }
+            Err(error) => return Err(error.into()),
+        }
     }
 
     Ok(())
@@ -443,6 +461,51 @@ mod tests {
             & 0o777;
         assert_eq!(directory_mode, 0o700);
         assert_eq!(file_mode, 0o600);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn relative_identity_parent_hierarchy_is_created() {
+        let relative_root = PathBuf::from(format!(
+            "blnk-identity-relative-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let relative_parent = relative_root.join("nested");
+
+        ensure_private_parent(&relative_parent).expect("relative parents should be created");
+        assert!(relative_parent.is_dir());
+        let _ = fs::remove_dir_all(relative_root);
+    }
+
+    #[test]
+    fn concurrent_identity_parent_creation_is_idempotent() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+
+        let root = std::env::temp_dir().join(format!(
+            "blnk-identity-concurrent-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let parent = Arc::new(root.join("nested"));
+        let barrier = Arc::new(Barrier::new(8));
+        let workers = (0..8)
+            .map(|_| {
+                let parent = Arc::clone(&parent);
+                let barrier = Arc::clone(&barrier);
+                thread::spawn(move || {
+                    barrier.wait();
+                    ensure_private_parent(&parent)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for worker in workers {
+            worker
+                .join()
+                .expect("directory worker should not panic")
+                .expect("concurrent directory creation should succeed");
+        }
+        assert!(parent.is_dir());
         let _ = fs::remove_dir_all(root);
     }
 
