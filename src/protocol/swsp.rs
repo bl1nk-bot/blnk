@@ -125,7 +125,13 @@ impl Frame {
             u16::try_from(self.payload.len()).map_err(|_| FrameError::LengthOverflow {
                 length: self.payload.len(),
             })?;
-        let mut encoded = Vec::with_capacity(HEADER_LEN + self.payload.len());
+        let encoded_len =
+            HEADER_LEN
+                .checked_add(self.payload.len())
+                .ok_or(FrameError::LengthOverflow {
+                    length: self.payload.len(),
+                })?;
+        let mut encoded = Vec::with_capacity(encoded_len);
         encoded.extend_from_slice(&self.stream_id.to_le_bytes());
         encoded.extend_from_slice(&self.flags.bits().to_le_bytes());
         encoded.extend_from_slice(&payload_len.to_le_bytes());
@@ -156,7 +162,11 @@ impl Frame {
         let payload_len = usize::from(u16::from_le_bytes([input[6], input[7]]));
         validate_payload_len(payload_len, maximum)?;
 
-        let frame_len = HEADER_LEN.checked_add(payload_len).ok_or(FrameError::InvalidMaximum)?;
+        let frame_len = HEADER_LEN
+            .checked_add(payload_len)
+            .ok_or(FrameError::LengthOverflow {
+                length: payload_len,
+            })?;
         if input.len() < frame_len {
             return Err(FrameError::Incomplete {
                 expected: frame_len,
@@ -271,6 +281,21 @@ mod tests {
         assert_eq!(
             Frame::decode(&encoded).expect_err("unknown flag should fail"),
             FrameError::UnknownFlags { bits: 0x0080 }
+        );
+    }
+
+    #[test]
+    fn wire_length_overflow_is_reported_before_policy_limit() {
+        let oversized = vec![0; usize::from(u16::MAX) + 1];
+        let frame = Frame::new(1, FrameFlags::DAT, oversized);
+
+        assert_eq!(
+            frame
+                .encode_with_limit(usize::from(u16::MAX))
+                .expect_err("wire length should overflow before policy limit"),
+            FrameError::LengthOverflow {
+                length: usize::from(u16::MAX) + 1
+            }
         );
     }
 
