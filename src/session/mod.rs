@@ -186,7 +186,7 @@ pub struct Session {
 impl Session {
     pub fn new(config: SessionConfig, expected_pin: Option<String>) -> SessionResult<Self> {
         config.validate()?;
-        if config.pin_required && expected_pin.as_deref().unwrap_or_default().is_empty() {
+        if config.pin_required && expected_pin.as_deref().unwrap_or_default().trim().is_empty() {
             return Err(BlnkError::Session(
                 "expected PIN is required when PIN auth is enabled".into(),
             ));
