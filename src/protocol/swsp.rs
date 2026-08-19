@@ -156,7 +156,7 @@ impl Frame {
         let payload_len = usize::from(u16::from_le_bytes([input[6], input[7]]));
         validate_payload_len(payload_len, maximum)?;
 
-        let frame_len = HEADER_LEN + payload_len;
+        let frame_len = HEADER_LEN.checked_add(payload_len).ok_or(FrameError::InvalidMaximum)?;
         if input.len() < frame_len {
             return Err(FrameError::Incomplete {
                 expected: frame_len,
