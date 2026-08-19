@@ -1,11 +1,11 @@
 # Implementation Status and Readiness
 
-**ตรวจสอบฐาน:** branch `main` ณ commit `ac5aa2d` และ foundation implementation ในชุดงาน Issue #5
-**สถานะเอกสารฉบับนี้:** foundation อยู่ในสถานะ runnable เมื่อชุดงานนี้ถูกรวม; protocol capabilities และ production readiness ยังไม่เสร็จ
+**ตรวจสอบฐาน:** branch `main` ณ commit `ac5aa2d`; branch งานนี้ต่อจาก foundation implementation ใน Issue #5
+**สถานะเอกสารฉบับนี้:** foundation runnable และ identity/pairing primitives ถูก implement ใน Issue #7 branch แล้ว; signaling/WebRTC integration และ production readiness ยังไม่เสร็จ
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนาอีกหลายชั้น ได้แก่ signaling, WebRTC peer, identity persistence/pairing, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ tests [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา signaling, WebRTC peer/data-channel integration, session/auth, SWSP codec, stream handlers, web integration, cross-platform adapters และ interoperability tests [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -16,11 +16,12 @@ blnk Rust **มี runnable foundation ตามสถาปัตยกรร�
 | CLI surface | มี `serve`, `connect`, `cp`, `devices`, `version` ใน `src/main.rs` แต่ handler ยังเป็น stub output [3] | Not implemented |
 | Architecture | มี module layout, data flow, runtime model, security และ testing principles [4] | Design ready |
 | Protocol design | มี `.proto` สำหรับ signaling, identity, pairing, control, stream และ SWSP [5] | Schema draft |
-| Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader, identity boundary และ explicit CLI placeholders [4] [6] | Implemented in foundation |
+| Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader และ explicit CLI placeholders [4] [6] | Implemented in foundation |
+| Identity and pairing | มี RSA 2048 identity generate/load/save, sign/verify, OAEP encrypt/decrypt, 6-digit `pairing_code`, `access_code`, nonce, commit-reveal และ provisional SAS ใน Issue #7 branch | Implemented; integration/fixture pending |
 | Protobuf build | ยังไม่มี `build.rs` และยังไม่มี verified protobuf generation pipeline [6] [7] | Deferred |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
 | CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
-| Tests | มี unit tests สำหรับ config และ identity; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation coverage only |
+| Tests | มี unit tests สำหรับ config, identity และ pairing primitives; ยังไม่มี integration test suite หรือหลักฐาน protocol interoperability | Foundation/protocol-boundary coverage only |
 | Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
 
 ## Acceptance Gates
@@ -47,6 +48,7 @@ cargo clippy --all --all-targets -- -D warnings
 | Persistent access credential | หากยังต้องมี credential ภายใน 64-bit ให้ใช้ชื่อ `access_code` แยกจาก pairing code และห้ามเรียกปนกันว่า `code` |
 | SWSP | `Frame` raw wire format เป็น header 8 bytes ตาม specification ของ SWSP: `stream_id` 4 bytes, `flags` 2 bytes, `length` 2 bytes, ตามด้วย payload; protobuf ใช้เป็น schema/control representation เท่านั้นจนกว่าจะมี compatibility fixture ยืนยันอย่างอื่น |
 | Protocol compatibility | ห้ามเปลี่ยน signaling, pairing, identity หรือ SWSP semantics เพื่อให้ implement ง่ายขึ้น; หากจำเป็นต้องเปลี่ยนต้องมี decision record และ fixture จากต้นฉบับ |
+| Pairing SAS | Issue #7 ใช้ deterministic provisional construction จาก nonce และ DTLS fingerprints; ต้องยืนยัน exact upstream encoding ด้วย interoperability fixture ก่อนผูกเข้ากับ client/server จริง |
 | Service worker | ไม่สร้าง service worker ใหม่ใน Rust; frontend/service worker เดิมอยู่นอก scope ตาม specification |
 | Platform scope | รองรับ Linux, Windows และ Android; macOS อยู่นอก scope |
 
@@ -63,7 +65,7 @@ cargo clippy --all --all-targets -- -D warnings
 | 1 | แก้ dependency scope และสร้าง library/build foundation | **ผ่านใน Issue #5:** คำสั่ง verification ทั้งสี่ผ่านบน Linux |
 | 2 | เพิ่ม `build.rs`/protobuf generation หรือบันทึกเหตุผลที่เลือก hand-written codec | generation deterministic และมี compile test |
 | 3 | เพิ่ม typed errors, logging, config และ CLI routing | CLI เรียก business logic จริง ไม่มี stub output |
-| 4 | Implement identity และ pairing | มี test vectors สำหรับ generate/load/save/sign/decrypt/commit-reveal/SAS |
+| 4 | Implement identity และ pairing | **อยู่ใน Issue #7:** primitives และ unit tests ผ่าน; เหลือ interoperability fixture และ integration กับ session/signaling |
 | 5 | Implement SWSP/control codec | round-trip, invalid frame, fragmentation และ max-size tests ผ่าน |
 | 6 | Implement signaling และ WebRTC peer/data channel | เชื่อมกับ client/browser เดิมได้จริง |
 | 7 | Implement session/auth และ stream registry | lifecycle, PIN retry/delay และ cleanup มี integration tests |

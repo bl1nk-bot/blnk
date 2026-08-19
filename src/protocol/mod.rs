@@ -1,3 +1,5 @@
 //! Wire protocol definitions and codecs.
 //!
-//! SWSP and pairing codecs are implemented in later dependency-ordered work.
+//! SWSP codec is implemented in a later dependency-ordered work item.
+
+pub mod pairing;
