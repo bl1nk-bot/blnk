@@ -3,8 +3,9 @@ name: CI
 on:
   push:
     branches: [main]
+  # Stacked implementation/remediation PRs target dependency branches rather
+  # than main, so do not restrict pull_request checks by base branch.
   pull_request:
-    branches: [main]
 
 jobs:
   fmt:
