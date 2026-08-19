@@ -1,5 +1,5 @@
 use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
+use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use serde::de::Error as DeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::{Digest, Sha256};
@@ -215,14 +215,18 @@ mod tests {
     }
 
     #[test]
-    fn json_pairing_messages_use_wire_names_and_base64_nonces() {
+    fn json_pairing_messages_use_wire_names_and_unpadded_base64_nonces() {
         let challenge = PairChallenge {
             message_type: "pair_challenge".to_owned(),
-            nonce_d: vec![0x01, 0x02, 0x03],
+            nonce_d: vec![0x01; NONCE_LEN],
         };
         let encoded = serde_json::to_value(&challenge).expect("challenge should serialize");
         assert_eq!(encoded["type"], "pair_challenge");
-        assert_eq!(encoded["nonce_d"], STANDARD.encode([0x01, 0x02, 0x03]));
+        assert_eq!(
+            encoded["nonce_d"],
+            STANDARD_NO_PAD.encode([0x01; NONCE_LEN])
+        );
+        assert!(!encoded["nonce_d"].as_str().unwrap().contains('='));
         assert!(encoded.get("message_type").is_none());
 
         let decoded: PairChallenge =
@@ -250,7 +254,7 @@ mod base64_bytes {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&STANDARD.encode(bytes))
+        serializer.serialize_str(&STANDARD_NO_PAD.encode(bytes))
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
@@ -258,6 +262,6 @@ mod base64_bytes {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
-        STANDARD.decode(encoded).map_err(DeError::custom)
+        STANDARD_NO_PAD.decode(encoded).map_err(DeError::custom)
     }
 }
