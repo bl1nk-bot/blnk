@@ -460,7 +460,8 @@ fn is_ipv4_shared_or_reserved(address: Ipv4Addr) -> bool {
     matches!(
         octets,
         [100, 64..=127, _, _]
-            | [192, 0, 0..=255, _]
+            | [192, 0, 0, _]
+            | [192, 0, 2, _]
             | [192, 88, 99, _]
             | [198, 18..=19, _, _]
             | [198, 51, 100, _]
@@ -932,6 +933,11 @@ mod tests {
         assert!(
             EndpointPolicy::PublicOnly
                 .validate_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)))
+                .is_ok()
+        );
+        assert!(
+            EndpointPolicy::PublicOnly
+                .validate_ip(IpAddr::V4(Ipv4Addr::new(192, 0, 1, 1)))
                 .is_ok()
         );
         assert!(
