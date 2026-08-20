@@ -6,12 +6,17 @@
 //! and `pairing_code` becomes `code`. No external signaling provider or
 //! original-client interoperability is implied by this module.
 
-use std::{collections::BTreeMap, net::SocketAddr, sync::Arc, time::Duration};
+use std::{
+    collections::BTreeMap,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpStream, lookup_host},
     sync::{Mutex, oneshot},
     task::JoinHandle,
 };
@@ -372,6 +377,109 @@ pub fn decode_message(payload: &str) -> TransportResult<SignalingMessage> {
     wire.try_into()
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum EndpointPolicy {
+    /// Permit only addresses that are not reserved for local or private use.
+    #[default]
+    PublicOnly,
+    /// Permit local/private addresses for deterministic local fixtures and tests.
+    AllowLocal,
+}
+
+impl EndpointPolicy {
+    fn validate_ip(self, ip: IpAddr) -> TransportResult<()> {
+        let blocked = match self {
+            Self::PublicOnly => is_non_public_ip(ip),
+            Self::AllowLocal => is_unspecified_or_multicast(ip),
+        };
+        if blocked {
+            return Err(BlnkError::Signaling(format!(
+                "signaling endpoint resolves to a disallowed address: {ip}"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn validate_endpoint(self, endpoint: &Url) -> TransportResult<()> {
+        let host = endpoint
+            .host_str()
+            .ok_or_else(|| BlnkError::Signaling("signaling URL must include a host".into()))?;
+        let port = endpoint
+            .port_or_known_default()
+            .ok_or_else(|| BlnkError::Signaling("signaling URL must use ws or wss".into()))?;
+        let addresses = lookup_host((host, port)).await.map_err(|error| {
+            BlnkError::Signaling(format!(
+                "failed to resolve signaling endpoint {host}:{port}: {error}"
+            ))
+        })?;
+        let mut resolved = false;
+        for address in addresses {
+            resolved = true;
+            self.validate_ip(address.ip())?;
+        }
+        if !resolved {
+            return Err(BlnkError::Signaling(format!(
+                "signaling endpoint {host}:{port} resolved to no addresses"
+            )));
+        }
+        Ok(())
+    }
+}
+
+fn is_non_public_ip(ip: IpAddr) -> bool {
+    is_unspecified_or_multicast(ip)
+        || match ip {
+            IpAddr::V4(address) => {
+                address.is_private()
+                    || address.is_loopback()
+                    || address.is_link_local()
+                    || is_ipv4_shared_or_reserved(address)
+            }
+            IpAddr::V6(address) => {
+                address
+                    .to_ipv4_mapped()
+                    .is_some_and(|mapped| is_non_public_ip(IpAddr::V4(mapped)))
+                    || address.is_loopback()
+                    || is_ipv6_unique_local_or_link_local(address)
+                    || is_ipv6_documentation(address)
+            }
+        }
+}
+
+fn is_unspecified_or_multicast(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(address) => {
+            address.octets()[0] == 0 || address.is_multicast() || address.is_broadcast()
+        }
+        IpAddr::V6(address) => address.is_unspecified() || address.is_multicast(),
+    }
+}
+
+fn is_ipv4_shared_or_reserved(address: Ipv4Addr) -> bool {
+    let octets = address.octets();
+    matches!(
+        octets,
+        [100, 64..=127, _, _]
+            | [192, 0, 0, _]
+            | [192, 0, 2, _]
+            | [192, 88, 99, _]
+            | [198, 18..=19, _, _]
+            | [198, 51, 100, _]
+            | [203, 0, 113, _]
+            | [240..=255, _, _, _]
+    )
+}
+
+fn is_ipv6_unique_local_or_link_local(address: Ipv6Addr) -> bool {
+    let segments = address.segments();
+    (segments[0] & 0xfe00) == 0xfc00 || (segments[0] & 0xffc0) == 0xfe80
+}
+
+fn is_ipv6_documentation(address: Ipv6Addr) -> bool {
+    let segments = address.segments();
+    segments[0] == 0x2001 && segments[1] == 0x0db8
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReconnectPolicy {
     pub max_retries: usize,
@@ -403,6 +511,7 @@ impl Default for ReconnectPolicy {
 #[derive(Debug, Clone)]
 pub struct SignalingClient {
     endpoint: Url,
+    endpoint_policy: EndpointPolicy,
     max_message_size: usize,
     reconnect: ReconnectPolicy,
 }
@@ -418,9 +527,19 @@ impl SignalingClient {
         }
         Ok(Self {
             endpoint,
+            endpoint_policy: EndpointPolicy::default(),
             max_message_size: DEFAULT_MAX_MESSAGE_SIZE,
             reconnect: ReconnectPolicy::default(),
         })
+    }
+
+    pub fn with_endpoint_policy(mut self, endpoint_policy: EndpointPolicy) -> Self {
+        self.endpoint_policy = endpoint_policy;
+        self
+    }
+
+    pub fn endpoint_policy(&self) -> EndpointPolicy {
+        self.endpoint_policy
     }
 
     pub fn with_max_message_size(mut self, max_message_size: usize) -> TransportResult<Self> {
@@ -443,6 +562,9 @@ impl SignalingClient {
     }
 
     pub async fn connect(&self) -> TransportResult<SignalingConnection> {
+        self.endpoint_policy
+            .validate_endpoint(&self.endpoint)
+            .await?;
         let (socket, _) = connect_async(self.endpoint.as_str())
             .await
             .map_err(|error| {
@@ -785,10 +907,109 @@ mod tests {
         assert!(decode_message(r#"{"message_type":"register"}"#).is_err());
     }
 
+    #[test]
+    fn endpoint_policy_rejects_special_use_addresses() {
+        let blocked = [
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
+            IpAddr::V4(Ipv4Addr::new(100, 64, 0, 1)),
+            IpAddr::V4(Ipv4Addr::new(169, 254, 1, 1)),
+            IpAddr::V4(Ipv4Addr::new(192, 0, 2, 1)),
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 1)),
+            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)),
+            IpAddr::V4(Ipv4Addr::LOCALHOST),
+            IpAddr::V6(Ipv6Addr::LOCALHOST),
+            IpAddr::V6("fc00::1".parse().expect("valid IPv6 address")),
+            IpAddr::V6("fe80::1".parse().expect("valid IPv6 address")),
+            IpAddr::V6("2001:db8::1".parse().expect("valid IPv6 address")),
+            IpAddr::V6("::ffff:10.0.0.1".parse().expect("valid IPv6 address")),
+            IpAddr::V6("ff02::1".parse().expect("valid IPv6 address")),
+        ];
+        for address in blocked {
+            assert!(
+                EndpointPolicy::PublicOnly.validate_ip(address).is_err(),
+                "special-use address should be blocked: {address}"
+            );
+        }
+        assert!(
+            EndpointPolicy::PublicOnly
+                .validate_ip(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8)))
+                .is_ok()
+        );
+        assert!(
+            EndpointPolicy::PublicOnly
+                .validate_ip(IpAddr::V4(Ipv4Addr::new(192, 0, 1, 1)))
+                .is_ok()
+        );
+        assert!(
+            EndpointPolicy::PublicOnly
+                .validate_ip(IpAddr::V6(
+                    "2001:4860:4860::8888".parse().expect("valid IPv6 address")
+                ))
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn local_policy_allows_private_addresses_but_not_unspecified_or_multicast() {
+        assert!(
+            EndpointPolicy::AllowLocal
+                .validate_ip(IpAddr::V4(Ipv4Addr::LOCALHOST))
+                .is_ok()
+        );
+        assert!(
+            EndpointPolicy::AllowLocal
+                .validate_ip(IpAddr::V6(Ipv6Addr::LOCALHOST))
+                .is_ok()
+        );
+        assert!(
+            EndpointPolicy::AllowLocal
+                .validate_ip(IpAddr::V4(Ipv4Addr::UNSPECIFIED))
+                .is_err()
+        );
+        assert!(
+            EndpointPolicy::AllowLocal
+                .validate_ip(IpAddr::V4(Ipv4Addr::new(224, 0, 0, 1)))
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn public_only_policy_rejects_local_fixture_before_dial() {
+        let fixture = LocalFixtureServer::start().await.expect("fixture starts");
+        let client = SignalingClient::new(fixture.url()).expect("client URL is valid");
+        let error = match client.connect().await {
+            Ok(_) => panic!("public-only policy must reject loopback fixture"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("disallowed address: 127.0.0.1"));
+        assert_eq!(fixture.snapshot().await.connection_count, 0);
+        fixture.shutdown().await.expect("fixture shuts down");
+    }
+
+    #[tokio::test]
+    async fn public_only_policy_is_applied_before_each_retry() {
+        let fixture = LocalFixtureServer::start().await.expect("fixture starts");
+        let client = SignalingClient::new(fixture.url())
+            .expect("client URL is valid")
+            .with_reconnect_policy(ReconnectPolicy::limited(2, Duration::ZERO));
+        let request = SignalingMessage::Register(
+            RegisterRequest::new("uid", "public-key", true).expect("request is valid"),
+        );
+        let error = match client.transact_with_retry(&request).await {
+            Ok(_) => panic!("public-only policy must reject loopback fixture"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("disallowed address: 127.0.0.1"));
+        assert_eq!(fixture.snapshot().await.connection_count, 0);
+        fixture.shutdown().await.expect("fixture shuts down");
+    }
+
     #[tokio::test]
     async fn fixture_supports_request_response_flow() {
         let fixture = LocalFixtureServer::start().await.expect("fixture starts");
-        let client = SignalingClient::new(fixture.url()).expect("client URL is valid");
+        let client = SignalingClient::new(fixture.url())
+            .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal);
         let request = SignalingMessage::Register(
             RegisterRequest::new("uid", "public-key", true).expect("request is valid"),
         );
@@ -813,7 +1034,9 @@ mod tests {
         })
         .await
         .expect("fixture starts");
-        let client = SignalingClient::new(fixture.url()).expect("client URL is valid");
+        let client = SignalingClient::new(fixture.url())
+            .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal);
         let request = SignalingMessage::Register(
             RegisterRequest::new("uid", "public-key", true).expect("request is valid"),
         );
@@ -837,7 +1060,9 @@ mod tests {
         })
         .await
         .expect("fixture starts");
-        let client = SignalingClient::new(fixture.url()).expect("client URL is valid");
+        let client = SignalingClient::new(fixture.url())
+            .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal);
         let mut connection = client.connect().await.expect("connection succeeds");
         let request = SignalingMessage::Register(
             RegisterRequest::new("uid", "public-key", true).expect("request is valid"),
@@ -864,6 +1089,7 @@ mod tests {
         .expect("fixture starts");
         let client = SignalingClient::new(fixture.url())
             .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal)
             .with_reconnect_policy(ReconnectPolicy::limited(1, Duration::from_millis(1)));
         let request = SignalingMessage::Register(
             RegisterRequest::new("uid", "public-key", true).expect("request is valid"),
@@ -882,7 +1108,9 @@ mod tests {
     #[tokio::test]
     async fn fixture_error_message_is_returned_as_a_typed_response() {
         let fixture = LocalFixtureServer::start().await.expect("fixture starts");
-        let client = SignalingClient::new(fixture.url()).expect("client URL is valid");
+        let client = SignalingClient::new(fixture.url())
+            .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal);
         let request =
             SignalingMessage::PairApproved(PairApproved::new("client").expect("request is valid"));
         let response = client
@@ -906,6 +1134,7 @@ mod tests {
         let fixture = LocalFixtureServer::start().await.expect("fixture starts");
         let client = SignalingClient::new(fixture.url())
             .expect("client URL is valid")
+            .with_endpoint_policy(EndpointPolicy::AllowLocal)
             .with_max_message_size(32)
             .expect("positive size");
         let request = SignalingMessage::Register(

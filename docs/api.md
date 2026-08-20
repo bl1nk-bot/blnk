@@ -86,7 +86,8 @@ pub struct SignalingClient { /* ... */ }
 ```
 
 ### Methods
-- `new(url: &str) -> Result<Self>`
+- `new(url: &str) -> Result<Self>` — ใช้ `EndpointPolicy::PublicOnly` เป็นค่าเริ่มต้นและทำ preflight DNS/IP validation ก่อน dial
+- `with_endpoint_policy(policy: EndpointPolicy) -> Self` — ใช้ `EndpointPolicy::AllowLocal` เฉพาะ local fixture/test ที่ควบคุมได้
 - `connect(&mut self) -> Result<()>`
 - `register(&self, req: RegisterRequest) -> Result<RegisterResponse>`
 - `send_offer(&self, msg: OfferMessage) -> Result<()>`
@@ -96,6 +97,7 @@ pub struct SignalingClient { /* ... */ }
 
 ### Responsibilities
 - maintain websocket connection
+- preflight signaling endpoint policy before initial and retry connections
 - encode/decode signaling messages
 - route messages to session manager
 
