@@ -1,0 +1,54 @@
+name: Question
+description: ขอคำอธิบายหรือสอบถามวิธีใช้งานและพฤติกรรมของระบบ
+title: "[Question]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        แบบฟอร์มนี้ไม่ติด label อัตโนมัติ กรุณาค้นหาเอกสารและ Issues เดิมก่อนถาม และห้ามใส่ secret, private key, token หรือข้อมูลส่วนบุคคล
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: ระบบปฏิบัติการ
+      description: เลือก platform ที่เกี่ยวข้องกับคำถาม
+      options:
+        - Android
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: คำถาม
+      description: เขียนคำถามให้ชัดเจนและระบุผลลัพธ์ที่ต้องการทราบ
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: บริบทและสิ่งที่ลองแล้ว
+      description: ระบุ version, คำสั่ง, configuration หรือเอกสารที่ได้อ่านแล้ว โดยตัดข้อมูลลับออก
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: Issue หรือเอกสารที่เกี่ยวข้อง
+      description: ใส่ลิงก์หรือหมายเลข Issue/PR ที่เกี่ยวข้องถ้ามี
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: การตรวจสอบก่อนส่ง
+      options:
+        - label: ฉันได้ลบ secret, private key, token และข้อมูลส่วนบุคคลออกแล้ว
+          required: true
+        - label: ฉันค้นหาเอกสารและ Issues เดิมแล้ว แต่ยังต้องการคำอธิบายเพิ่มเติม
+          required: true

@@ -1,0 +1,17 @@
+name: Blank
+description: เปิด Issue เปล่าสำหรับกรณีที่ไม่เข้ากับ Feature, Bug, Documentation หรือ Question
+title: ""
+body:
+  - type: markdown
+    attributes:
+      value: |
+        กรุณาใส่หัวข้อและรายละเอียดให้ชัดเจน ห้ามใส่ secret, private key, token หรือข้อมูลส่วนบุคคล
+
+  - type: textarea
+    id: details
+    attributes:
+      label: รายละเอียด
+      description: เขียนข้อมูลตามรูปแบบที่เหมาะกับเรื่องที่ต้องการแจ้ง
+      placeholder: อธิบายบริบท ปัญหา ข้อเสนอ หรือหลักฐานที่เกี่ยวข้อง
+    validations:
+      required: false
