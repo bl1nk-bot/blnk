@@ -5,7 +5,7 @@
 
 ## Executive Summary
 
-blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives, Issue #9 เพิ่ม SWSP raw frame codec, Issue #11 เพิ่ม typed signaling/session/stream boundaries, Issue #13 เพิ่ม deterministic protobuf generation boundary และ Issue #33 เพิ่ม JSON-over-WebSocket transport กับ local loopback fixture ที่ทดสอบได้ แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา WebRTC peer/data-channel integration, protobuf หรือ external-provider interoperability fixtures, stream handlers, web integration และ cross-platform adapters [1] [2]
+blnk Rust **มี runnable foundation ตามสถาปัตยกรรมแล้ว** และ Issue #7 เพิ่ม identity/pairing primitives, Issue #9 เพิ่ม SWSP raw frame codec, Issue #11 เพิ่ม typed signaling/session/stream boundaries, Issue #13 เพิ่ม deterministic protobuf generation boundary, Issue #33 เพิ่ม JSON-over-WebSocket transport กับ local loopback fixture ที่ทดสอบได้ และ Issue #35 เพิ่ม public-only signaling endpoint preflight พร้อม explicit local-fixture opt-in แต่ยังไม่พร้อมใช้งานจริงหรือ deploy ระบบหลัก ยังต้องพัฒนา WebRTC peer/data-channel integration, protobuf หรือ external-provider interoperability fixtures, stream handlers, web integration และ cross-platform adapters [1] [2]
 
 การมี CLI command, dependency หรือ protobuf schema ไม่ถือเป็นการผ่าน acceptance criterion จนกว่าจะมี business logic, protocol compatibility tests และ end-to-end evidence รองรับ
 
@@ -19,7 +19,7 @@ blnk Rust **มี runnable foundation ตามสถาปัตยกรร�
 | Library foundation | มี `src/lib.rs`, module boundaries, typed errors, config loader และ explicit CLI placeholders [4] [6] | Implemented in foundation |
 | Identity and pairing | มี RSA 2048 identity generate/load/save, sign/verify, OAEP encrypt/decrypt, 6-digit `pairing_code`, `access_code`, nonce, commit-reveal และ provisional SAS ใน Issue #7 branch | Implemented; integration/fixture pending |
 | SWSP codec | มี typed flags, canonical 8-byte little-endian header, max-payload enforcement, incomplete-frame handling และ round-trip/negative tests ใน Issue #9; ยังไม่มี upstream interoperability fixture หรือ WebRTC integration | Implemented; interoperability pending |
-| Signaling boundary | Issue #11 มี typed register/request/offer/answer/candidate/pairing/error messages และ protocol-version validation; Issue #13 เพิ่ม generated protobuf bindings ใต้ namespace แยก; Issue #33 เพิ่ม JSON-over-WebSocket codec/client, message-size guard, close/error propagation, reconnect policy และ local loopback fixture tests | Local transport and fixture implemented; external interoperability pending |
+| Signaling boundary | Issue #11 มี typed register/request/offer/answer/candidate/pairing/error messages และ protocol-version validation; Issue #13 เพิ่ม generated protobuf bindings ใต้ namespace แยก; Issue #33 เพิ่ม JSON-over-WebSocket codec/client, message-size guard, close/error propagation, reconnect policy และ local loopback fixture tests; Issue #35 เพิ่ม default public-only endpoint preflight, DNS/IP special-use rejection และ explicit local-fixture opt-in | Local transport and endpoint boundary implemented; external interoperability pending |
 | Session/auth | Issue #11 มี explicit connecting/authenticating/ready/closed state machine, PIN retry/delay policy, typed control messages และ cleanup on terminal failure | Foundation implemented; integration pending |
 | Stream registry | Issue #11 มี non-zero stream ID allocation, lifecycle validation, counters และ cleanup แต่ยังไม่มี shell/file/HTTP/TCP/WebSocket handlers | Registry implemented; handlers pending |
 | Protobuf build | Issue #13 มี `build.rs`, vendored `protoc`, explicit schema input list และ generated modules ใต้ `src/proto_generated.rs` พร้อม encode/decode compile test [6] [7] [9] [10] | Implemented; interoperability pending |
@@ -52,7 +52,7 @@ cargo clippy --all --all-targets -- -D warnings
 | Persistent access credential | หากยังต้องมี credential ภายใน 64-bit ให้ใช้ชื่อ `access_code` แยกจาก pairing code และห้ามเรียกปนกันว่า `code` |
 | SWSP | `Frame` raw wire format เป็น header 8 bytes ตาม specification ของ SWSP: `stream_id` 4 bytes, `flags` 2 bytes, `length` 2 bytes, ตามด้วย payload; protobuf ใช้เป็น schema/control representation เท่านั้นจนกว่าจะมี compatibility fixture ยืนยันอย่างอื่น |
 | Protocol compatibility | ห้ามเปลี่ยน signaling, pairing, identity หรือ SWSP semantics เพื่อให้ implement ง่ายขึ้น; หากจำเป็นต้องเปลี่ยนต้องมี decision record และ fixture จากต้นฉบับ |
-| Signaling transport scope | Issue #33 ใช้ JSON text frames บน WebSocket; adapter แปลงชื่อภายใน `message_type`/`pairing_code` เป็น wire schema `type`/`code`; local fixture พิสูจน์เฉพาะ local request/response และ failure handling ไม่ใช่หลักฐาน original-client หรือ provider interoperability |
+| Signaling transport scope | Issue #33 ใช้ JSON text frames บน WebSocket; adapter แปลงชื่อภายใน `message_type`/`pairing_code` เป็น wire schema `type`/`code`; Issue #35 ใช้ `EndpointPolicy::PublicOnly` เป็นค่าเริ่มต้นและให้ local fixture ใช้ `EndpointPolicy::AllowLocal` อย่าง explicit; policy นี้เป็น application-level preflight ไม่ใช่ OS/network egress firewall; local fixture พิสูจน์เฉพาะ local request/response และ failure handling ไม่ใช่หลักฐาน original-client หรือ provider interoperability |
 | Pairing SAS | Issue #7 ใช้ deterministic provisional construction จาก nonce และ DTLS fingerprints; ต้องยืนยัน exact upstream encoding ด้วย interoperability fixture ก่อนผูกเข้ากับ client/server จริง |
 | Service worker | ไม่สร้าง service worker ใหม่ใน Rust; frontend/service worker เดิมอยู่นอก scope ตาม specification |
 | Platform scope | รองรับ Linux, Windows และ Android; macOS อยู่นอก scope |
@@ -61,7 +61,7 @@ cargo clippy --all --all-targets -- -D warnings
 
 ความเสี่ยงสูงสุดคือ interoperability กับ client/browser และ signaling server เดิม เพราะ schema ที่มีอยู่ยังไม่ได้ถูกเชื่อมเข้ากับ Rust codec หรือ end-to-end tests การ compile ผ่านเพียงอย่างเดียวจึงไม่เพียงพอที่จะยืนยันว่า protocol ใช้งานร่วมกับต้นฉบับได้
 
-ความเสี่ยงรองลงมาคือ cross-platform behavior ของ PTY, filesystem, networking และ Android packaging รวมถึง security boundary ของ file path, TCP target, PIN retry, key persistence และ resource limits ก่อนเปิดใช้งานจริงต้องมี negative tests และ audit evidence สำหรับขอบเขตเหล่านี้
+ความเสี่ยงรองลงมาคือ cross-platform behavior ของ PTY, filesystem, networking และ Android packaging รวมถึง security boundary ของ file path, TCP target, PIN retry, key persistence, signaling endpoint egress และ resource limits ก่อนเปิดใช้งานจริงต้องมี negative tests และ audit evidence สำหรับขอบเขตเหล่านี้ โดย `EndpointPolicy` ไม่ได้ทดแทน OS/network egress controls
 
 ## Recommended Implementation Order
 
