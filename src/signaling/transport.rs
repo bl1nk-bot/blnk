@@ -449,7 +449,7 @@ fn is_non_public_ip(ip: IpAddr) -> bool {
 fn is_unspecified_or_multicast(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(address) => {
-            address.is_unspecified() || address.is_multicast() || address.is_broadcast()
+            address.octets()[0] == 0 || address.is_multicast() || address.is_broadcast()
         }
         IpAddr::V6(address) => address.is_unspecified() || address.is_multicast(),
     }
