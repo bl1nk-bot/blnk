@@ -105,26 +105,45 @@ pub struct SignalingClient { /* ... */ }
 
 ## 4. Peer API
 
-## 4.1 `PeerConnection`
+## 4.1 `PeerHandle`
 
 ```rust
-pub struct PeerConnection { /* ... */ }
+pub struct PeerHandle { /* WebRTC connection, lifecycle state and SWSP receive queue */ }
 ```
 
+`PeerHandle::new()` สร้าง peer ด้วย loopback UDP และ `RTCConfiguration` ที่ไม่มี ICE server ภายนอก การกำหนด STUN/TURN สำหรับ production ต้องมาจาก caller/configuration layer และอยู่นอก local harness ของ Issue #37
+
 ### Methods
-- `new(identity: Identity, signaling: SignalingClient) -> Result<Self>`
-- `connect(&mut self) -> Result<()>`
-- `create_data_channel(&self) -> Result<DataChannel>`
-- `add_ice_candidate(&self, candidate: IceCandidate) -> Result<()>`
-- `set_remote_description(&self, sdp: String) -> Result<()>`
-- `set_local_description(&self, sdp: String) -> Result<()>`
+
+- `new() -> Result<PeerHandle>` สร้าง peer และติดตั้ง event handler
+- `create_data_channel(label: &str) -> Result<()>` สร้าง application data channel baseline ซึ่งใช้ค่าเริ่มต้นของ WebRTC crate สำหรับ reliable/ordered delivery
+- `create_offer() -> Result<RTCSessionDescription>` สร้าง local offer และรอ non-trickle ICE gathering ให้เสร็จ
+- `accept_offer(offer: RTCSessionDescription) -> Result<RTCSessionDescription>` รับ offer สร้าง answer และรอ ICE gathering
+- `set_remote_answer(answer: RTCSessionDescription) -> Result<()>` ตั้งค่า remote answer
+- `wait_connected() -> Result<()>` รอ connected state หรือคืน failure/timeout แบบ typed error
+- `wait_channel_open() -> Result<()>` รอ channel open หรือคืน channel error/close/timeout แบบ typed error
+- `send_frame(frame: &Frame) -> Result<()>` encode และส่ง SWSP frame เป็น binary data-channel message
+- `recv_frame() -> Result<Frame>` รับ binary message และตรวจสอบ SWSP frame ต้อง consume payload ครบพอดี
+- `close() -> Result<()>` ปิด data channel และ peer connection โดยเรียกซ้ำได้อย่างปลอดภัย
 
 ### Responsibilities
 
-- manage WebRTC lifecycle
-- handle ICE/SDP exchange
-- open data channel
-- report state transitions
+- manage WebRTC lifecycle และ state transitions
+- handle non-trickle ICE/SDP offer-answer exchange
+- open, monitor และ teardown data channel
+- bridge binary data-channel messages กับ SWSP frame codec
+- report failure, close และ timeout โดยไม่อ้าง external interoperability
+
+## 4.2 `TwoPeerHarness`
+
+```rust
+pub struct TwoPeerHarness {
+    pub offerer: PeerHandle,
+    pub answerer: PeerHandle,
+}
+```
+
+`TwoPeerHarness::new(label)` แลกเปลี่ยน offer/answer ภายใน process ผ่าน loopback peers สองฝั่ง โดยไม่ใช้ signaling server หรือ external STUN/TURN เพื่อให้ integration test deterministic และตรวจสอบ SWSP round-trip กับ lifecycle failure paths ได้
 
 ---
 

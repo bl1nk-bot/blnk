@@ -33,6 +33,7 @@ prost-derive = "0.14.4"
 # For WebSocket support
 tokio-tungstenite = "0.30.0"
 webrtc = "0.20.0"
+bytes = "1.12.1"
 
 # Networking
 axum = "0.8.9"
