@@ -388,6 +388,21 @@ pub struct Identity { /* ... */ }
 - `StreamContext`
 - `StreamHandlerInfo`
 
+## 8.6 Compatibility Baseline
+
+Issue #44 กำหนด compatibility evidence boundary ผ่านไฟล์ versioned ใต้ `tests/fixtures/compatibility/v1/` และ integration test `tests/compatibility_baseline.rs` โดยไม่สร้าง wire schema ใหม่
+
+| Boundary | Contract ที่ test ตรวจ | สถานะหลักฐาน |
+|---|---|---|
+| Signaling register | JSON `type`, field names, protocol value และ typed encode/decode | fixture-only + local round-trip |
+| SWSP open frame | 8-byte header, little-endian fields, flags, payload และ consumed length | fixture-only + local round-trip |
+| Control connect | protobuf field numbers/values และ decode เป็น typed `ControlMessage` | fixture-only + local decode |
+| Authenticated session | ลำดับ connect/auth/ready, state `Ready` และ clean close ผ่าน `TwoPeerHarness` | proven-local |
+
+ชื่อโฟลเดอร์ `v1` คือ fixture-format version ไม่ใช่ protocol version ค่า protocol ใน fixture ต้องตรงกับ `PROTOCOL_VERSION` ปัจจุบัน การไม่มี original-Go executable/capture ทำให้สถานะ original-client interoperability เป็น `not-tested` และห้ามเรียก local fixture ว่า production-compatible
+
+การเพิ่ม feature ที่เปลี่ยน directionality, ordering, close/error semantics หรือ version negotiation ต้องเพิ่ม fixture และ test ที่มี provenance ใหม่ โดยห้ามแก้ expected bytes เดิมเพียงเพื่อให้ test ผ่าน
+
 ---
 
 ## 9. Utility API
