@@ -15,7 +15,7 @@ API ในเอกสารนี้แบ่งเป็น:
 
 ### 1.1 Contract Status
 
-เอกสารนี้เป็น **target API contract** สำหรับการ implement ไม่ใช่รายการของ public symbols ที่มีอยู่แล้วใน source tree ฟังก์ชันหรือ type ใดจะถือว่าใช้งานได้ก็ต่อเมื่อมี Rust implementation, error handling, tests และ protocol compatibility evidence รองรับ สถานะล่าสุดให้ดู [`docs/implementation-status.md`](implementation-status.md)
+เอกสารนี้เป็น **API contract ที่แยกสถานะ implementation กับ target integration** อย่างชัดเจน ฟังก์ชันหรือ type ใดจะถือว่าใช้งานได้ก็ต่อเมื่อมี Rust implementation, error handling และ tests รองรับ ส่วน interoperability หรือ remote deployment ต้องมี evidence เพิ่มเติม สถานะล่าสุดให้ดู [`docs/implementation-status.md`](implementation-status.md)
 
 ---
 
@@ -27,12 +27,18 @@ API ในเอกสารนี้แบ่งเป็น:
 
 ### Responsibilities
 - load config
-- load/generate identity
-- connect signaling server
-- register device
-- wait for incoming request
-- create peer/session
-- dispatch streams
+- load or generate the persisted identity
+- with `--local-fixture`, start a deterministic local signaling fixture without external secrets
+- with `--once`, initialize/print the service state and exit; without it, wait for Ctrl-C
+- remote signaling registration, peer/session creation and stream dispatch remain an explicit not-implemented boundary
+
+### Implemented CLI surface
+
+```text
+blnk serve [--signaling-url <URL>] [--local-fixture] [--once] [--pin <PIN>]
+```
+
+`serve` never prints private key material, pairing/access credentials, or raw registry contents. The local fixture reports only its endpoint and whether a PIN is configured.
 
 ### Example
 
@@ -44,14 +50,16 @@ run_serve(args).await?;
 
 ## 2.2 `connect`
 
-เชื่อมต่อไปยัง device ผ่าน signaling
+เชื่อมต่อไปยัง device ผ่าน signaling หรือผ่าน local fixture
 
 ### Responsibilities
-- connect to signaling server
-- submit connect request
-- negotiate offer/answer
-- open data channel
-- establish session
+- `--local-fixture` creates a real in-process `TwoPeerHarness`, performs the authenticated `SessionRuntime` handshake, opens a shell stream, executes direct argv, and prints framed output/exit status
+- `--target <id>` resolves metadata from `DeviceRegistry`; unknown devices are rejected without dialing
+- remote signaling, offer/answer, data-channel negotiation and stream dispatch are not claimed until a provider-compatible orchestration layer exists
+
+```text
+blnk connect [--target <DEVICE_ID>] [--local-fixture] [--command <PROGRAM> [ARGS...]] [--pin <PIN>]
+```
 
 ---
 
@@ -59,21 +67,30 @@ run_serve(args).await?;
 คัดลอกไฟล์ระหว่าง local/remote
 
 ### Responsibilities
-- parse source/destination
-- open file stream
-- transfer file content
-- report progress
+- parse source/destination and `--overwrite`
+- in `--local-fixture`, open an authenticated file stream, send `FileOp` plus bounded data chunks, execute the sandboxed receiver service, and consume the response transcript
+- `remote:<path>` selects the download direction; a normal local source selects upload
+- report a concise completion line without exposing credential or full local path data beyond the requested source/destination
+- remote signaling/session orchestration is not claimed by this command yet
+
+```text
+blnk cp [--local-fixture] [--overwrite] <SOURCE> <DESTINATION>
+```
 
 ---
 
 ## 2.4 `devices`
-จัดการ device registry
+จัดการ metadata-only device registry
 
 ### Responsibilities
-- list devices
-- show status
-- remove saved device
-- resolve identity info
+- `--list` (and the default when entries exist) prints ID, endpoint and last-seen timestamp
+- persist only device metadata; private key, pairing code and access code are never printed or stored in the registry
+- unknown devices are rejected by `connect --target`
+- removal/status/identity resolution UI is outside this issue
+
+```text
+blnk devices [--list]
+```
 
 ---
 
