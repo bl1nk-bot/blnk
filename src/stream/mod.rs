@@ -7,6 +7,8 @@
 pub mod file;
 pub mod shell;
 
+pub mod proxy;
+
 use std::collections::BTreeMap;
 
 use crate::utils::error::BlnkError;
