@@ -8,6 +8,7 @@ pub mod file;
 pub mod shell;
 
 pub mod proxy;
+pub mod proxy_handler;
 
 use std::collections::BTreeMap;
 
