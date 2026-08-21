@@ -401,7 +401,7 @@ mod tests {
     fn capture_script() -> &'static str {
         #[cfg(windows)]
         {
-            "echo out & echo err 1>&2 & exit /b 7"
+            "echo(out&echo(err>&2&exit /b 7"
         }
         #[cfg(not(windows))]
         {
@@ -412,7 +412,7 @@ mod tests {
     fn long_running_script() -> &'static str {
         #[cfg(windows)]
         {
-            "ping -n 2 127.0.0.1 >nul"
+            "for /L %i in (1,1,2147483647) do @rem"
         }
         #[cfg(not(windows))]
         {
