@@ -848,6 +848,28 @@ mod tests {
         decode_output_frame,
     };
 
+    fn fixture_shell_program() -> String {
+        #[cfg(windows)]
+        {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_owned())
+        }
+        #[cfg(not(windows))]
+        {
+            "/bin/sh".to_owned()
+        }
+    }
+
+    fn fixture_shell_command(script: &str) -> ShellCommand {
+        #[cfg(windows)]
+        {
+            ShellCommand::new(fixture_shell_program()).args(["/C", script])
+        }
+        #[cfg(not(windows))]
+        {
+            ShellCommand::new(fixture_shell_program()).args(["-c", script])
+        }
+    }
+
     async fn connected_runtime_pair(
         server_config: SessionRuntimeConfig,
         client_config: SessionRuntimeConfig,
@@ -1013,7 +1035,7 @@ mod tests {
             .open_shell_stream("/shell")
             .expect("client should open shell stream");
         let stream_id = client_stream.id();
-        let command = ShellCommand::new("/bin/sh").args(["-c", "printf hello"]);
+        let command = fixture_shell_command("echo hello");
         client
             .send_shell_open(stream_id, &command)
             .await
@@ -1090,7 +1112,7 @@ mod tests {
             .expect("client should open cancellation stream");
         let cancel_id = cancel_stream.id();
         client
-            .send_shell_open(cancel_id, &ShellCommand::new("/bin/sh"))
+            .send_shell_open(cancel_id, &ShellCommand::new(fixture_shell_program()))
             .await
             .expect("client should send cancellation open");
         let cancel_open = server
@@ -1101,7 +1123,7 @@ mod tests {
             decode_open_frame(&cancel_open)
                 .expect("cancellation open decode")
                 .program(),
-            "/bin/sh"
+            fixture_shell_program().as_str()
         );
         server
             .accept_shell_stream(cancel_id, "/cancel")

@@ -318,6 +318,21 @@ pub trait StreamHandler {
 
 ---
 
+## 6.7 Platform Support Matrix
+
+Issue #45 กำหนด platform boundary ของ crate และวิธีอ่านหลักฐานโดยไม่แปลง compile success เป็น runtime หรือ release claim
+
+| Platform | Contract | Evidence level |
+|---|---|---|
+| Linux | รัน full validation gate: format, all-target check, tests, clippy warnings-as-errors และ diff hygiene | runner-tested เมื่อ workflow job ผ่าน |
+| Windows | ใช้ MSVC target สำหรับ `cargo check --all-targets` และ `cargo test --all`; shell fixtures ต้องเลือก executable/arguments ตาม OS | runner-tested เมื่อ Windows job ผ่าน; local Linux ไม่แทนหลักฐานนี้ |
+| Android | ใช้ `aarch64-linux-android` เป็น compile-only gate ผ่าน `cargo check --lib --target ...`; ยังไม่อ้าง emulator/device, packaging หรือ runtime | compile-verified เท่านั้น |
+| macOS | ไม่อยู่ใน product scope หรือ CI matrix | out-of-scope |
+
+`rust-toolchain.toml` เป็น source of truth ของ channel และ target declarations ส่วน `.github/workflows/ci.yml` เป็น source ของ command/job boundary การเปลี่ยน platform-specific behavior ต้องเพิ่ม test หรือ fixture ที่รันบน platform นั้นได้จริง และต้องระบุข้อจำกัดใน `docs/implementation-status.md` กับ ADR #45
+
+---
+
 ## 7. Identity API
 
 ## 7.1 `Identity`

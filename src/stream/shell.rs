@@ -376,10 +376,87 @@ fn exit_status(status: std::process::ExitStatus) -> (Option<i32>, bool) {
 mod tests {
     use super::*;
 
+    fn shell_program() -> String {
+        #[cfg(windows)]
+        {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_owned())
+        }
+        #[cfg(not(windows))]
+        {
+            "/bin/sh".to_owned()
+        }
+    }
+
+    fn shell_args(script: &str) -> Vec<String> {
+        #[cfg(windows)]
+        {
+            vec!["/C".to_owned(), script.to_owned()]
+        }
+        #[cfg(not(windows))]
+        {
+            vec!["-c".to_owned(), script.to_owned()]
+        }
+    }
+
+    fn capture_script() -> &'static str {
+        #[cfg(windows)]
+        {
+            "echo out & echo err 1>&2 & exit /b 7"
+        }
+        #[cfg(not(windows))]
+        {
+            "printf out; printf err >&2; exit 7"
+        }
+    }
+
+    fn long_running_script() -> &'static str {
+        #[cfg(windows)]
+        {
+            "ping -n 2 127.0.0.1 >nul"
+        }
+        #[cfg(not(windows))]
+        {
+            "sleep 1"
+        }
+    }
+
+    fn oversized_script() -> &'static str {
+        #[cfg(windows)]
+        {
+            "echo 123456789"
+        }
+        #[cfg(not(windows))]
+        {
+            "printf 123456789"
+        }
+    }
+
+    fn expected_capture_stdout() -> &'static [u8] {
+        #[cfg(windows)]
+        {
+            b"out\r\n"
+        }
+        #[cfg(not(windows))]
+        {
+            b"out"
+        }
+    }
+
+    fn expected_capture_stderr() -> &'static [u8] {
+        #[cfg(windows)]
+        {
+            b"err\r\n"
+        }
+        #[cfg(not(windows))]
+        {
+            b"err"
+        }
+    }
+
     fn test_policy() -> ShellPolicy {
         ShellPolicy::new(std::env::temp_dir())
             .expect("temp root")
-            .allow_program("/bin/sh")
+            .allow_program(shell_program())
             .with_max_output_bytes(128)
             .expect("output limit")
             .with_timeout(Duration::from_millis(500))
@@ -391,13 +468,13 @@ mod tests {
         let handler = ShellStreamHandler::new(test_policy());
         let result = handler
             .run(
-                ShellCommand::new("/bin/sh").args(["-c", "printf out; printf err >&2; exit 7"]),
+                ShellCommand::new(shell_program()).args(shell_args(capture_script())),
                 CancellationToken::new(),
             )
             .await
             .expect("shell should run");
-        assert_eq!(result.stdout, b"out");
-        assert_eq!(result.stderr, b"err");
+        assert_eq!(result.stdout, expected_capture_stdout());
+        assert_eq!(result.stderr, expected_capture_stderr());
         assert_eq!(result.exit_code, Some(7));
         assert!(!result.signaled);
     }
@@ -407,13 +484,13 @@ mod tests {
         let handler = ShellStreamHandler::new(
             ShellPolicy::new(std::env::temp_dir())
                 .expect("temp root")
-                .allow_program("/bin/sh")
+                .allow_program(shell_program())
                 .with_timeout(Duration::from_millis(20))
                 .expect("timeout"),
         );
         let error = handler
             .run(
-                ShellCommand::new("/bin/sh").args(["-c", "sleep 1"]),
+                ShellCommand::new(shell_program()).args(shell_args(long_running_script())),
                 CancellationToken::new(),
             )
             .await
@@ -426,7 +503,7 @@ mod tests {
         let handler = ShellStreamHandler::new(
             ShellPolicy::new(std::env::temp_dir())
                 .expect("temp root")
-                .allow_program("/bin/sh")
+                .allow_program(shell_program())
                 .with_timeout(Duration::from_secs(2))
                 .expect("timeout"),
         );
@@ -434,7 +511,10 @@ mod tests {
         let cancel = token.clone();
         let task = tokio::spawn(async move {
             handler
-                .run(ShellCommand::new("/bin/sh").args(["-c", "sleep 1"]), token)
+                .run(
+                    ShellCommand::new(shell_program()).args(shell_args(long_running_script())),
+                    token,
+                )
                 .await
         });
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -451,13 +531,13 @@ mod tests {
         let handler = ShellStreamHandler::new(
             ShellPolicy::new(std::env::temp_dir())
                 .expect("temp root")
-                .allow_program("/bin/sh")
+                .allow_program(shell_program())
                 .with_max_output_bytes(8)
                 .expect("output limit"),
         );
         let error = handler
             .run(
-                ShellCommand::new("/bin/sh").args(["-c", "printf 123456789"]),
+                ShellCommand::new(shell_program()).args(shell_args(oversized_script())),
                 CancellationToken::new(),
             )
             .await
@@ -471,15 +551,15 @@ mod tests {
         assert!(policy.validate(&ShellCommand::new("/usr/bin/id")).is_err());
         assert!(
             policy
-                .validate(&ShellCommand::new("/bin/sh").cwd("../outside"))
+                .validate(&ShellCommand::new(shell_program()).cwd("../outside"))
                 .is_err()
         );
     }
 
     #[test]
     fn shell_frames_round_trip_and_reject_invalid_flags() {
-        let command = ShellCommand::new("/bin/sh")
-            .args(["-c", "printf hello"])
+        let command = ShellCommand::new(shell_program())
+            .args(shell_args("printf hello"))
             .cwd("work");
         let open = encode_open_frame(7, &command).expect("open frame");
         assert!(open.flags.is_syn());

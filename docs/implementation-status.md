@@ -25,7 +25,8 @@ blnk Rust **มี runnable local MVP ตามสถาปัตยกรรม
 | Stream registry | Issue #11 มี non-zero stream ID allocation, lifecycle validation, counters และ cleanup; Issue #38 ผูก `open_stream`/`close_stream`/disconnect กับ runtime snapshot; Issue #39 เพิ่ม file streams; Issue #40 เพิ่ม shell streams; Issue #43 ใช้ทั้งสองผ่าน local CLI transcript | Registry/runtime/file/shell/CLI local lifecycle implemented; remote dispatch pending |
 | Protobuf build | Issue #13 มี `build.rs`, vendored `protoc`, explicit schema input list และ generated modules ใต้ `src/proto_generated.rs` พร้อม encode/decode compile test [6] [7] [9] [10]; Issue #44 เพิ่ม raw `ConnectMessage` fixture และ decode test | Implemented; original interoperability pending |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all` และ `cargo clippy --all --all-targets -- -D warnings` ผ่านบน Linux หลังแก้ dependency table scope [7] | Passing on Linux |
-| CI | มี jobs สำหรับ fmt, clippy และ test แต่ไม่มี cross-platform matrix หรือ release workflow ใน repository ปัจจุบัน [8] | Partial |
+| CI | `.github/workflows/ci.yml` มี Linux full gate, Windows MSVC build/test job และ Android `aarch64-linux-android` compile-only job ด้วย targets ที่ pin ใน `rust-toolchain.toml` [8]; Android job provisioning NDK/clang ก่อน compile | Matrix configured; Windows/Android evidence ต้องอ่านจาก runner job ที่ผ่าน; sandbox ยังไม่มี Android NDK/clang จึงไม่มี local target evidence |
+| Platform support | Linux มี local/CI full gate; Windows มี compile/test path; Android มี compile-only path; macOS อยู่นอก scope | แยก `runner-tested`, `compile-verified` และ `not-tested` ตาม ADR #45 |
 | Tests | มี unit tests สำหรับ config, identity, pairing, SWSP, signaling validation, session/auth lifecycle และ stream registry; Issues #33/#37/#38 เพิ่ม local transport, WebRTC, authenticated runtime และ failure-path coverage; Issue #39 เพิ่ม sandboxed file-transfer; Issue #40 เพิ่ม shell lifecycle/cancellation/limits; Issue #43 เพิ่ม CLI arg parsing, direct-argv safety, local authenticated shell/file transcripts และ metadata registry path; Issue #44 เพิ่ม 4 compatibility baseline tests และ versioned raw fixtures; ล่าสุด `cargo test --all` ผ่าน 82 tests (75 library + 3 binary + 4 integration) | Foundation plus local transport/peer/session-runtime/file/shell/CLI/compatibility coverage; original interoperability pending |
 | Release | ยังไม่มี binary artifact, checksum หรือ verified Linux/Windows/Android build | Not started |
 
@@ -40,7 +41,7 @@ cargo test --all
 cargo clippy --all --all-targets -- -D warnings
 ```
 
-โครงการจะถือว่าผ่าน specification ก็ต่อเมื่อ signaling, WebRTC data channel, pairing/PIN, shell, file, proxy, TCP และ WebSocket flow ทำงานได้จริง พร้อม test ครอบคลุมส่วนสำคัญ และ build ได้บน Linux, Windows และ Android ตาม scope ที่ประกาศไว้ [2]
+โครงการจะถือว่าผ่าน specification ก็ต่อเมื่อ signaling, WebRTC data channel, pairing/PIN, shell, file, proxy, TCP และ WebSocket flow ทำงานได้จริง พร้อม test ครอบคลุมส่วนสำคัญ และมีหลักฐานแยกตาม support matrix: Linux full gate, Windows build/test และ Android compile-only; การมี compile evidence ไม่เท่ากับ device, packaging, release หรือ interoperability evidence [2]
 
 ## Canonical Decisions
 
@@ -57,13 +58,13 @@ cargo clippy --all --all-targets -- -D warnings
 | WebRTC peer scope | Issue #37 ใช้ local loopback UDP และ `RTCConfiguration` ที่ไม่มี hardcoded STUN/TURN; production caller ต้องเป็นผู้แปลงค่า ICE server จาก config/signaling เอง; implementation นี้ไม่อ้าง external NAT traversal, browser compatibility หรือ TURN availability |
 | Pairing SAS | Issue #7 ใช้ deterministic provisional construction จาก nonce และ DTLS fingerprints; ต้องยืนยัน exact upstream encoding ด้วย interoperability fixture ก่อนผูกเข้ากับ client/server จริง |
 | Service worker | ไม่สร้าง service worker ใหม่ใน Rust; frontend/service worker เดิมอยู่นอก scope ตาม specification |
-| Platform scope | รองรับ Linux, Windows และ Android; macOS อยู่นอก scope |
+| Platform scope | Linux เป็น full-gate baseline; Windows เป็น build/test target; Android เป็น compile-only target จนกว่าจะมี device/emulator และ packaging evidence; macOS อยู่นอก scope |
 
 ## Known Risks
 
 ความเสี่ยงสูงสุดคือ interoperability กับ client/browser และ signaling server เดิม เพราะ schema ที่มีอยู่ยังไม่ได้ถูกเชื่อมเข้ากับ Rust codec หรือ end-to-end tests การ compile ผ่านเพียงอย่างเดียวจึงไม่เพียงพอที่จะยืนยันว่า protocol ใช้งานร่วมกับต้นฉบับได้
 
-ความเสี่ยงรองลงมาคือ cross-platform behavior ของ PTY, filesystem, networking และ Android packaging รวมถึง security boundary ของ file path, TCP target, PIN retry, key persistence, signaling endpoint egress และ resource limits ก่อนเปิดใช้งานจริงต้องมี negative tests และ audit evidence สำหรับขอบเขตเหล่านี้ โดย `EndpointPolicy` ไม่ได้ทดแทน OS/network egress controls
+ความเสี่ยงรองลงมาคือ cross-platform behavior ของ PTY, filesystem, networking และ Android packaging รวมถึง security boundary ของ file path, TCP target, PIN retry, key persistence, signaling endpoint egress และ resource limits ก่อนเปิดใช้งานจริงต้องมี negative tests และ audit evidence สำหรับขอบเขตเหล่านี้ โดย Windows runner evidence ยังต้องตรวจจาก job จริง และ Android เป็น compile-only ไม่มี device/emulator, packaging หรือ runtime evidence; sandbox local compile ยังติด NDK/clang แต่ workflow provisioning ถูกเพิ่มไว้สำหรับ runner; `EndpointPolicy` ไม่ได้ทดแทน OS/network egress controls
 
 ## Recommended Implementation Order
 
@@ -77,7 +78,7 @@ cargo clippy --all --all-targets -- -D warnings
 | 6 | Implement signaling และ WebRTC peer/data channel | **ผ่านบางส่วนใน Issue #37 และ #38:** local two-peer offer/answer, non-trickle ICE, SWSP data channel harness และ authenticated session runtime ผ่าน; Issue #39 ใช้ boundary เดิมส่ง file frames; ยังเหลือ external interoperability และ production NAT traversal |
 | 7 | Implement session/auth และ stream registry | **ผ่านบางส่วนใน Issues #11, #38, #39, #40, #42, #43 และ #44:** typed lifecycle, PIN retry/delay, protobuf control handshake, runtime stream cleanup, file/shell/proxy boundaries, local CLI transcripts และ authenticated compatibility transcript ผ่าน; เหลือ remote dispatch/interoperability tests |
 | 8 | เพิ่ม shell/HTTP/TCP/WebSocket, mDNS และ QR | **ผ่านบางส่วนใน Issues #40 และ #42:** shell และ concrete proxy handlers มี local coverage; ยังเหลือ SessionRuntime dispatch, TLS-enabled interoperability, mDNS/QR และ platform notes |
-| 9 | ทำ cross-platform, security, performance และ release validation | CI matrix ผ่าน, audit ไม่มี critical issue, artifacts ใช้งานได้ |
+| 9 | ทำ cross-platform, security, performance และ release validation | **Issue #45:** matrix configuration และ platform-aware tests ผ่านการตรวจ local; ต้องยืนยัน Windows runner job และ Android compile job จริง, จากนั้นจึงทำ audit, performance, packaging และ release artifacts |
 
 ## References
 

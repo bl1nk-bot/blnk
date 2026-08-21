@@ -7,7 +7,7 @@
 - พอร์ตฟีเจอร์จาก `bitbang-cli` ให้ครบถ้วน
 - ใช้ Rust เพื่อเพิ่ม memory safety และความคุมได้ของระบบ
 - ออกแบบสถาปัตยกรรมใหม่ให้ modular และ testable
-- รองรับ cross-platform: Linux, Windows, Android
+- กำหนด support scope สำหรับ Linux, Windows และ Android โดยแยกระดับหลักฐานของแต่ละแพลตฟอร์ม
 - เตรียมโครงสร้างสำหรับการพัฒนาต่อในอนาคตอย่างเป็นระบบ
 
 ## ภาพรวมระบบ
@@ -42,7 +42,7 @@ blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-pe
 - single static binary
 - async-first architecture
 - error handling ชัดเจน
-- cross-platform support
+- cross-platform support ตาม evidence matrix ไม่ใช่คำกล่าวอ้าง release โดยอัตโนมัติ
 - test coverage สูง
 - release automation พร้อม
 
@@ -51,6 +51,19 @@ blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-pe
 **สถานะปัจจุบัน: local MVP / ยังไม่พร้อมใช้งานจริง** โครงการมี runnable foundation, identity, signaling/WebRTC local harness, authenticated session, file-transfer/shell MVP และ CLI fixture workflow แล้ว แต่ remote signaling-to-WebRTC orchestration, external interoperability, production proxy integration และ web integration ยังอยู่ใน roadmap การมีคำสั่ง CLI หรือ protobuf schema เพียงอย่างเดียวไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
 
 ผลตรวจสอบล่าสุดและรายการงานที่ต้องทำอยู่ใน [`docs/implementation-status.md`](docs/implementation-status.md) ส่วนลำดับความสำคัญและกติกาแก้ความขัดแย้งของเอกสารอยู่ใน [`docs/plans/core-foundation.md`](docs/plans/core-foundation.md)
+
+## Support Matrix
+
+Issue #45 กำหนดคำว่า **รองรับ** ให้แยกจากการ compile ผ่านและการมี release artifact ดังนี้:
+
+| แพลตฟอร์ม | หลักฐานปัจจุบัน | ขอบเขตที่ยืนยันได้ |
+|---|---|---|
+| Linux (`x86_64-unknown-linux-gnu`) | full local/CI gate: format, check, test และ clippy | `runner-tested` และ local fixture smoke |
+| Windows (`x86_64-pc-windows-msvc`) | GitHub Actions build/test job | `compile-verified` และ `runner-tested` เมื่อ job ผ่าน; ยังไม่มี release claim |
+| Android (`aarch64-linux-android`) | GitHub Actions compile-only job | `compile-verified` เท่านั้น; ยังไม่มี device/emulator หรือ APK/AAB evidence |
+| macOS | ไม่มี jobและอยู่นอก scope | `not-tested` / ไม่รองรับตาม decision ปัจจุบัน |
+
+การผ่าน Linux ไม่ใช่หลักฐานแทน Windows หรือ Android และการมี target ใน `rust-toolchain.toml` ไม่ใช่หลักฐานของ linker, packaging, device smoke หรือ external interoperability รายละเอียด decision และ evidence levels อยู่ใน [`docs/decisions/issue-45-support-matrix.md`](docs/decisions/issue-45-support-matrix.md)
 
 ## Quick Start
 
@@ -79,7 +92,7 @@ cargo test --all
 cargo clippy --all --all-targets -- -D warnings
 ```
 
-บน Linux คำสั่งทั้งสี่ผ่านสำหรับ runnable foundation ในปัจจุบัน ส่วนการผ่าน acceptance ของ protocol และการใช้งานจริงยังต้องมี compatibility, integration และ cross-platform evidence ตาม [`docs/implementation-status.md`](docs/implementation-status.md)
+บน Linux คำสั่งทั้งสี่ผ่านสำหรับ runnable foundation ในปัจจุบัน ส่วน Windows และ Android ใช้ gates ตาม Support Matrix ข้างต้น ส่วนการผ่าน acceptance ของ protocol และการใช้งานจริงยังต้องมี compatibility, integration, packaging และ external interoperability evidence ตาม [`docs/implementation-status.md`](docs/implementation-status.md)
 
 ### run
 
