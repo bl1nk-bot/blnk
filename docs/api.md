@@ -310,6 +310,7 @@ pub trait StreamHandler {
 - stream request/response body
 - rewrite headers
 - follow redirect policy
+- read response chunks incrementally and reject `response_limit_exceeded` before appending any chunk that would exceed `ProxyResourceLimits::max_response_bytes`; this applies to responses with and without `Content-Length`
 
 ### Related Types
 - `HTTPRequest`
@@ -344,7 +345,7 @@ API ที่เปิด capability ให้ peer ต้องถูกเร�
 | Session/control | stream เปิดได้เมื่อ `Ready`; duplicate/premature control messages, retry exhaustion และ timeout ทำให้ session/peer ปิด | local two-peer/authenticated runtime evidence เท่านั้น |
 | File stream | root-relative path, traversal/symlink rejection, size/overwrite policy, timeout และ temporary-file cleanup | ไม่แทน OS ACL และไม่ป้องกัน hostile filesystem race ได้สมบูรณ์ |
 | Shell stream | direct argv, program/argument/cwd allowlist, `env_clear`, output/timeout/cancellation limits | ไม่แทน OS sandbox, container, SELinux หรือ AppContainer |
-| Proxy stream | deny-by-default, allowlist/explicit confirmation, DNS pinning, retry/redirect guards, resource limits และ log redaction; `wss` handler ปฏิเสธจนกว่ามี tested TLS connector | ไม่ใช่ OS egress firewall; production TLS/provider/NAT evidence ยังขาด |
+| Proxy stream | deny-by-default, allowlist/explicit confirmation, DNS pinning, retry/redirect guards, bounded incremental response-body reads, resource limits และ log redaction; `wss` handler ปฏิเสธจนกว่ามี tested TLS connector | ไม่ใช่ OS egress firewall; production TLS/provider/NAT evidence ยังขาด |
 
 ความสามารถที่เกี่ยวกับ network, file และ process จึงไม่ควรถูกตีความเป็นสิทธิ์แบบไร้ขอบเขต การ deploy จริงต้องกำหนด OS account, filesystem ACL, firewall/egress policy, TLS trust policy และ resource quotas เพิ่มเติมตาม [ADR-046](decisions/issue-46-threat-model.md)
 
