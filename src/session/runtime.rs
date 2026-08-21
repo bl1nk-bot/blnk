@@ -650,9 +650,14 @@ impl SessionRuntime {
     /// Closes the session, clears active streams, and tears down the peer.
     pub async fn close(&mut self) -> SessionResult<()> {
         let result = if self.state() != SessionState::Closed {
-            self.peer
+            match self
+                .peer
                 .send_frame(&Frame::new(CONTROL_STREAM_ID, FrameFlags::FIN, Vec::new()))
                 .await
+            {
+                Err(error) if is_data_channel_closed_send_error(&error) => Ok(()),
+                result => result,
+            }
         } else {
             Ok(())
         };
@@ -839,6 +844,13 @@ impl SessionRuntime {
     }
 }
 
+fn is_data_channel_closed_send_error(error: &BlnkError) -> bool {
+    matches!(
+        error,
+        BlnkError::Peer(message) if message == "send SWSP frame: data channel closed"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -902,6 +914,19 @@ mod tests {
             let decoded = ControlMessage::decode(&message.encode()).expect("control decode");
             assert_eq!(decoded, message);
         }
+    }
+
+    #[test]
+    fn only_data_channel_close_send_error_is_tolerated_during_shutdown() {
+        assert!(is_data_channel_closed_send_error(&BlnkError::Peer(
+            "send SWSP frame: data channel closed".to_owned(),
+        )));
+        assert!(!is_data_channel_closed_send_error(&BlnkError::Peer(
+            "send SWSP frame: permission denied".to_owned(),
+        )));
+        assert!(!is_data_channel_closed_send_error(&BlnkError::Protocol(
+            "data channel closed".to_owned(),
+        )));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -210,13 +210,14 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 - `close_file_stream(stream_id) -> Result<StreamEntry>` — ส่ง `FIN` และลบ file stream จาก registry
 - `snapshot() -> SessionRuntimeSnapshot` — อ่าน state, stats และจำนวน active streams
 - `send_control(message: ControlMessage) -> Result<()>` — ส่ง protobuf control message บน SWSP control stream 0
-- `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN`, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer
+- `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN` เมื่อยังทำได้, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer; หาก remote ปิด data channel ก่อนจนการส่ง `FIN` คืน `send SWSP frame: data channel closed` ให้ถือเป็นการปิดแบบ idempotent และส่งต่อ error อื่นตามปกติ
 
 ### Runtime guarantees and limits
 
 - ตรวจ duplicate `connect`, duplicate `auth`, duplicate `auth_required`/`auth_result` และ premature/duplicate `ready` ภายใน session scope
 - timeout ระหว่าง handshake ปิด local session; wrong-PIN retry exhaustion ปิดทั้ง runtime ที่ตรวจพบ failure
-- tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message และ stream cleanup
+- หลัง authenticated handshake การปิดฝั่ง remote ก่อนต้องไม่ทำให้ `close()` ของฝั่งที่สองล้มเหลวเพราะ data-channel close ระหว่างส่ง `FIN`; การปิดแบบนี้เป็น local lifecycle guarantee ไม่ใช่หลักฐาน interoperability กับ peer ภายนอก
+- tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message, stream cleanup และ remote-first close handling
 - local tests ไม่ใช่หลักฐาน original-client/server interoperability, browser compatibility, production NAT traversal หรือ external STUN/TURN availability
 
 ---
