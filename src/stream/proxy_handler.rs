@@ -353,7 +353,7 @@ impl ProxyStreamService {
                     .map_err(|_| protocol_error("invalid HTTP header value"))?;
                 builder = builder.header(name, value);
             }
-            let response = builder
+            let mut response = builder
                 .send()
                 .await
                 .map_err(|error| transport_error(format!("HTTP request failed: {error}")))?;
@@ -382,14 +382,21 @@ impl ProxyStreamService {
             }
             let status = response.status().as_u16();
             let headers = response_headers(response.headers());
-            let body = response
-                .bytes()
+            let mut body = Vec::new();
+            while let Some(chunk) = response
+                .chunk()
                 .await
                 .map_err(|error| transport_error(format!("HTTP body read failed: {error}")))?
-                .to_vec();
-            self.policy
-                .check_response_size(body.len() as u64)
-                .map_err(policy_error)?;
+            {
+                let body_len = body
+                    .len()
+                    .checked_add(chunk.len())
+                    .ok_or_else(|| policy_error(ProxyPolicyError::ResponseLimitExceeded))?;
+                self.policy
+                    .check_response_size(body_len as u64)
+                    .map_err(policy_error)?;
+                body.extend_from_slice(&chunk);
+            }
             return Ok(HttpProxyResponse {
                 response: wire::HttpResponse {
                     status: i32::from(status),
@@ -828,6 +835,49 @@ mod tests {
         let frames = response.into_frames(11, 1).expect("frames");
         assert_eq!(frames.first().expect("metadata").flags.bits(), SYN_DAT_BITS);
         assert!(frames.last().expect("fin").flags.is_fin());
+        server.await.expect("fixture task");
+    }
+
+    #[tokio::test]
+    async fn chunked_http_response_is_rejected_before_full_buffering() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.expect("listener");
+        let address = listener.local_addr().expect("address");
+        let target = Url::parse(&format!("http://127.0.0.1:{}", address.port())).expect("target");
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept");
+            let mut request = [0; 2048];
+            let read = socket.read(&mut request).await.expect("request");
+            assert!(read > 0, "request must contain at least one byte");
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n3\r\ndef\r\n0\r\n\r\n",
+                )
+                .await
+                .expect("response");
+        });
+        let limits = ProxyResourceLimits {
+            max_response_bytes: 5,
+            ..ProxyResourceLimits::default()
+        };
+        let policy = local_policy(&target).with_limits(limits).expect("limits");
+        let service = ProxyStreamService::new(policy).expect("service");
+        let error = service
+            .request_http(
+                target,
+                wire::HttpRequest {
+                    r#type: "http".into(),
+                    method: "GET".into(),
+                    pathname: "/chunked".into(),
+                    content_type: String::new(),
+                    content_length: 0,
+                    headers: HashMap::new(),
+                },
+                Vec::new(),
+                ProxyAuthorization::Allowlisted,
+            )
+            .await
+            .expect_err("chunked response must exceed the configured limit");
+        assert!(error.to_string().contains("response_limit_exceeded"));
         server.await.expect("fixture task");
     }
 
