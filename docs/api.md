@@ -333,6 +333,21 @@ Issue #45 กำหนด platform boundary ของ crate และวิธ�
 
 ---
 
+## 6.8 Security Boundaries
+
+API ที่เปิด capability ให้ peer ต้องถูกเรียกหลัง authenticated session อยู่ใน state `Ready` และต้องผ่าน policy เฉพาะของ capability นั้นอีกชั้นหนึ่ง การมี `PeerHandle` หรือ data channel ที่เชื่อมสำเร็จไม่ถือเป็น authorization
+
+| Boundary | ค่าเริ่มต้นและ enforcement | ข้อจำกัดของหลักฐาน |
+|---|---|---|
+| Identity/pairing | RSA 2048, fixed-size nonce, wire `type`, base64 nonce, constant-time commitment/PIN comparison, atomic persistence และ Unix mode `0700`/`0600` | PEM fixture ยืนยัน format-level compatibility; original-Go lifecycle ยังไม่ยืนยัน |
+| Signaling egress | `EndpointPolicy::PublicOnly`, ตรวจ DNS answers และ special-use IP ทุกค่า, JSON text frames เท่านั้น, message-size limit และ reconnect policy แบบจำกัด | เป็น application preflight ไม่ใช่ OS firewall; hostname resolution/connect TOCTOU และ provider behavior ยังเป็น residual risk |
+| Session/control | stream เปิดได้เมื่อ `Ready`; duplicate/premature control messages, retry exhaustion และ timeout ทำให้ session/peer ปิด | local two-peer/authenticated runtime evidence เท่านั้น |
+| File stream | root-relative path, traversal/symlink rejection, size/overwrite policy, timeout และ temporary-file cleanup | ไม่แทน OS ACL และไม่ป้องกัน hostile filesystem race ได้สมบูรณ์ |
+| Shell stream | direct argv, program/argument/cwd allowlist, `env_clear`, output/timeout/cancellation limits | ไม่แทน OS sandbox, container, SELinux หรือ AppContainer |
+| Proxy stream | deny-by-default, allowlist/explicit confirmation, DNS pinning, retry/redirect guards, resource limits และ log redaction; `wss` handler ปฏิเสธจนกว่ามี tested TLS connector | ไม่ใช่ OS egress firewall; production TLS/provider/NAT evidence ยังขาด |
+
+ความสามารถที่เกี่ยวกับ network, file และ process จึงไม่ควรถูกตีความเป็นสิทธิ์แบบไร้ขอบเขต การ deploy จริงต้องกำหนด OS account, filesystem ACL, firewall/egress policy, TLS trust policy และ resource quotas เพิ่มเติมตาม [ADR-046](decisions/issue-46-threat-model.md)
+
 ## 7. Identity API
 
 ## 7.1 `Identity`
