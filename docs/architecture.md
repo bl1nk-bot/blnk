@@ -141,10 +141,8 @@ blnk-rust/
 │   │   ├── handler.rs         # Base handler trait
 │   │   ├── shell.rs           # Shell stream handler
 │   │   ├── file.rs            # File transfer handler
-│   │   ├── proxy.rs           # HTTP proxy handler
-│   │   ├── tcp.rs             # TCP forwarding handler
-│   │   ├── websocket.rs       # WebSocket handler
-│   │   └── http.rs            # HTTP stream handler
+│   │   ├── proxy.rs           # Shared proxy security policy
+│   │   └── proxy_handler.rs   # TCP/WebSocket/HTTP concrete service
 │   ├── protocol/              # Protocol definitions
 │   │   ├── mod.rs
 │   │   ├── swsp.rs            # SWSP protocol
