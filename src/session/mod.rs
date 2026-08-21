@@ -341,6 +341,21 @@ impl Session {
         self.registry.open(kind, connect_path)
     }
 
+    pub fn accept_stream(
+        &mut self,
+        stream_id: u32,
+        kind: StreamKind,
+        connect_path: impl Into<String>,
+    ) -> SessionResult<StreamEntry> {
+        if self.state != SessionState::Ready {
+            return Err(BlnkError::Session(format!(
+                "cannot accept stream from {:?}",
+                self.state
+            )));
+        }
+        self.registry.accept(stream_id, kind, connect_path)
+    }
+
     pub fn close_stream(&mut self, stream_id: u32) -> SessionResult<StreamEntry> {
         self.registry.close(stream_id)
     }
@@ -357,6 +372,10 @@ impl Session {
 
     pub fn stats(&self) -> SessionStats {
         self.stats
+    }
+
+    pub fn stream_entry(&self, stream_id: u32) -> Option<&StreamEntry> {
+        self.registry.get(stream_id)
     }
 
     pub fn active_streams(&self) -> usize {
