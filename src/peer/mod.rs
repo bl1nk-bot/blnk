@@ -310,6 +310,44 @@ impl PeerHandle {
         .map_err(|_| BlnkError::Peer("timed out waiting for data channel".to_owned()))?
     }
 
+    /// Waits until the peer connection reports a closed or failed state.
+    pub async fn wait_disconnected(&self) -> Result<(), BlnkError> {
+        tokio::time::timeout(DEFAULT_WAIT_TIMEOUT, async {
+            loop {
+                if self.events.connection_failure.lock().await.is_some() {
+                    return Ok(());
+                }
+                let notified = self.events.connection_state_changed.notified();
+                if self.events.connection_failure.lock().await.is_some() {
+                    return Ok(());
+                }
+                notified.await;
+            }
+        })
+        .await
+        .map_err(|_| BlnkError::Peer("timed out waiting for peer disconnect".to_owned()))?
+    }
+
+    /// Waits until the data-channel send buffer has been released by SCTP.
+    pub async fn wait_send_buffer_empty(&self) -> Result<(), BlnkError> {
+        let channel = self.channel().await?;
+        tokio::time::timeout(DEFAULT_WAIT_TIMEOUT, async {
+            loop {
+                if channel
+                    .outstanding_bytes()
+                    .await
+                    .map_err(|error| peer_error("read data-channel send buffer", error))?
+                    == 0
+                {
+                    return Ok(());
+                }
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+        })
+        .await
+        .map_err(|_| BlnkError::Peer("timed out waiting for data-channel send buffer".to_owned()))?
+    }
+
     /// Sends one encoded SWSP frame over the open data channel.
     pub async fn send_frame(&self, frame: &Frame) -> Result<(), BlnkError> {
         let channel = self.channel().await?;
@@ -342,15 +380,17 @@ impl PeerHandle {
     /// Closes the data channel and the underlying peer connection.
     pub async fn close(&self) -> Result<(), BlnkError> {
         if let Some(channel) = self.events.channel.lock().await.take() {
-            channel
-                .close()
-                .await
-                .map_err(|error| peer_error("close data channel", error))?;
+            // A remote close can race with local teardown. The channel close is
+            // therefore best-effort; the peer connection close below remains
+            // the authoritative teardown result.
+            let _ = channel.close().await;
         }
-        self.connection
-            .close()
-            .await
-            .map_err(|error| peer_error("close peer connection", error))
+
+        match self.connection.close().await {
+            Ok(()) => Ok(()),
+            Err(_error) if self.events.channel_closed.load(Ordering::Acquire) => Ok(()),
+            Err(error) => Err(peer_error("close peer connection", error)),
+        }
     }
 
     async fn channel(&self) -> Result<Arc<dyn DataChannel>, BlnkError> {

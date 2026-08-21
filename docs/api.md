@@ -170,6 +170,32 @@ pub struct Session { /* ... */ }
 - stats tracking
 - teardown/cleanup
 
+## 5.2 `SessionRuntime`
+
+```rust
+pub struct SessionRuntime { /* Session state machine + PeerHandle control channel */ }
+```
+
+`SessionRuntime` เป็น adapter ระหว่าง `Session` state machine กับ SWSP stream 0 บน `PeerHandle` โดยใช้ protobuf control messages จาก `proto/control.proto` และไม่สร้าง wire schema ใหม่
+
+### Methods
+
+- `new(peer: PeerHandle, config: SessionRuntimeConfig) -> Result<Self>` — ตรวจ configuration และสร้าง runtime state
+- `handshake(&mut self) -> Result<()>` — ฝั่ง client เริ่ม `connect`; ฝั่ง server ตรวจ version/path, ทำ PIN auth และทั้งสองฝั่งเปลี่ยนเป็น `Ready` หลังได้รับ control sequence ครบ
+- `run_until_disconnect(&mut self) -> Result<()>` — ประมวลผล control frames ต่อหลัง Ready และล้าง session เมื่อได้รับ SWSP `FIN`, receive loop close หรือ peer disconnect
+- `open_stream(kind, connect_path) -> Result<StreamEntry>` — ลงทะเบียน stream ผ่าน `StreamRegistry`
+- `close_stream(stream_id) -> Result<StreamEntry>` — ปิดและลด active stream count
+- `snapshot() -> SessionRuntimeSnapshot` — อ่าน state, stats และจำนวน active streams
+- `send_control(message: ControlMessage) -> Result<()>` — ส่ง protobuf control message บน SWSP control stream 0
+- `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN`, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer
+
+### Runtime guarantees and limits
+
+- ตรวจ duplicate `connect`, duplicate `auth`, duplicate `auth_required`/`auth_result` และ premature/duplicate `ready` ภายใน session scope
+- timeout ระหว่าง handshake ปิด local session; wrong-PIN retry exhaustion ปิดทั้ง runtime ที่ตรวจพบ failure
+- tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message และ stream cleanup
+- local tests ไม่ใช่หลักฐาน original-client/server interoperability, browser compatibility, production NAT traversal หรือ external STUN/TURN availability
+
 ---
 
 ## 6. Stream API
