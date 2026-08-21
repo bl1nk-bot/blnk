@@ -246,46 +246,97 @@ pub trait StreamHandler {
 
 ## 6.4 TCP Stream
 
-### `TcpStreamHandler`
-- open TCP connection
-- forward raw bytes bidirectionally
+Issue #42 เพิ่ม concrete service ใน `src/stream/proxy_handler.rs`; ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง
+
+```rust
+pub struct ProxyStreamService { /* policy + bounded concurrency */ }
+
+impl ProxyStreamService {
+    pub fn new(policy: ProxyPolicy) -> Result<Self>;
+    pub async fn open_tcp(
+        &self,
+        stream_id: u32,
+        open: proto::stream::TcpOpen,
+        authorization: ProxyAuthorization,
+    ) -> Result<TcpProxyStream>;
+}
+
+impl TcpProxyStream {
+    pub async fn send(&mut self, data: &[u8]) -> Result<()>;
+    pub async fn recv(&mut self, max_bytes: usize) -> Result<Vec<u8>>;
+    pub async fn close(self) -> Result<()>;
+}
+```
+
+`open_tcp` ตรวจ target ด้วย `ProxyPolicy`, pin DNS answer set ก่อน dial/retry, ใช้ connect/idle/resource limits และคืน stable policy/transport errors เมื่อปฏิเสธหรือ timeout
 
 ### Related Types
-- `TCPOpen`
-- `TCPData`
+- `TcpOpen`, `TcpData`
+- `TcpProxyStream`
+- `ProxyStreamService`
 
 ---
 
 ## 6.5 WebSocket Stream
 
-### `WebSocketStreamHandler`
-- open WebSocket target
-- bridge text/binary frames
+```rust
+impl ProxyStreamService {
+    pub async fn open_websocket(
+        &self,
+        stream_id: u32,
+        open: proto::stream::WebSocketOpen,
+        authorization: ProxyAuthorization,
+    ) -> Result<WebSocketProxyStream>;
+}
+
+impl WebSocketProxyStream {
+    pub async fn send(&mut self, data: &[u8]) -> Result<()>;
+    pub async fn recv(&mut self) -> Result<Option<Vec<u8>>>;
+    pub async fn close(&mut self) -> Result<()>;
+}
+```
+
+`ws` ใช้ policy-approved pinned TCP socket และ bridge text/binary payload เป็น bytes; `wss` ถูกปฏิเสธอย่าง explicit จนกว่าจะมี TLS connector ที่มี DNS pinning และ cross-platform certificate evidence ไม่ใช่การ fallback เป็น plain TCP
 
 ### Related Types
-- `WebSocketOpen`
-- `WebSocketMessage`
+- `WebSocketOpen`, `WebSocketData`
+- `WebSocketProxyStream`
+- `ProxyStreamService`
 
 ---
 
 ## 6.6 HTTP Stream
 
-### `HttpStreamHandler`
-- process HTTP request metadata
-- stream request/response body
-- rewrite headers
-- follow redirect policy
+```rust
+impl ProxyStreamService {
+    pub async fn request_http(
+        &self,
+        base_target: url::Url,
+        request: proto::stream::HttpRequest,
+        body: Vec<u8>,
+        authorization: ProxyAuthorization,
+    ) -> Result<HttpProxyResponse>;
+}
+
+pub struct HttpProxyResponse {
+    pub response: proto::stream::HttpResponse,
+    pub body: Vec<u8>,
+    pub redirects_followed: u8,
+}
+```
+
+HTTP ใช้ one-request transcript ใน Issue #42 ไม่ใช่ full-duplex body stream ปิด automatic redirects และ validate ทุก redirect ด้วย `ProxyPolicy`; hop-by-hop headers และ caller-supplied `content-length` ถูกตัดออก และ response body/headers อยู่ภายใต้ limits/redaction boundary
 
 ### Related Types
-- `HTTPRequest`
-- `HTTPResponse`
-- `HTTPData`
+- `HttpRequest`, `HttpResponse`, `HttpData`
+- `HttpProxyResponse`
+- `ProxyStreamService`
 
 ---
 
 ## 6.7 Proxy Security Policy
 
-`src/stream/proxy.rs` เป็น policy boundary กลางสำหรับ TCP, WebSocket และ HTTP handlers ที่จะพัฒนาใน Issue #42 เป็นต้นไป โมดูลนี้ **ไม่เปิด socket และไม่ implement stream handler** แต่ต้องถูกเรียกก่อน connect, retry และ redirect ทุกครั้ง
+`src/stream/proxy.rs` เป็น policy boundary กลางที่ `ProxyStreamService` ใน `src/stream/proxy_handler.rs` เรียกใช้สำหรับ TCP, WebSocket และ HTTP โมดูล policy **ไม่เปิด socket เอง** แต่ถูกบังคับใช้ก่อน connect, retry และ redirect ทุกครั้ง ส่วนการ dispatch จาก authenticated `SessionRuntime` ยังเป็นงานถัดไป
 
 ### Core types and methods
 
