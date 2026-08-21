@@ -184,7 +184,13 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 - `handshake(&mut self) -> Result<()>` — ฝั่ง client เริ่ม `connect`; ฝั่ง server ตรวจ version/path, ทำ PIN auth และทั้งสองฝั่งเปลี่ยนเป็น `Ready` หลังได้รับ control sequence ครบ
 - `run_until_disconnect(&mut self) -> Result<()>` — ประมวลผล control frames ต่อหลัง Ready และล้าง session เมื่อได้รับ SWSP `FIN`, receive loop close หรือ peer disconnect
 - `open_stream(kind, connect_path) -> Result<StreamEntry>` — ลงทะเบียน stream ผ่าน `StreamRegistry`
+- `open_file_stream(connect_path) -> Result<StreamEntry>` — เปิด file stream ผ่าน registry หลัง session อยู่ใน `Ready`
+- `accept_file_stream(stream_id, connect_path) -> Result<StreamEntry>` — รับ peer-assigned file stream ID พร้อมตรวจ duplicate/non-zero
 - `close_stream(stream_id) -> Result<StreamEntry>` — ปิดและลด active stream count
+- `send_file_request(stream_id, request) -> Result<()>` — ส่ง `FileOp` เป็น SWSP `SYN|DAT`
+- `send_file_chunk(stream_id, data, final_chunk) -> Result<()>` — ส่ง bounded file data เป็น `DAT|MORE` หรือ `DAT|FIN`
+- `recv_file_frame() -> Result<Frame>` — รับ raw non-control file frame สำหรับ dispatch/collection
+- `close_file_stream(stream_id) -> Result<StreamEntry>` — ส่ง `FIN` และลบ file stream จาก registry
 - `snapshot() -> SessionRuntimeSnapshot` — อ่าน state, stats และจำนวน active streams
 - `send_control(message: ControlMessage) -> Result<()>` — ส่ง protobuf control message บน SWSP control stream 0
 - `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN`, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer
@@ -231,17 +237,29 @@ pub trait StreamHandler {
 
 ## 6.3 File Stream
 
-### `FileStreamHandler`
-- list directory
-- download
-- upload
-- stat
-- delete
+### `FileTransferService`
+`FileTransferService` เป็น concrete sandboxed filesystem handler ของ Issue #39 โดยรับ `FileTransferRequest` และคืน `FileTransferResponse` ผ่าน schema ใน `proto/stream.proto` เดิม รองรับ `GET`, `PUT`, `LIST`, `STAT` และ `DELETE`
+
+### Contract และ policy
+
+- `FileTransferConfig::new(root)` canonicalize sandbox root และ reject root ที่ไม่ใช่ directory
+- path ต้องเป็น relative path; absolute path, traversal และ symlink path ถูกปฏิเสธ
+- `GET` รองรับ inclusive byte range `[start, end]` และจำกัดขนาดไฟล์ตาม config
+- `PUT` เขียนผ่าน temporary file แล้ว rename เป็นปลายทาง พร้อมตรวจขนาดและ overwrite policy
+- `LIST` จำกัดจำนวน entries และรองรับ `.` เพื่อแสดง sandbox root
+- ทุก operation รองรับ bounded timeout และ cooperative cancellation
+- file stream ใช้ non-zero stream ID ผ่าน `SessionRuntime`; request ใช้ `SYN|DAT`, data ใช้ `DAT|MORE`/`DAT|FIN`, และ close ใช้ `FIN`
 
 ### Related Types
+- `FileTransferRequest`
+- `FileTransferResponse`
+- `FileTransferConfig`
+- `FileTransferCancellation`
 - `FileOp`
 - `FileInfo`
 - `FileList`
+
+หลักฐานปัจจุบันเป็น local unit/integration tests เท่านั้น ยังไม่ใช่หลักฐาน interoperability กับ client ภายนอกหรือ production filesystem deployment
 ---
 
 ## 6.4 TCP Stream
