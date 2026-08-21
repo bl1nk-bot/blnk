@@ -977,7 +977,7 @@ mod tests {
             .await
             .expect_err("duplicate connect must be rejected");
         assert!(error.to_string().contains("duplicate connect"));
-        client.close().await.expect("client close");
+        let _ = client.close().await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
