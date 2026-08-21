@@ -5,6 +5,7 @@
 //! follow-up work.
 
 pub mod file;
+pub mod shell;
 
 use std::collections::BTreeMap;
 

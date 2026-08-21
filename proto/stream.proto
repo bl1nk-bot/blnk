@@ -122,20 +122,46 @@ message WebSocketMessage {
 // Shell Stream Messages
 // ============================================================================
 
-// Shell input (from browser to device)
+// Shell process open request (SYN frame payload).
+// Environment values are intentionally not carried on the wire; the receiver
+// applies its local allowlist and redaction policy.
+message ShellOpen {
+  string type = 1;            // "shell"
+  string program = 2;         // Executable selected by the receiver policy
+  repeated string args = 3;   // Direct argv values; no shell interpolation
+  string cwd = 4;             // Relative working directory under the receiver root
+}
+
+// Shell input (from peer to device)
 message ShellInput {
   bytes data = 1;             // Terminal input
 }
 
-// Shell output (from device to browser)
+// Shell output (from device to peer)
 message ShellOutput {
   bytes data = 1;             // Terminal output
 }
 
-// Terminal resize
+// Terminal resize. Pipe-based MVP records this frame but does not claim PTY support.
 message TerminalResize {
   int32 cols = 1;            // New column count
   int32 rows = 2;            // New row count
+}
+
+// Shell process completion.
+message ShellExit {
+  int32 code = 1;             // Exit code, or -1 when no code is available
+  bool signaled = 2;          // Whether the process was terminated by a signal
+}
+
+// Shell process error or policy rejection.
+message ShellError {
+  string message = 1;         // Human-readable, secret-redacted error
+}
+
+// Shell cancellation request.
+message ShellCancel {
+  bool requested = 1;         // Must be true for a valid cancellation frame
 }
 
 // ============================================================================
