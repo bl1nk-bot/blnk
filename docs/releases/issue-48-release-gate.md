@@ -4,6 +4,8 @@
 
 **Implemented as a pre-release gate; ยังไม่ใช่ production release**
 
+ผล runner ล่าสุดของ gate ตรวจพบว่า `h2 0.4.15` มี patch เป็น `0.4.16` และถูกอัปเดตใน `Cargo.lock` แล้ว แต่ RustSec ยังรายงาน `rsa 0.9.10` ตาม `RUSTSEC-2023-0071` (Marvin timing side-channel; ยังไม่มี patch) รวมถึงคำเตือน unmaintained ของ `async-std 1.13.2`, `net2 0.2.39` และ `proc-macro-error 1.0.4` ผ่าน dependency ของ `mdns`/`err-derive` การตรวจนี้จึง **ล้มอย่างถูกต้องและ block production release** จนกว่าจะมีการตัดสินใจ/แก้ dependency ที่ปลอดภัย ไม่ได้ถูกปิดบังด้วย `continue-on-error` หรือ allowlist
+
 เอกสารนี้กำหนดวิธีสร้างและตรวจ artifact ของ blnk Rust ให้ทำซ้ำได้จาก source commit เดียวกัน โดย workflow จะตรวจสอบและ upload artifact เป็น evidence เท่านั้น ไม่สร้าง Git tag และไม่ publish GitHub Release อัตโนมัติ
 
 ## Source of truth
@@ -58,7 +60,7 @@ tar -xOf dist/*.tar.gz '*/PROVENANCE.json'
 
 ก่อนตัดสินใจ tag หรือ publish ต้องตรวจว่า release-gate workflow ผ่านทุก jobที่เกี่ยวข้อง ได้แก่ Linux artifact/smoke, Windows validation/package evidence, Android compile-only และ Rust dependency advisory audit นอกจากนั้นต้องตรวจ compatibility baseline ของ #44, platform matrix ของ #45, threat model/hardening ของ #46 และ browser control boundary ของ #47 โดยใช้ link ไปยัง issue/PR จริง ไม่ใช้ local fixture เพียงอย่างเดียวแทน interoperability evidence
 
-ต้องตรวจ `cargo fmt --all -- --check`, `cargo check --all-targets --locked`, `cargo test --all --locked`, `cargo clippy --all --all-targets --locked -- -D warnings` และ `git diff --check` ให้ผ่านบน Linux การเปลี่ยน dependency, Rust toolchain, target, packaging layout, protocol, authentication boundary หรือ release script ต้องทำให้ gate ทำงานใหม่ก่อนใช้ evidence เดิม
+ต้องตรวจ `cargo fmt --all -- --check`, `cargo check --all-targets --locked`, `cargo test --all --locked`, `cargo clippy --all --all-targets --locked -- -D warnings` และ `git diff --check` ให้ผ่านบน Linux เมื่อ RustSec พบ advisory ต้องถือว่า release gate ไม่ผ่านและบันทึก package, advisory ID, patched version/สถานะ และ dependency path ไว้ก่อนตัดสินใจ release การเปลี่ยน dependency, Rust toolchain, target, packaging layout, protocol, authentication boundary หรือ release script ต้องทำให้ gate ทำงานใหม่ก่อนใช้ evidence เดิม
 
 ## Dependency, logging, timeout และ cleanup checks
 
