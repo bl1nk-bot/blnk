@@ -197,7 +197,7 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 ### Methods
 
 - `new(peer: PeerHandle, config: SessionRuntimeConfig) -> Result<Self>` — ตรวจ configuration และสร้าง runtime state
-- `handshake(&mut self) -> Result<()>` — ฝั่ง client เริ่ม `connect`; ฝั่ง server ตรวจ version/path, ทำ PIN auth และทั้งสองฝั่งเปลี่ยนเป็น `Ready` หลังได้รับ control sequence ครบ
+- `handshake(&mut self) -> Result<()>` — ฝั่ง client เริ่ม `connect`; ฝั่ง server ตรวจ version/path, ทำ PIN auth และทั้งสองฝั่งเปลี่ยนเป็น `Ready` หลังได้รับ control sequence ครบ; remote signaling orchestration จะตรวจ encrypted request PIN/nonce/fingerprint ก่อนถึงขั้นนี้
 - `run_until_disconnect(&mut self) -> Result<()>` — ประมวลผล control frames ต่อหลัง Ready และล้าง session เมื่อได้รับ SWSP `FIN`, receive loop close หรือ peer disconnect
 - `open_stream(kind, connect_path) -> Result<StreamEntry>` — ลงทะเบียน stream ผ่าน `StreamRegistry`
 - `open_file_stream(connect_path) -> Result<StreamEntry>` — เปิด file stream ผ่าน registry หลัง session อยู่ใน `Ready`
@@ -214,7 +214,7 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 ### Runtime guarantees and limits
 
 - ตรวจ duplicate `connect`, duplicate `auth`, duplicate `auth_required`/`auth_result` และ premature/duplicate `ready` ภายใน session scope
-- timeout ระหว่าง handshake ปิด local session; wrong-PIN retry exhaustion ปิดทั้ง runtime ที่ตรวจพบ failure
+- timeout ระหว่าง handshake ปิด local session; wrong-PIN retry exhaustion ปิดทั้ง runtime ที่ตรวจพบ failure; remote `request_nonce` เป็น challenge ต่อ negotiation และถูก consume แบบ single-use ก่อนสร้าง authenticated session
 - หลัง authenticated handshake การปิดฝั่ง remote ก่อนต้องไม่ทำให้ `close()` ของฝั่งที่สองล้มเหลวเพราะ data-channel close ระหว่างส่ง `FIN`; การปิดแบบนี้เป็น local lifecycle guarantee ไม่ใช่หลักฐาน interoperability กับ peer ภายนอก
 - tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message, stream cleanup และ remote-first close handling
 - local tests ไม่ใช่หลักฐาน original-client/server interoperability, browser compatibility, production NAT traversal หรือ external STUN/TURN availability
@@ -341,6 +341,7 @@ API ที่เปิด capability ให้ peer ต้องถูกเร�
 | Boundary | ค่าเริ่มต้นและ enforcement | ข้อจำกัดของหลักฐาน |
 |---|---|---|
 | Identity/pairing | RSA 2048, fixed-size nonce, wire `type`, base64 nonce, constant-time commitment/PIN comparison, atomic persistence และ Unix mode `0700`/`0600` | PEM fixture ยืนยัน format-level compatibility; original-Go lifecycle ยังไม่ยืนยัน |
+| Remote request freshness | encrypted `{fingerprint, nonce, code}` ผูกกับ SDP answer, pending `request_nonce` และ expected PIN; ตรวจแบบ constant-time และ consume nonce ครั้งเดียวก่อน session | local relay ยืนยัน state machine; external provider/original-client forwarding ของ metadata ยังไม่ยืนยัน |
 | Signaling egress | `EndpointPolicy::PublicOnly`, ตรวจ DNS answers และ special-use IP ทุกค่า, JSON text frames เท่านั้น, message-size limit และ reconnect policy แบบจำกัด | เป็น application preflight ไม่ใช่ OS firewall; hostname resolution/connect TOCTOU และ provider behavior ยังเป็น residual risk |
 | Session/control | stream เปิดได้เมื่อ `Ready`; duplicate/premature control messages, retry exhaustion และ timeout ทำให้ session/peer ปิด | local two-peer/authenticated runtime evidence เท่านั้น |
 | File stream | root-relative path, traversal/symlink rejection, size/overwrite policy, timeout และ temporary-file cleanup | ไม่แทน OS ACL และไม่ป้องกัน hostile filesystem race ได้สมบูรณ์ |

@@ -18,11 +18,13 @@
 
 offer และ answer ถูก parse เป็น `RTCSessionDescription` แล้วส่งเข้า `PeerHandle::accept_offer` หรือ `set_remote_answer` หลัง ICE gathering เสร็จ การได้รับ `candidate` ใน flow นี้คืน error ชัดเจน เพราะ branch นี้ยังไม่มี public ICE-candidate adapter และไม่อ้าง trickle interoperability
 
-### 3. ยืนยัน encrypted request ด้วย public key ที่ส่งใน offer metadata
+### 3. ยืนยัน encrypted request ด้วย public key และ one-time challenge
 
-`OfferMessage.streams["device_public_key"]` เก็บ DER public key ของ device ที่ถูก base64 encode โดย transport เมื่อ client ได้ offer จะ decode และ parse key ก่อนสร้าง `encrypted_request` ด้วย RSA-OAEP/SHA-256 การเข้ารหัสเป็น opaque protocol payload; PIN authentication ที่ให้สิทธิ์ session ยังคงทำใน `SessionRuntime` และไม่ log plaintext, key หรือ credential
+`OfferMessage.streams["device_public_key"]` เก็บ DER public key ของ device ที่ถูก base64 encode โดย transport เมื่อ client ได้ offer จะ decode และ parse key ก่อนสร้าง `encrypted_request` ด้วย RSA-OAEP/SHA-256 ส่วน `OfferMessage.streams["request_nonce"]` เป็น nonce challenge แบบต่อ negotiation ที่ server สร้างและส่งให้ client คัดลอกกลับใน encrypted envelope
 
-metadata key นี้เป็น extension บน typed `streams` field ที่ schema ระบุไว้สำหรับ stream metadata จึงไม่เปลี่ยน discriminator หรือ message direction แต่ original signaling provider ต้องรองรับการส่งต่อ map นี้ก่อนจึงจะอ้าง interoperability ได้
+ก่อน server จะรับ remote answer เข้า `PeerHandle` หรือเริ่ม `SessionRuntime` จะถอดรหัสและตรวจว่า fingerprint ตรงกับ SDP answer, nonce ตรงกับ pending challenge และ PIN ตรงกับค่าที่ server ตั้งไว้ด้วย fixed-size constant-time comparison. Challenge ถูก consume ก่อน validation เพื่อให้คำขอ malformed, PIN ผิด หรือ ciphertext ที่ถูก replay ใช้ nonce เดิมซ้ำไม่ได้. `SessionRuntime` ยังคงตรวจ PIN ซ้ำเป็น defense-in-depth หลัง data channel เปิด และไม่มี plaintext PIN, nonce หรือ ciphertext ใน log
+
+metadata keys เหล่านี้เป็น extension บน typed `streams` field ที่ schema ระบุไว้สำหรับ stream metadata จึงไม่เปลี่ยน discriminator หรือ message direction แต่ original signaling provider ต้องรองรับการส่งต่อ map นี้ก่อนจึงจะอ้าง interoperability ได้
 
 ### 4. ให้มี single-reader session dispatcher
 
@@ -32,7 +34,7 @@ stream opener ที่ไม่ใช่ `SYN|DAT`, control frame ที่ไ�
 
 ### 5. Timeout, reconnect และ cleanup
 
-reconnect แบบจำกัดใช้เฉพาะตอนเปิด signaling socketหนึ่งครั้ง ส่วน negotiation ที่เริ่มแล้วไม่ replay อัตโนมัติ เพื่อป้องกันการส่ง offer/answer ซ้ำไปยัง state ที่ไม่ตรงกัน ทุกขั้น signaling และ peer readiness มี timeout 15 วินาที และ session handshake ใช้ timeout เดียวกัน การ timeout, signaling error, client ID mismatch, remote disconnect หรือ peer failure จะปิด peer/runtime แบบ best effort แล้วส่ง error กลับ caller
+reconnect แบบจำกัดใช้เฉพาะตอนเปิด signaling socketหนึ่งครั้ง ส่วน negotiation ที่เริ่มแล้วไม่ replay อัตโนมัติ เพื่อป้องกันการส่ง offer/answer ซ้ำไปยัง state ที่ไม่ตรงกัน. Pending nonce ถูกผูกกับ negotiation เดียวและ consume แบบ single-use; timeout, disconnect หรือ validation failure จะทำให้ใช้ challenge เดิมต่อไม่ได้. ทุกขั้น signaling และ peer readiness มี timeout 15 วินาที และ session handshake ใช้ timeout เดียวกัน การ timeout, signaling error, client ID mismatch, remote disconnect หรือ peer failure จะปิด peer/runtime แบบ best effort แล้วส่ง error กลับ caller
 
 `serve` ใช้ cancellation token เพื่อให้ Ctrl-C ปิด dispatcher, runtime และ peer อย่างเป็นลำดับ `connect` และ `cp` ปิด stream และ runtime หลัง terminal response หรือ error
 
@@ -45,7 +47,7 @@ reconnect แบบจำกัดใช้เฉพาะตอนเปิด 
 | Shell dispatch | remote shell E2E ใช้ `ShellStreamHandler` และส่ง output/exit frame จริง |
 | File dispatch | remote upload E2E ใช้ `FileTransferService` และตรวจไฟล์ที่ sandbox receiver root; client รองรับ download direction ผ่าน `remote:` |
 | Failure handling | tests สำหรับไม่มี device, timeout, client ID mismatch และ malformed/typed signaling boundary ที่มีอยู่เดิม |
-| Secret boundary | encrypted request เป็น ciphertext, public key/identity ไม่ถูกพิมพ์หรือใส่ registry |
+| Secret boundary | encrypted request เป็น ciphertext, public key/identity ไม่ถูกพิมพ์หรือใส่ registry; PIN/nonce/fingerprint ตรวจที่ boundary และ nonce ใช้ครั้งเดียว |
 
 ## ข้อจำกัดที่ยังคงอยู่
 

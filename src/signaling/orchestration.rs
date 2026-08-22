@@ -16,6 +16,7 @@ use rsa::RsaPublicKey;
 use rsa::pkcs8::DecodePublicKey;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use tokio_util::sync::CancellationToken;
 use webrtc::peer_connection::RTCSessionDescription;
 
@@ -46,6 +47,10 @@ pub const DEFAULT_ORCHESTRATION_TIMEOUT: Duration = Duration::from_secs(15);
 /// Limited reconnect is used only while opening the signaling socket. A
 /// partially-negotiated WebRTC session is never silently replayed.
 pub const INITIAL_RECONNECT_RETRIES: usize = 1;
+
+const DEVICE_PUBLIC_KEY_STREAM: &str = "device_public_key";
+const REQUEST_NONCE_STREAM: &str = "request_nonce";
+const PIN_LEN: usize = 6;
 
 pub struct ServerSession {
     pub runtime: SessionRuntime,
@@ -111,6 +116,7 @@ pub async fn accept_server_session(
     };
     require_non_empty(&client_id, "client_id")?;
 
+    let mut challenge = RequestChallenge::new();
     let peer = PeerHandle::new().await?;
     peer.create_data_channel("control").await?;
     let offer = match peer.create_offer().await {
@@ -126,7 +132,11 @@ pub async fn accept_server_session(
         .map_err(|error| BlnkError::Identity(format!("decode device public key: {error}")))?;
     offer_message
         .streams
-        .insert("device_public_key".to_owned(), public_key_der);
+        .insert(DEVICE_PUBLIC_KEY_STREAM.to_owned(), public_key_der);
+    offer_message.streams.insert(
+        REQUEST_NONCE_STREAM.to_owned(),
+        challenge.nonce().as_bytes().to_vec(),
+    );
     let offer_message = SignalingMessage::Offer(offer_message);
     if let Err(error) = signaling.send(&offer_message).await {
         let _ = peer.close().await;
@@ -157,7 +167,13 @@ pub async fn accept_server_session(
             return Err(unexpected_message("SDP answer", &other));
         }
     };
-    if let Err(error) = validate_encrypted_request(identity, &answer.encrypted_request) {
+    let expected_fingerprint = fingerprint_for_sdp(&answer.sdp);
+    if let Err(error) = challenge.validate_and_consume(
+        identity,
+        &answer.encrypted_request,
+        &pin,
+        &expected_fingerprint,
+    ) {
         let _ = peer.close().await;
         return Err(error);
     }
@@ -232,13 +248,21 @@ pub async fn connect_target(
         other => return Err(unexpected_message("SDP offer", &other)),
     };
 
-    let target_public_key = offer.streams.get("device_public_key").ok_or_else(|| {
+    let target_public_key = offer.streams.get(DEVICE_PUBLIC_KEY_STREAM).ok_or_else(|| {
         BlnkError::Signaling(
             "signaling offer omitted device_public_key required for encrypted_request".into(),
         )
     })?;
     let target_public_key = RsaPublicKey::from_public_key_der(target_public_key)
         .map_err(|error| BlnkError::Identity(format!("parse target public key: {error}")))?;
+    let request_nonce = offer.streams.get(REQUEST_NONCE_STREAM).ok_or_else(|| {
+        BlnkError::Signaling(
+            "signaling offer omitted request_nonce required for encrypted_request".into(),
+        )
+    })?;
+    let request_nonce = std::str::from_utf8(request_nonce)
+        .map_err(|_| BlnkError::Signaling("signaling request_nonce is not valid UTF-8".into()))?;
+    require_non_empty(request_nonce, "request_nonce")?;
     let offer = RTCSessionDescription::offer(offer.sdp)
         .map_err(|error| BlnkError::Peer(format!("parse remote SDP offer: {error}")))?;
     let peer = PeerHandle::new().await?;
@@ -249,9 +273,9 @@ pub async fn connect_target(
             return Err(error);
         }
     };
-    let fingerprint =
-        base64::engine::general_purpose::STANDARD.encode(Sha256::digest(answer.sdp.as_bytes()));
-    let encrypted_request = encrypted_session_request(&fingerprint, &pin, &target_public_key)?;
+    let fingerprint = fingerprint_for_sdp(&answer.sdp);
+    let encrypted_request =
+        encrypted_session_request(&fingerprint, request_nonce, &pin, &target_public_key)?;
 
     let answer_message = SignalingMessage::Answer(AnswerMessage::new(
         client_id.clone(),
@@ -579,20 +603,64 @@ fn make_client(
         )))
 }
 
+#[derive(Debug)]
+struct RequestChallenge {
+    nonce: String,
+    consumed: bool,
+}
+
+impl RequestChallenge {
+    fn new() -> Self {
+        Self {
+            nonce: uuid::Uuid::new_v4().to_string(),
+            consumed: false,
+        }
+    }
+
+    fn nonce(&self) -> &str {
+        &self.nonce
+    }
+
+    fn validate_and_consume(
+        &mut self,
+        identity: &Identity,
+        encoded: &str,
+        expected_pin: &str,
+        expected_fingerprint: &str,
+    ) -> SignalingResult<()> {
+        if self.consumed {
+            return Err(BlnkError::Signaling(
+                "encrypted request nonce has already been consumed".into(),
+            ));
+        }
+        // Consume before validation so a malformed or wrong-PIN answer cannot
+        // reuse the same challenge on a retrying signaling connection.
+        self.consumed = true;
+        validate_encrypted_request(
+            identity,
+            encoded,
+            self.nonce(),
+            expected_pin,
+            expected_fingerprint,
+        )
+    }
+}
+
 fn encrypted_session_request(
     fingerprint: &str,
+    nonce: &str,
     code: &str,
     target_public_key: &RsaPublicKey,
 ) -> SignalingResult<String> {
     #[derive(Serialize)]
     struct RequestEnvelope<'a> {
         fingerprint: &'a str,
-        nonce: String,
+        nonce: &'a str,
         code: &'a str,
     }
     let envelope = RequestEnvelope {
         fingerprint,
-        nonce: uuid::Uuid::new_v4().to_string(),
+        nonce,
         code,
     };
     let plaintext = serde_json::to_vec(&envelope)
@@ -608,7 +676,16 @@ struct SessionRequestEnvelope {
     code: String,
 }
 
-fn validate_encrypted_request(identity: &Identity, encoded: &str) -> SignalingResult<()> {
+fn validate_encrypted_request(
+    identity: &Identity,
+    encoded: &str,
+    expected_nonce: &str,
+    expected_pin: &str,
+    expected_fingerprint: &str,
+) -> SignalingResult<()> {
+    require_non_empty(expected_nonce, "expected request nonce")?;
+    require_non_empty(expected_pin, "expected PIN")?;
+    require_non_empty(expected_fingerprint, "expected request fingerprint")?;
     let ciphertext = base64::engine::general_purpose::STANDARD
         .decode(encoded)
         .map_err(|error| BlnkError::Signaling(format!("decode encrypted request: {error}")))?;
@@ -618,7 +695,38 @@ fn validate_encrypted_request(identity: &Identity, encoded: &str) -> SignalingRe
     })?;
     require_non_empty(&request.fingerprint, "encrypted request fingerprint")?;
     require_non_empty(&request.nonce, "encrypted request nonce")?;
-    require_non_empty(&request.code, "encrypted request code")
+    require_non_empty(&request.code, "encrypted request code")?;
+    if request.nonce != expected_nonce {
+        return Err(BlnkError::Signaling(
+            "encrypted request nonce does not match the pending challenge".into(),
+        ));
+    }
+    if request.fingerprint != expected_fingerprint {
+        return Err(BlnkError::Signaling(
+            "encrypted request fingerprint does not match the negotiated answer".into(),
+        ));
+    }
+    if !constant_time_pin_eq(expected_pin, &request.code) {
+        return Err(BlnkError::Signaling(
+            "encrypted request PIN rejected".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn fingerprint_for_sdp(sdp: &str) -> String {
+    base64::engine::general_purpose::STANDARD.encode(Sha256::digest(sdp.as_bytes()))
+}
+
+fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
+    let mut expected_fixed = [0_u8; PIN_LEN];
+    let mut provided_fixed = [0_u8; PIN_LEN];
+    let expected_copy_len = expected.len().min(PIN_LEN);
+    let provided_copy_len = provided.len().min(PIN_LEN);
+    expected_fixed[..expected_copy_len].copy_from_slice(&expected.as_bytes()[..expected_copy_len]);
+    provided_fixed[..provided_copy_len].copy_from_slice(&provided.as_bytes()[..provided_copy_len]);
+    let contents_match: bool = expected_fixed.ct_eq(&provided_fixed).into();
+    contents_match && expected.len() == PIN_LEN && provided.len() == PIN_LEN
 }
 
 fn validate_timeout(timeout: Duration) -> SignalingResult<()> {
@@ -829,12 +937,86 @@ mod tests {
     #[test]
     fn encrypted_request_is_non_empty_and_does_not_expose_identity_key() {
         let identity = Identity::generate().expect("identity");
-        let encoded = encrypted_session_request("fingerprint", "123456", &identity.public_key())
-            .expect("request");
+        let fingerprint = fingerprint_for_sdp("answer");
+        let nonce = "nonce-1";
+        let encoded =
+            encrypted_session_request(&fingerprint, nonce, "123456", &identity.public_key())
+                .expect("request");
         assert!(!encoded.is_empty());
-        validate_encrypted_request(&identity, &encoded).expect("request decrypts and validates");
+        validate_encrypted_request(&identity, &encoded, nonce, "123456", &fingerprint)
+            .expect("request decrypts and validates");
         assert!(!encoded.contains(identity.uid()));
         assert!(!encoded.contains("PRIVATE KEY"));
+    }
+
+    #[test]
+    fn encrypted_request_rejects_wrong_pin_nonce_and_fingerprint() {
+        let identity = Identity::generate().expect("identity");
+        let public_key = identity.public_key();
+        let fingerprint = fingerprint_for_sdp("answer");
+        let nonce = "nonce-1";
+
+        let wrong_pin = encrypted_session_request(&fingerprint, nonce, "654321", &public_key)
+            .expect("wrong-pin request");
+        let error =
+            validate_encrypted_request(&identity, &wrong_pin, nonce, "123456", &fingerprint)
+                .expect_err("wrong PIN must be rejected");
+        assert!(error.to_string().contains("PIN rejected"));
+        assert!(!error.to_string().contains("654321"));
+
+        let wrong_nonce = encrypted_session_request(&fingerprint, "nonce-2", "123456", &public_key)
+            .expect("wrong-nonce request");
+        let error =
+            validate_encrypted_request(&identity, &wrong_nonce, nonce, "123456", &fingerprint)
+                .expect_err("wrong nonce must be rejected");
+        assert!(error.to_string().contains("pending challenge"));
+
+        let wrong_fingerprint = encrypted_session_request(
+            &fingerprint_for_sdp("other-answer"),
+            nonce,
+            "123456",
+            &public_key,
+        )
+        .expect("wrong-fingerprint request");
+        let error = validate_encrypted_request(
+            &identity,
+            &wrong_fingerprint,
+            nonce,
+            "123456",
+            &fingerprint,
+        )
+        .expect_err("wrong fingerprint must be rejected");
+        assert!(error.to_string().contains("negotiated answer"));
+    }
+
+    #[test]
+    fn request_challenge_is_single_use_even_after_validation_failure() {
+        let identity = Identity::generate().expect("identity");
+        let fingerprint = fingerprint_for_sdp("answer");
+        let encoded =
+            encrypted_session_request(&fingerprint, "nonce-1", "654321", &identity.public_key())
+                .expect("request");
+        let mut challenge = RequestChallenge {
+            nonce: "nonce-1".into(),
+            consumed: false,
+        };
+        assert!(
+            challenge
+                .validate_and_consume(&identity, &encoded, "123456", &fingerprint)
+                .is_err()
+        );
+        let error = challenge
+            .validate_and_consume(&identity, &encoded, "123456", &fingerprint)
+            .expect_err("challenge must not be reusable");
+        assert!(error.to_string().contains("already been consumed"));
+    }
+
+    #[test]
+    fn pin_comparison_requires_six_digits_without_secret_dependent_errors() {
+        assert!(constant_time_pin_eq("123456", "123456"));
+        assert!(!constant_time_pin_eq("123456", "12345"));
+        assert!(!constant_time_pin_eq("123456", "1234567"));
+        assert!(!constant_time_pin_eq("123456", "654321"));
     }
 
     struct RelayFixture {
