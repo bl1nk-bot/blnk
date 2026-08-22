@@ -94,6 +94,29 @@ blnk devices [--list]
 
 ---
 
+## 2.5 Browser Control API (Issue #47)
+
+คำสั่ง `blnk web` เปิด HTTP/WebSocket control surface เฉพาะ loopback address โดยต้องมี bootstrap token จาก `--bootstrap-token` หรือ `BLNK_WEB_TOKEN` และต้องกำหนด exact allowed Origin การมี endpoint นี้ไม่ใช่การเปิด remote shell/file/proxy/signaling หรือ browser WebRTC
+
+```text
+blnk web [--host <LOOPBACK_IP>] [--port <PORT>] [--origin <HTTP_ORIGIN>]
+         [--bootstrap-token <TOKEN>]
+```
+
+| Endpoint | สิทธิ์และผลลัพธ์ |
+|---|---|
+| `GET /healthz` | อ่านสถานะ service แบบไม่เปิด CORS ให้ origin อื่น |
+| `POST /api/session` | ต้องมี exact `Origin` และ `Authorization: Bearer <bootstrap token>`; สร้าง local control session, คืน CSRF token ครั้งเดียว และตั้ง `HttpOnly; SameSite=Strict` cookie |
+| `GET /api/session/{id}` | ต้องมี exact `Origin` และ session cookie ที่ตรงกับ path; คืน state/TTL/label แต่ไม่คืน CSRF token |
+| `POST /api/session/{id}` | ต้องมี exact `Origin`, session cookie และ `X-CSRF-Token`; ปิด local control session เท่านั้น |
+| `GET /api/session/{id}/ws` | ต้องมี exact `Origin` และ session cookie; frame แรกต้องเป็น `hello` พร้อม CSRF token |
+
+WebSocket หลัง handshake รองรับเฉพาะ JSON `status` และ `close`; `hello` ซ้ำ, field ที่ไม่รู้จัก, malformed JSON, binary frame และ frame/message ที่เกิน limit จะปิด connection การกำหนด session TTL, จำนวน session, creation rate, body size และ frame size เป็น bounded configuration และ error response จะใช้รหัสทั่วไปโดยไม่สะท้อน credential หรือรายละเอียดลับ
+
+CORS ใช้ exact configured origin เท่านั้น ไม่ใช้ `*`; state-changing requests ใช้ CSRF token และ session cookie มี `SameSite=Strict` การทดสอบเป็น loopback fixture-backed tests ที่ไม่พึ่ง external service หรือ secret ภายนอก หลักฐานนี้ยืนยันเฉพาะ local HTTP/WebSocket lifecycle flow ไม่ใช่ browser interoperability, TLS, external provider, STUN/TURN, NAT traversal หรือ production deployment
+
+---
+
 ## 3. Signaling API
 
 ## 3.1 `SignalingClient`
@@ -347,6 +370,7 @@ API ที่เปิด capability ให้ peer ต้องถูกเร�
 | File stream | root-relative path, traversal/symlink rejection, size/overwrite policy, timeout และ temporary-file cleanup | ไม่แทน OS ACL และไม่ป้องกัน hostile filesystem race ได้สมบูรณ์ |
 | Shell stream | direct argv, program/argument/cwd allowlist, `env_clear`, output/timeout/cancellation limits | ไม่แทน OS sandbox, container, SELinux หรือ AppContainer |
 | Proxy stream | deny-by-default, allowlist/explicit confirmation, DNS pinning, retry/redirect guards, bounded incremental response-body reads, resource limits และ log redaction; `wss` handler ปฏิเสธจนกว่ามี tested TLS connector | ไม่ใช่ OS egress firewall; production TLS/provider/NAT evidence ยังขาด |
+| Browser control | loopback bind, exact Origin/CORS, bearer bootstrap, HttpOnly/SameSite session cookie, CSRF token, bounded session/rate/body/frame/TTL และ sanitized errors; expose เฉพาะ local status/close flow | local fixture-backed HTTP/WebSocket evidence เท่านั้น; ไม่ใช่ browser WebRTC, TLS, provider หรือ deployment evidence |
 
 ความสามารถที่เกี่ยวกับ network, file และ process จึงไม่ควรถูกตีความเป็นสิทธิ์แบบไร้ขอบเขต การ deploy จริงต้องกำหนด OS account, filesystem ACL, firewall/egress policy, TLS trust policy และ resource quotas เพิ่มเติมตาม [ADR-046](decisions/issue-46-threat-model.md)
 

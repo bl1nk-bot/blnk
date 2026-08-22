@@ -7,5 +7,6 @@ pub mod session;
 pub mod signaling;
 pub mod stream;
 pub mod utils;
+pub mod web;
 
 pub use utils::error::BlnkError;

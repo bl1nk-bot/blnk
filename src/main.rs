@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
-use blnk::config::args::{ConnectArgs, CpArgs, DevicesArgs, ServeArgs};
+use blnk::config::args::{ConnectArgs, CpArgs, DevicesArgs, ServeArgs, WebArgs};
 use blnk::config::{Config, DeviceRegistry};
 use blnk::identity::Identity;
 use blnk::peer::TwoPeerHarness;
@@ -19,8 +19,10 @@ use blnk::stream::shell::{
     ShellCommand, ShellPolicy, ShellStreamHandler, decode_error_frame, decode_exit_frame,
     decode_open_frame, decode_output_frame,
 };
+use blnk::web::{BrowserControlConfig, BrowserControlServer};
 use clap::{Parser, Subcommand};
 use std::io::Write;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
 
@@ -44,6 +46,8 @@ enum Commands {
     Cp(CpArgs),
     /// List metadata for known devices; private keys and access codes are not shown.
     Devices(DevicesArgs),
+    /// Start the loopback-only browser control surface.
+    Web(WebArgs),
     /// Print the installed version.
     Version,
 }
@@ -57,6 +61,7 @@ async fn main() -> Result<()> {
         Commands::Connect(args) => run_connect(args).await,
         Commands::Cp(args) => run_cp(args).await,
         Commands::Devices(args) => run_devices(args).await,
+        Commands::Web(args) => run_web(args).await,
         Commands::Version => {
             println!("blnk {}", env!("CARGO_PKG_VERSION"));
             Ok(())
@@ -138,6 +143,29 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+async fn run_web(args: WebArgs) -> Result<()> {
+    let bootstrap_token = args
+        .bootstrap_token
+        .or_else(|| std::env::var("BLNK_WEB_TOKEN").ok())
+        .ok_or_else(|| anyhow!("web requires --bootstrap-token or BLNK_WEB_TOKEN"))?;
+    let bind_addr = SocketAddr::new(args.host, args.port);
+    let config =
+        BrowserControlConfig::loopback(args.origin, bootstrap_token).with_bind_addr(bind_addr);
+    let mut server = BrowserControlServer::start(config)
+        .await
+        .context("start browser control surface")?;
+    println!("browser_control_url={}", server.url());
+    println!("browser_control_origin_configured=true");
+    println!("browser_control_status=running; press Ctrl-C to stop");
+    tokio::signal::ctrl_c()
+        .await
+        .context("wait for shutdown signal")?;
+    server
+        .shutdown()
+        .await
+        .context("stop browser control surface")
 }
 
 async fn run_connect(args: ConnectArgs) -> Result<()> {

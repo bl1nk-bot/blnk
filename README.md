@@ -48,7 +48,7 @@ blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-pe
 
 ## สถานะการพัฒนา
 
-**สถานะปัจจุบัน: local MVP / ยังไม่พร้อมใช้งานจริง** โครงการมี runnable foundation, identity, signaling/WebRTC local harness, authenticated session, file-transfer/shell MVP และ CLI fixture workflow แล้ว แต่ remote signaling-to-WebRTC orchestration, external interoperability, production proxy integration และ web integration ยังอยู่ใน roadmap การมีคำสั่ง CLI หรือ protobuf schema เพียงอย่างเดียวไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
+**สถานะปัจจุบัน: local MVP / ยังไม่พร้อมใช้งานจริง** โครงการมี runnable foundation, identity, signaling/WebRTC local harness, authenticated session, file-transfer/shell MVP, deterministic remote relay orchestration, CLI fixture workflow และ loopback-only browser control session/status surface แล้ว แต่ external interoperability, browser WebRTC, production proxy/TLS integration, dependency advisory evidence และ release artifacts ยังไม่เสร็จ การมีคำสั่ง CLI หรือ protobuf schema เพียงอย่างเดียวไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
 
 ผลตรวจสอบล่าสุดและรายการงานที่ต้องทำอยู่ใน [`docs/implementation-status.md`](docs/implementation-status.md) ส่วนลำดับความสำคัญและกติกาแก้ความขัดแย้งของเอกสารอยู่ใน [`docs/plans/core-foundation.md`](docs/plans/core-foundation.md)
 
@@ -67,7 +67,7 @@ Issue #45 กำหนดคำว่า **รองรับ** ให้แย�
 
 ## Quick Start
 
-> **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration ยังไม่อ้างว่าใช้งานได้จริง
+> **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration และ browser control surface ใช้หลักฐาน deterministic/local เท่านั้น ยังไม่อ้าง external interoperability หรือ production deployment
 
 
 ### สร้างโปรเจค
@@ -109,6 +109,10 @@ cargo run -- cp --local-fixture ./local.txt remote.txt
 
 # ดู metadata ของ devices ที่รู้จัก โดยไม่เปิดเผย credential
 cargo run -- devices --list
+
+# เริ่ม browser control surface แบบ loopback; token เป็น local development credential
+export BLNK_WEB_TOKEN=local-development-token
+cargo run -- web --host 127.0.0.1 --port 0 --origin http://127.0.0.1:3000
 ```
 
 ## CLI Commands
@@ -117,6 +121,7 @@ cargo run -- devices --list
 - `connect` - ใช้ `--local-fixture` เพื่อ authenticated shell transcript; remote target ตรวจ registry และรายงานข้อจำกัดอย่างชัดเจน
 - `cp` - ใช้ `--local-fixture` เพื่อ authenticated sandboxed file transfer
 - `devices` - อ่าน persistent metadata-only device registry โดยไม่แสดง private key หรือ access code
+- `web` - เปิด loopback-only browser control session/status surface ด้วย exact Origin, bearer bootstrap, CSRF และ bounded limits; ไม่เปิด remote capability หรืออ้าง browser WebRTC
 - `version` - แสดงเวอร์ชัน
 
 ## Dependencies หลัก
