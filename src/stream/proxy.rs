@@ -225,6 +225,30 @@ impl ProxyResourceLimits {
         }
         Ok(())
     }
+
+    pub fn check_request_size(self, bytes: u64) -> ProxyResult<()> {
+        if bytes > self.max_request_bytes {
+            Err(ProxyPolicyError::RequestLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn check_response_size(self, bytes: u64) -> ProxyResult<()> {
+        if bytes > self.max_response_bytes {
+            Err(ProxyPolicyError::ResponseLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn check_buffered_bytes(self, bytes: usize) -> ProxyResult<()> {
+        if bytes > self.max_buffered_bytes {
+            Err(ProxyPolicyError::BackpressureLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Normalized scheme/host/port identity used for exact allowlist and origin checks.

@@ -4,6 +4,7 @@
 //! follow-up work. This module only owns stream identity and lifecycle.
 
 pub mod proxy;
+pub mod proxy_handler;
 
 use std::collections::BTreeMap;
 
