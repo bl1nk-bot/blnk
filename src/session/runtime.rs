@@ -641,6 +641,31 @@ impl SessionRuntime {
         }
     }
 
+    /// Sends one raw SWSP frame after the authenticated session is ready.
+    ///
+    /// The remote dispatcher uses this method to preserve the stream codec's
+    /// exact flags and payload (for example file response metadata frames).
+    pub async fn send_frame(&self, frame: &Frame) -> SessionResult<()> {
+        if self.state() != SessionState::Ready {
+            return Err(BlnkError::Session(
+                "session must be ready before sending a data frame".into(),
+            ));
+        }
+        self.peer.send_frame(frame).await
+    }
+
+    /// Receives one raw SWSP frame for the single reader owned by a dispatcher.
+    pub async fn recv_frame(&self) -> SessionResult<Frame> {
+        self.peer.recv_frame().await
+    }
+
+    /// Returns the registered kind of a stream, if it exists.
+    pub fn stream_kind(&self, stream_id: u32) -> Option<StreamKind> {
+        self.session
+            .stream_entry(stream_id)
+            .map(|entry| entry.kind())
+    }
+
     /// Sends a typed control message. Public for transport-level integration tests.
     pub async fn send_control(&self, message: ControlMessage) -> SessionResult<()> {
         let frame = Frame::new(CONTROL_STREAM_ID, FrameFlags::DAT, message.encode());

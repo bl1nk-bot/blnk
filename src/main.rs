@@ -5,6 +5,11 @@ use blnk::identity::Identity;
 use blnk::peer::TwoPeerHarness;
 use blnk::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN;
 use blnk::session::{SessionRuntime, SessionRuntimeConfig};
+use blnk::signaling::EndpointPolicy;
+use blnk::signaling::orchestration::{
+    DEFAULT_ORCHESTRATION_TIMEOUT, accept_server_session, connect_target, run_file_client,
+    run_shell_client, serve_session_with_shutdown,
+};
 use blnk::stream::file::{
     FileOperation, FileTransferCancellation, FileTransferConfig, FileTransferRequest,
     FileTransferResponse, FileTransferService, collect_data_frames, decode_request_frame,
@@ -67,7 +72,7 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     let identity = load_or_create_identity(&config.identity_path)?;
 
     println!("identity_uid={}", identity.uid());
-    println!("signaling_url={signaling_url}");
+    println!("signaling_endpoint_configured=true");
 
     if args.local_fixture {
         let pin = args
@@ -96,16 +101,42 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
         return Ok(());
     }
 
-    println!(
-        "serve_status=identity-ready; remote signaling/WebRTC accept orchestration is not implemented"
-    );
+    let pin = args
+        .pin
+        .or(config.pin)
+        .ok_or_else(|| anyhow!("remote serve requires --pin or BLNK_PIN"))?;
+    let session = accept_server_session(
+        &signaling_url,
+        &identity,
+        pin,
+        EndpointPolicy::PublicOnly,
+        DEFAULT_ORCHESTRATION_TIMEOUT,
+    )
+    .await
+    .context("establish remote signaling/WebRTC session")?;
+    println!("serve_status=connected; client_id={}", session.client_id);
+    let root = std::env::current_dir().context("get serve root")?;
     if args.once {
+        blnk::signaling::orchestration::serve_session(session, root)
+            .await
+            .context("serve remote session")?;
         return Ok(());
     }
-    println!("serve_status=waiting; press Ctrl-C to stop");
-    tokio::signal::ctrl_c()
-        .await
-        .context("wait for shutdown signal")?;
+
+    println!("serve_status=running; press Ctrl-C to stop");
+    let shutdown = CancellationToken::new();
+    let session_task = serve_session_with_shutdown(session, root, shutdown.clone());
+    tokio::pin!(session_task);
+    tokio::select! {
+        result = &mut session_task => {
+            result.context("serve remote session")?;
+        }
+        signal = tokio::signal::ctrl_c() => {
+            signal.context("wait for shutdown signal")?;
+            shutdown.cancel();
+            session_task.await.context("serve remote session")?;
+        }
+    }
     Ok(())
 }
 
@@ -131,9 +162,36 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
         .ok_or_else(|| anyhow!("connect requires --target or --local-fixture"))?;
     let registry = DeviceRegistry::load(&config.devices_path).context("load device registry")?;
     ensure_known_device(&registry, target)?;
-    bail!(
-        "device '{target}' is registered, but signaling-to-WebRTC session orchestration is not implemented; use --local-fixture for the local MVP"
-    );
+    let device = registry
+        .find(target)
+        .ok_or_else(|| anyhow!("device '{target}' disappeared from the registry"))?;
+    let identity = load_or_create_identity(&config.identity_path)?;
+    let pin = args
+        .pin
+        .or(config.pin)
+        .ok_or_else(|| anyhow!("connect to a remote device requires --pin or BLNK_PIN"))?;
+    let mut session = connect_target(
+        &device.endpoint,
+        &identity,
+        target,
+        pin,
+        EndpointPolicy::PublicOnly,
+        DEFAULT_ORCHESTRATION_TIMEOUT,
+    )
+    .await
+    .context("establish remote signaling/WebRTC session")?;
+    let command = shell_command_from_args(&args.command)?;
+    let result = run_shell_client(&mut session.runtime, &command).await;
+    let close_result = session.runtime.close().await;
+    let exit_code = match (result, close_result) {
+        (Err(error), _) => return Err(error.into()),
+        (Ok(_), Err(error)) => return Err(error.into()),
+        (Ok(code), Ok(())) => code,
+    };
+    if exit_code != 0 {
+        bail!("remote shell exited with status {exit_code}");
+    }
+    Ok(())
 }
 
 async fn run_cp(args: CpArgs) -> Result<()> {
@@ -144,9 +202,43 @@ async fn run_cp(args: CpArgs) -> Result<()> {
         return Ok(());
     }
 
-    bail!(
-        "cp requires --local-fixture in the current MVP; remote signaling-to-session orchestration is not implemented"
-    );
+    let target = args
+        .target
+        .as_deref()
+        .ok_or_else(|| anyhow!("remote cp requires --target or --local-fixture"))?;
+    let registry = DeviceRegistry::load(&config.devices_path).context("load device registry")?;
+    ensure_known_device(&registry, target)?;
+    let device = registry
+        .find(target)
+        .ok_or_else(|| anyhow!("device '{target}' disappeared from the registry"))?;
+    let identity = load_or_create_identity(&config.identity_path)?;
+    let pin = args
+        .pin
+        .or(config.pin)
+        .ok_or_else(|| anyhow!("remote cp requires --pin or BLNK_PIN"))?;
+    let mut session = connect_target(
+        &device.endpoint,
+        &identity,
+        target,
+        pin,
+        EndpointPolicy::PublicOnly,
+        DEFAULT_ORCHESTRATION_TIMEOUT,
+    )
+    .await
+    .context("establish remote signaling/WebRTC session")?;
+    let result = run_file_client(
+        &mut session.runtime,
+        &args.source,
+        &args.destination,
+        args.overwrite,
+    )
+    .await;
+    let close_result = session.runtime.close().await;
+    match (result, close_result) {
+        (Err(error), _) => Err(error.into()),
+        (Ok(()), Err(error)) => Err(error.into()),
+        (Ok(()), Ok(())) => Ok(()),
+    }
 }
 
 async fn run_devices(args: DevicesArgs) -> Result<()> {

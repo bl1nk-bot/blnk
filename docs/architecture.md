@@ -188,6 +188,20 @@ blnk-rust/
 8. create data channel
 9. start session dispatcher
 
+### 4.1.1 Remote CLI Connect/Copy Flow
+
+1. CLI resolve `--target` through metadata-only `DeviceRegistry` and reject unknown target before dial
+2. connect to the configured signaling endpoint using `EndpointPolicy::PublicOnly`
+3. send `ConnectionRequest` with the client identity UID as `client_id`
+4. receive the target device `OfferMessage`; validate matching client ID and device public-key metadata
+5. create the non-trickle WebRTC answer and send `AnswerMessage` with an RSA-OAEP encrypted `{fingerprint, nonce, code}` request
+6. device decrypts and validates the opaque request, then both peers wait for the data channel
+7. run the authenticated PIN `SessionRuntime` handshake until `Ready`
+8. client opens shell/file stream; device owns one raw-frame reader and dispatches to the capability-specific handler
+9. close stream and runtime on completion, timeout, disconnect, protocol error or cancellation
+
+The production remote path uses the same module boundaries as the deterministic relay fixture. The fixture proves local behavior only; it does not prove external signaling-provider, original-Go, browser, TLS, STUN/TURN or NAT-traversal interoperability.
+
 ## 4.2 Browser Connect Flow
 
 1. browser connects signaling server
@@ -201,6 +215,9 @@ blnk-rust/
 9. session becomes ready
 
 ## 4.3 Stream Dispatch Flow
+
+For the current CLI remote path, the server dispatcher is single-reader: it first validates stream flags and ownership, then routes shell and file openers to their existing bounded services. A malformed opener, unknown stream or invalid terminal frame is a protocol error and triggers session cleanup rather than a success response.
+
 
 1. receive SWSP frame
 2. parse stream id and flags
