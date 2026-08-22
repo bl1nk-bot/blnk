@@ -82,6 +82,7 @@ blnk Rust เป็น CLI tool สำหรับ remote access แบบ peer-
 ระบบต้องรองรับ PIN แบบ optional
 - configure ได้
 - verify แบบ constant-time
+- remote encrypted request ต้องตรวจ PIN ที่ signaling boundary ก่อนเริ่ม authenticated peer/session handshake และ `SessionRuntime` ต้องตรวจซ้ำเป็น defense-in-depth
 - จำกัดจำนวนครั้งที่ผิดได้
 - มี delay ระหว่างการลองใหม่ได้
 
@@ -116,6 +117,9 @@ blnk Rust เป็น CLI tool สำหรับ remote access แบบ peer-
 - message format เป็น JSON/protobuf-compatible schema ตาม design
 - รองรับ register, request, offer, answer, candidate, error
 - protocol version ต้องตรงกับต้นฉบับ
+- `OfferMessage.streams` ต้องคง metadata ที่จำเป็นต่อ negotiation ได้แก่ device public key และ one-time `request_nonce` เมื่อใช้ encrypted request
+- `AnswerMessage.encrypted_request` ต้องมี `{fingerprint, nonce, code}` ที่เข้ารหัสด้วย public key ของ device; server ต้องตรวจ fingerprint ให้ตรงกับ SDP answer, nonce ให้ตรงกับ pending challenge และ PIN ให้ตรงกับค่าที่กำหนดก่อนรับ answer เข้า peer/session path
+- pending nonce ต้องถูก consume แบบ single-use และถูกล้างเมื่อ timeout, disconnect หรือ validation failure; ห้าม log plaintext PIN, nonce หรือ ciphertext
 
 ### 5.2 SWSP Protocol
 - ใช้สำหรับ transport บน data channel
