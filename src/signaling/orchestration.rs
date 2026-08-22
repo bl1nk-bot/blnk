@@ -696,12 +696,12 @@ fn validate_encrypted_request(
     require_non_empty(&request.fingerprint, "encrypted request fingerprint")?;
     require_non_empty(&request.nonce, "encrypted request nonce")?;
     require_non_empty(&request.code, "encrypted request code")?;
-    if request.nonce != expected_nonce {
+    if !constant_time_string_eq(&request.nonce, expected_nonce) {
         return Err(BlnkError::Signaling(
             "encrypted request nonce does not match the pending challenge".into(),
         ));
     }
-    if request.fingerprint != expected_fingerprint {
+    if !constant_time_string_eq(&request.fingerprint, expected_fingerprint) {
         return Err(BlnkError::Signaling(
             "encrypted request fingerprint does not match the negotiated answer".into(),
         ));
@@ -716,6 +716,18 @@ fn validate_encrypted_request(
 
 fn fingerprint_for_sdp(sdp: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(Sha256::digest(sdp.as_bytes()))
+}
+
+fn constant_time_string_eq(expected: &str, provided: &str) -> bool {
+    let expected_bytes = expected.as_bytes();
+    let provided_bytes = provided.as_bytes();
+    let max_len = expected_bytes.len().max(provided_bytes.len());
+    let mut difference = 0_u8;
+    for index in 0..max_len {
+        difference |= expected_bytes.get(index).copied().unwrap_or_default()
+            ^ provided_bytes.get(index).copied().unwrap_or_default();
+    }
+    difference == 0 && expected_bytes.len() == provided_bytes.len()
 }
 
 fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
@@ -1013,6 +1025,9 @@ mod tests {
 
     #[test]
     fn pin_comparison_requires_six_digits_without_secret_dependent_errors() {
+        assert!(constant_time_string_eq("nonce-1", "nonce-1"));
+        assert!(!constant_time_string_eq("nonce-1", "nonce-2"));
+        assert!(!constant_time_string_eq("nonce-1", "nonce-10"));
         assert!(constant_time_pin_eq("123456", "123456"));
         assert!(!constant_time_pin_eq("123456", "12345"));
         assert!(!constant_time_pin_eq("123456", "1234567"));
