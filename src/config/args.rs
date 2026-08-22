@@ -34,6 +34,9 @@ pub struct ConnectArgs {
 
 #[derive(Debug, Args, Clone)]
 pub struct CpArgs {
+    /// Peer or device target for remote signaling/file transfer.
+    #[arg(long)]
+    pub target: Option<String>,
     pub source: String,
     pub destination: String,
     /// Use the in-process loopback fixture for a real authenticated file transfer.
@@ -42,6 +45,9 @@ pub struct CpArgs {
     /// Replace an existing destination in the receiver sandbox.
     #[arg(long)]
     pub overwrite: bool,
+    /// PIN used by the remote authenticated session.
+    #[arg(long)]
+    pub pin: Option<String>,
 }
 
 #[derive(Debug, Args, Clone, Default)]
@@ -68,6 +74,30 @@ mod tests {
         Connect(ConnectArgs),
         Cp(CpArgs),
         Devices(DevicesArgs),
+    }
+
+    #[test]
+    fn remote_cp_target_pin_and_overwrite_are_parseable() {
+        let cli = TestCli::try_parse_from([
+            "blnk",
+            "cp",
+            "--target",
+            "device-1",
+            "--pin",
+            "123456",
+            "--overwrite",
+            "source.txt",
+            "dest.txt",
+        ])
+        .expect("remote cp args should parse");
+        let TestCommand::Cp(args) = cli.command else {
+            panic!("expected cp command");
+        };
+        assert_eq!(args.target.as_deref(), Some("device-1"));
+        assert_eq!(args.pin.as_deref(), Some("123456"));
+        assert!(args.overwrite);
+        assert_eq!(args.source, "source.txt");
+        assert_eq!(args.destination, "dest.txt");
     }
 
     #[test]

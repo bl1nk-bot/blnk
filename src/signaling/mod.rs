@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use crate::utils::error::BlnkError;
 
+pub mod orchestration;
 pub mod transport;
 
 pub use transport::{

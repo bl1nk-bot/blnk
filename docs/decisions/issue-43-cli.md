@@ -1,6 +1,6 @@
 # Decision Record: CLI MVP และ Local Fixture Workflow
 
-**สถานะ:** Accepted for Issue #43 MVP
+**สถานะ:** Accepted for Issue #43 MVP; remote boundary ในเอกสารนี้เป็น historical scope และถูก supersede โดย ADR #71 สำหรับ remote orchestration
 
 ## Context
 
@@ -14,7 +14,7 @@ Acceptance ต้องตรวจสอบซ้ำได้โดยไม่
 
 `serve --local-fixture` เริ่ม `LocalFixtureServer` และสร้างหรือโหลด identity ส่วน `connect --local-fixture` และ `cp --local-fixture` ใช้ `TwoPeerHarness` กับ `SessionRuntime` จริง ไม่สร้าง mock success path
 
-หากเรียก remote path ในขณะที่ orchestration ยังไม่มี คำสั่งต้องคืน error ที่บอกข้อจำกัดอย่างชัดเจนแทนการพิมพ์ success ปลอม `connect --target` ตรวจ `DeviceRegistry` ก่อน และปฏิเสธ unknown device ก่อนมีการ dial ใด ๆ
+ในขอบเขตเดิมของ Issue #43 หากเรียก remote path ในขณะที่ orchestration ยังไม่มี คำสั่งต้องคืน error ที่บอกข้อจำกัดอย่างชัดเจนแทนการพิมพ์ success ปลอม `connect --target` ตรวจ `DeviceRegistry` ก่อน และปฏิเสธ unknown device ก่อนมีการ dial ใด ๆ; หลัง Issue #71 remote path ใช้ orchestration จริงตาม [ADR #71](issue-71-remote-orchestration.md)
 
 ### 2. ใช้ direct argv สำหรับ shell transcript
 
@@ -57,4 +57,4 @@ CLI ไม่พิมพ์ identity PEM/private key, PIN, pairing/access crede
 
 ## Non-goals and follow-up
 
-Issue นี้ไม่รวม production packaging, external signaling/WebRTC orchestration, mDNS/QR discovery, browser UI, TLS/provider interoperability หรือ verified Linux/Windows/Android release artifacts งานถัดไปต้องเพิ่ม remote dispatch และ cross-platform evidence โดยคง local fixture เป็น deterministic regression harness
+Issue นี้ไม่รวม production packaging, mDNS/QR discovery, browser UI, TLS/provider interoperability หรือ verified Linux/Windows/Android release artifacts งานถัดไปจาก Issue #43 คือ [Issue #71](issue-71-remote-orchestration.md) ซึ่งเพิ่ม remote dispatch และคง local fixture เป็น deterministic regression harness

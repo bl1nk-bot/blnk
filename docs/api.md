@@ -29,8 +29,8 @@ API ในเอกสารนี้แบ่งเป็น:
 - load config
 - load or generate the persisted identity
 - with `--local-fixture`, start a deterministic local signaling fixture without external secrets
-- with `--once`, initialize/print the service state and exit; without it, wait for Ctrl-C
-- remote signaling registration, peer/session creation and stream dispatch remain an explicit not-implemented boundary
+- with `--once`, initialize the service and process one authenticated remote session before exiting; without it, run the session dispatcher until Ctrl-C or disconnect
+- remote mode registers the identity, accepts a signaling request, negotiates non-trickle SDP and dispatches authenticated shell/file streams
 
 ### Implemented CLI surface
 
@@ -55,7 +55,7 @@ run_serve(args).await?;
 ### Responsibilities
 - `--local-fixture` creates a real in-process `TwoPeerHarness`, performs the authenticated `SessionRuntime` handshake, opens a shell stream, executes direct argv, and prints framed output/exit status
 - `--target <id>` resolves metadata from `DeviceRegistry`; unknown devices are rejected without dialing
-- remote signaling, offer/answer, data-channel negotiation and stream dispatch are not claimed until a provider-compatible orchestration layer exists
+- remote mode sends a target-routed `ConnectionRequest`, accepts the device offer, sends a non-trickle SDP answer, performs the authenticated `SessionRuntime` handshake and dispatches the requested shell stream
 
 ```text
 blnk connect [--target <DEVICE_ID>] [--local-fixture] [--command <PROGRAM> [ARGS...]] [--pin <PIN>]
@@ -67,14 +67,14 @@ blnk connect [--target <DEVICE_ID>] [--local-fixture] [--command <PROGRAM> [ARGS
 คัดลอกไฟล์ระหว่าง local/remote
 
 ### Responsibilities
-- parse source/destination and `--overwrite`
+- parse target, source/destination, `--pin` and `--overwrite`
 - in `--local-fixture`, open an authenticated file stream, send `FileOp` plus bounded data chunks, execute the sandboxed receiver service, and consume the response transcript
+- in remote mode, `--target` resolves the device endpoint and uses the same authenticated signaling/WebRTC session before dispatching the file stream
 - `remote:<path>` selects the download direction; a normal local source selects upload
 - report a concise completion line without exposing credential or full local path data beyond the requested source/destination
-- remote signaling/session orchestration is not claimed by this command yet
 
 ```text
-blnk cp [--local-fixture] [--overwrite] <SOURCE> <DESTINATION>
+blnk cp [--target <DEVICE_ID>] [--local-fixture] [--pin <PIN>] [--overwrite] <SOURCE> <DESTINATION>
 ```
 
 ---
@@ -105,18 +105,17 @@ pub struct SignalingClient { /* ... */ }
 ### Methods
 - `new(url: &str) -> Result<Self>` — ใช้ `EndpointPolicy::PublicOnly` เป็นค่าเริ่มต้นและทำ preflight DNS/IP validation ก่อน dial
 - `with_endpoint_policy(policy: EndpointPolicy) -> Self` — ใช้ `EndpointPolicy::AllowLocal` เฉพาะ local fixture/test ที่ควบคุมได้
-- `connect(&mut self) -> Result<()>`
-- `register(&self, req: RegisterRequest) -> Result<RegisterResponse>`
-- `send_offer(&self, msg: OfferMessage) -> Result<()>`
-- `send_answer(&self, msg: AnswerMessage) -> Result<()>`
-- `send_candidate(&self, msg: ICECandidateMessage) -> Result<()>`
-- `listen(&self) -> Result<()>`
+- `connect(&self) -> Result<SignalingConnection>`
+- `connect_with_retry(&self) -> Result<SignalingConnection>` — จำกัด retry เฉพาะ socket เปิดใหม่
+- `transact(&self, request: &SignalingMessage) -> Result<SignalingMessage>`
+- `transact_with_retry(&self, request: &SignalingMessage) -> Result<SignalingMessage>`
+- `SignalingConnection::send`/`recv`/`close` — ส่ง JSON text frame ที่ validate และจำกัดขนาด
 
 ### Responsibilities
 - maintain websocket connection
 - preflight signaling endpoint policy before initial and retry connections
 - encode/decode signaling messages
-- route messages to session manager
+- route messages to the orchestration state machine; `orchestration` เชื่อม signaling กับ `PeerHandle` และ authenticated `SessionRuntime`
 
 ---
 

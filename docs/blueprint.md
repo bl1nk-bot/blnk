@@ -218,18 +218,20 @@ blnk/
 
 ## 5. Implementation Status
 
+> ตารางนี้เดิมเป็นสถานะเริ่มต้นของ blueprint ไม่ใช่หลักฐานสถานะปัจจุบัน หลังจากนั้นให้ยึด [`docs/implementation-status.md`](implementation-status.md) เป็น source of truth โดยเฉพาะข้อจำกัด interoperability และ release evidence
+
 | Layer | Status | Notes |
 |-------|--------|-------|
-| CLI | stub | `main.rs` has serve/connect/cp/version stubs |
-| Config | missing | not implemented |
-| Signaling | missing | not implemented |
-| Peer | missing | not implemented |
-| Session | missing | not implemented |
-| Stream | missing | not implemented |
-| Protocol | missing | not implemented |
-| Identity | missing | not implemented |
-| Web | missing | not implemented |
-| Utils | missing | not implemented |
+| CLI | implemented | `serve`, `connect`, `cp`, `devices` และ `version`; local fixture และ deterministic remote relay paths มี business logic จริง |
+| Config | implemented | โหลด config และ metadata-only device registry พร้อม validation/persistence |
+| Signaling | implemented locally | typed JSON/WebSocket transport และ remote register/request/offer/answer orchestration ผ่าน deterministic relay fixture; external provider ยังไม่ยืนยัน |
+| Peer | implemented locally | non-trickle offer/answer, data channel และ lifecycle ผ่าน local UDP fixture |
+| Session | implemented locally | authenticated control handshake, PIN policy และ stream lifecycle |
+| Stream | implemented partially | shell/file และ proxy boundaries มี implementation; TCP/WebSocket dispatcher และบาง service integration ยังเหลือ |
+| Protocol | implemented | signaling/SWSP/control schemas, raw codec และ compatibility fixtures |
+| Identity | implemented | RSA-2048 persistence, pairing/access credentials และ cryptographic helpers |
+| Web | planned | browser control surface เป็นงานถัดไปหลัง CLI E2E; ยังไม่มีหลักฐาน runtime |
+| Utils | implemented partially | typed errors และ supporting helpers มีอยู่; release/operational evidence ยังไม่ครบ |
 
 ---
 
