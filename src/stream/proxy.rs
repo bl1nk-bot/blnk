@@ -770,7 +770,7 @@ mod tests {
         assert_eq!(
             policy
                 .validate_resolved_target(
-                    &Url::parse("http://reserved.example:80").expect("valid target"),
+                    ProxyAuthorization::Allowlisted,
                     ProxyAuthorization::UserConfirmed,
                     &[SocketAddr::from(([192, 0, 2, 10], 80))],
                 )
