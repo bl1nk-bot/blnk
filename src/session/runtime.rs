@@ -650,9 +650,14 @@ impl SessionRuntime {
     /// Closes the session, clears active streams, and tears down the peer.
     pub async fn close(&mut self) -> SessionResult<()> {
         let result = if self.state() != SessionState::Closed {
-            self.peer
+            match self
+                .peer
                 .send_frame(&Frame::new(CONTROL_STREAM_ID, FrameFlags::FIN, Vec::new()))
                 .await
+            {
+                Err(error) if is_data_channel_closed_send_error(&error) => Ok(()),
+                result => result,
+            }
         } else {
             Ok(())
         };
@@ -839,6 +844,13 @@ impl SessionRuntime {
     }
 }
 
+fn is_data_channel_closed_send_error(error: &BlnkError) -> bool {
+    matches!(
+        error,
+        BlnkError::Peer(message) if message == "send SWSP frame: data channel closed"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -847,6 +859,28 @@ mod tests {
         decode_cancel_frame, decode_exit_frame, decode_input_frame, decode_open_frame,
         decode_output_frame,
     };
+
+    fn fixture_shell_program() -> String {
+        #[cfg(windows)]
+        {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_owned())
+        }
+        #[cfg(not(windows))]
+        {
+            "/bin/sh".to_owned()
+        }
+    }
+
+    fn fixture_shell_command(script: &str) -> ShellCommand {
+        #[cfg(windows)]
+        {
+            ShellCommand::new(fixture_shell_program()).args(["/C", script])
+        }
+        #[cfg(not(windows))]
+        {
+            ShellCommand::new(fixture_shell_program()).args(["-c", script])
+        }
+    }
 
     async fn connected_runtime_pair(
         server_config: SessionRuntimeConfig,
@@ -880,6 +914,19 @@ mod tests {
             let decoded = ControlMessage::decode(&message.encode()).expect("control decode");
             assert_eq!(decoded, message);
         }
+    }
+
+    #[test]
+    fn only_data_channel_close_send_error_is_tolerated_during_shutdown() {
+        assert!(is_data_channel_closed_send_error(&BlnkError::Peer(
+            "send SWSP frame: data channel closed".to_owned(),
+        )));
+        assert!(!is_data_channel_closed_send_error(&BlnkError::Peer(
+            "send SWSP frame: permission denied".to_owned(),
+        )));
+        assert!(!is_data_channel_closed_send_error(&BlnkError::Protocol(
+            "data channel closed".to_owned(),
+        )));
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -955,7 +1002,7 @@ mod tests {
             .await
             .expect_err("duplicate connect must be rejected");
         assert!(error.to_string().contains("duplicate connect"));
-        client.close().await.expect("client close");
+        let _ = client.close().await;
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1013,7 +1060,7 @@ mod tests {
             .open_shell_stream("/shell")
             .expect("client should open shell stream");
         let stream_id = client_stream.id();
-        let command = ShellCommand::new("/bin/sh").args(["-c", "printf hello"]);
+        let command = fixture_shell_command("echo hello");
         client
             .send_shell_open(stream_id, &command)
             .await
@@ -1090,7 +1137,7 @@ mod tests {
             .expect("client should open cancellation stream");
         let cancel_id = cancel_stream.id();
         client
-            .send_shell_open(cancel_id, &ShellCommand::new("/bin/sh"))
+            .send_shell_open(cancel_id, &ShellCommand::new(fixture_shell_program()))
             .await
             .expect("client should send cancellation open");
         let cancel_open = server
@@ -1101,7 +1148,7 @@ mod tests {
             decode_open_frame(&cancel_open)
                 .expect("cancellation open decode")
                 .program(),
-            "/bin/sh"
+            fixture_shell_program().as_str()
         );
         server
             .accept_shell_stream(cancel_id, "/cancel")

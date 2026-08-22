@@ -42,10 +42,6 @@ reqwest = { version = "0.13.4", features = ["json"] }
 hyper = "1.11.0"
 http = "1.5.0"
 
-# System
-[target.'cfg(unix)'.dependencies]
-nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
-
 # CLI & Config
 clap = { version = "4.0", features = ["derive"] }
 config = "0.15.25"
@@ -66,6 +62,10 @@ base64 = "0.22"
 rsa = { version = "0.9", features = ["sha2", "pem"] }
 sha2 = { version = "0.10", features = ["oid"] }
 subtle = "2.6"
+
+# System
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }

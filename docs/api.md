@@ -210,13 +210,14 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 - `close_file_stream(stream_id) -> Result<StreamEntry>` — ส่ง `FIN` และลบ file stream จาก registry
 - `snapshot() -> SessionRuntimeSnapshot` — อ่าน state, stats และจำนวน active streams
 - `send_control(message: ControlMessage) -> Result<()>` — ส่ง protobuf control message บน SWSP control stream 0
-- `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN`, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer
+- `close(&mut self) -> Result<()>` — ส่ง SWSP `FIN` เมื่อยังทำได้, รอ send buffer แบบ bounded best-effort, ล้าง session และปิด peer; หาก remote ปิด data channel ก่อนจนการส่ง `FIN` คืน `send SWSP frame: data channel closed` ให้ถือเป็นการปิดแบบ idempotent และส่งต่อ error อื่นตามปกติ
 
 ### Runtime guarantees and limits
 
 - ตรวจ duplicate `connect`, duplicate `auth`, duplicate `auth_required`/`auth_result` และ premature/duplicate `ready` ภายใน session scope
 - timeout ระหว่าง handshake ปิด local session; wrong-PIN retry exhaustion ปิดทั้ง runtime ที่ตรวจพบ failure
-- tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message และ stream cleanup
+- หลัง authenticated handshake การปิดฝั่ง remote ก่อนต้องไม่ทำให้ `close()` ของฝั่งที่สองล้มเหลวเพราะ data-channel close ระหว่างส่ง `FIN`; การปิดแบบนี้เป็น local lifecycle guarantee ไม่ใช่หลักฐาน interoperability กับ peer ภายนอก
+- tests พิสูจน์ authenticated local two-peer E2E, wrong PIN/retry exhaustion, timeout, disconnect cleanup, duplicate control message, stream cleanup และ remote-first close handling
 - local tests ไม่ใช่หลักฐาน original-client/server interoperability, browser compatibility, production NAT traversal หรือ external STUN/TURN availability
 
 ---
@@ -310,6 +311,7 @@ pub trait StreamHandler {
 - stream request/response body
 - rewrite headers
 - follow redirect policy
+- read response chunks incrementally and reject `response_limit_exceeded` before appending any chunk that would exceed `ProxyResourceLimits::max_response_bytes`; this applies to responses with and without `Content-Length`
 
 ### Related Types
 - `HTTPRequest`
@@ -317,6 +319,36 @@ pub trait StreamHandler {
 - `HTTPData`
 
 ---
+
+## 6.7 Platform Support Matrix
+
+Issue #45 กำหนด platform boundary ของ crate และวิธีอ่านหลักฐานโดยไม่แปลง compile success เป็น runtime หรือ release claim
+
+| Platform | Contract | Evidence level |
+|---|---|---|
+| Linux | รัน full validation gate: format, all-target check, tests, clippy warnings-as-errors และ diff hygiene | runner-tested เมื่อ workflow job ผ่าน |
+| Windows | ใช้ MSVC target สำหรับ `cargo check --all-targets` และ `cargo test --all`; shell fixtures ต้องเลือก executable/arguments ตาม OS | runner-tested เมื่อ Windows job ผ่าน; local Linux ไม่แทนหลักฐานนี้ |
+| Android | ใช้ `aarch64-linux-android` เป็น compile-only gate ผ่าน `cargo check --lib --target ...`; ยังไม่อ้าง emulator/device, packaging หรือ runtime | compile-verified เท่านั้น |
+| macOS | ไม่อยู่ใน product scope หรือ CI matrix | out-of-scope |
+
+`rust-toolchain.toml` เป็น source of truth ของ channel และ target declarations ส่วน `.github/workflows/ci.yml` เป็น source ของ command/job boundary การเปลี่ยน platform-specific behavior ต้องเพิ่ม test หรือ fixture ที่รันบน platform นั้นได้จริง และต้องระบุข้อจำกัดใน `docs/implementation-status.md` กับ ADR #45
+
+---
+
+## 6.8 Security Boundaries
+
+API ที่เปิด capability ให้ peer ต้องถูกเรียกหลัง authenticated session อยู่ใน state `Ready` และต้องผ่าน policy เฉพาะของ capability นั้นอีกชั้นหนึ่ง การมี `PeerHandle` หรือ data channel ที่เชื่อมสำเร็จไม่ถือเป็น authorization
+
+| Boundary | ค่าเริ่มต้นและ enforcement | ข้อจำกัดของหลักฐาน |
+|---|---|---|
+| Identity/pairing | RSA 2048, fixed-size nonce, wire `type`, base64 nonce, constant-time commitment/PIN comparison, atomic persistence และ Unix mode `0700`/`0600` | PEM fixture ยืนยัน format-level compatibility; original-Go lifecycle ยังไม่ยืนยัน |
+| Signaling egress | `EndpointPolicy::PublicOnly`, ตรวจ DNS answers และ special-use IP ทุกค่า, JSON text frames เท่านั้น, message-size limit และ reconnect policy แบบจำกัด | เป็น application preflight ไม่ใช่ OS firewall; hostname resolution/connect TOCTOU และ provider behavior ยังเป็น residual risk |
+| Session/control | stream เปิดได้เมื่อ `Ready`; duplicate/premature control messages, retry exhaustion และ timeout ทำให้ session/peer ปิด | local two-peer/authenticated runtime evidence เท่านั้น |
+| File stream | root-relative path, traversal/symlink rejection, size/overwrite policy, timeout และ temporary-file cleanup | ไม่แทน OS ACL และไม่ป้องกัน hostile filesystem race ได้สมบูรณ์ |
+| Shell stream | direct argv, program/argument/cwd allowlist, `env_clear`, output/timeout/cancellation limits | ไม่แทน OS sandbox, container, SELinux หรือ AppContainer |
+| Proxy stream | deny-by-default, allowlist/explicit confirmation, DNS pinning, retry/redirect guards, bounded incremental response-body reads, resource limits และ log redaction; `wss` handler ปฏิเสธจนกว่ามี tested TLS connector | ไม่ใช่ OS egress firewall; production TLS/provider/NAT evidence ยังขาด |
+
+ความสามารถที่เกี่ยวกับ network, file และ process จึงไม่ควรถูกตีความเป็นสิทธิ์แบบไร้ขอบเขต การ deploy จริงต้องกำหนด OS account, filesystem ACL, firewall/egress policy, TLS trust policy และ resource quotas เพิ่มเติมตาม [ADR-046](decisions/issue-46-threat-model.md)
 
 ## 7. Identity API
 
