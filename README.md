@@ -63,7 +63,7 @@ Issue #45 กำหนดคำว่า **รองรับ** ให้แย�
 | Android (`aarch64-linux-android`) | GitHub Actions compile-only job | `compile-verified` เท่านั้น; ยังไม่มี device/emulator หรือ APK/AAB evidence |
 | macOS | ไม่มี jobและอยู่นอก scope | `not-tested` / ไม่รองรับตาม decision ปัจจุบัน |
 
-การผ่าน Linux ไม่ใช่หลักฐานแทน Windows หรือ Android และการมี target ใน `rust-toolchain.toml` ไม่ใช่หลักฐานของ linker, packaging, device smoke หรือ external interoperability รายละเอียด decision และ evidence levels อยู่ใน [`docs/decisions/issue-45-support-matrix.md`](docs/decisions/issue-45-support-matrix.md)
+การผ่าน Linux ไม่ใช่หลักฐานแทน Windows หรือ Android และการมี target ใน `rust-toolchain.toml` ไม่ใช่หลักฐานของ linker, packaging, device smoke หรือ external interoperability
 
 ## Release Gate
 

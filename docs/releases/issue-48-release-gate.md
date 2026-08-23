@@ -87,5 +87,5 @@ tar -xOf dist/*.tar.gz '*/PROVENANCE.json'
 - [Issue #46 — threat model and hardening](https://github.com/bl1nk-bot/blnk/issues/46)
 - [Issue #47 — browser control surface](https://github.com/bl1nk-bot/blnk/issues/47)
 - [`docs/implementation-status.md`](../implementation-status.md)
-- [`docs/decisions/issue-45-support-matrix.md`](../decisions/issue-45-support-matrix.md)
-- [`docs/decisions/issue-46-threat-model.md`](../decisions/issue-46-threat-model.md)
+- [Issue #45 — platform support matrix](https://github.com/bl1nk-bot/blnk/issues/45)
+- [Issue #46 — threat model and hardening](https://github.com/bl1nk-bot/blnk/issues/46)

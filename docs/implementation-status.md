@@ -93,4 +93,3 @@ Other risks include PTY and filesystem differences, networking behavior, Android
 [10]: https://github.com/bl1nk-bot/blnk/issues/23 "Issue #23: identity persistence compatibility"
 [11]: https://github.com/bl1nk-bot/blnk/pull/30 "PR #30: identity compatibility slice"
 [12]: https://github.com/bl1nk-bot/blnk/issues/31 "Issue #31: documentation/status synchronization"
-[13]: decisions/identity-persistence.md "Identity persistence decision record"
