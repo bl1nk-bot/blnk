@@ -69,6 +69,10 @@ nix = { version = "0.31.3", default-features = false, features = ["term", "fs", 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
 
+[build-dependencies]
+prost-build = "0.14.4"
+protoc-bin-vendored = "3"
+
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.11"
