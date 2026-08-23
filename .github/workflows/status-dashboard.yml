@@ -11,7 +11,7 @@ on:
     types: [published]
   schedule:
     - cron: '23 * * * *'
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   actions: read
