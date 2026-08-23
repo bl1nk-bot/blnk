@@ -1,16 +1,8 @@
 name: Status dashboard
 
 on:
-  push:
-    branches: [main]
-  pull_request_target:
-    types: [opened, reopened, closed, ready_for_review]
-  issues:
-    types: [opened, reopened, closed]
-  release:
-    types: [published]
   schedule:
-    - cron: '23 * * * *'
+    - cron: '23 2 */3 * *'
   workflow_dispatch: {}
 
 permissions:

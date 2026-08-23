@@ -79,6 +79,10 @@
 
 ## Project delivery contract
 
+อ่าน `docs/agent-operations.md` ก่อนเริ่มงานส่งมอบเสมอ. เอกสารนั้นคือ operating
+memory และ learning loop ของ repository นี้; เมื่อข้อผิดพลาดเผยให้เห็นช่องโหว่ของ
+process ต้องอัปเดตเอกสารนั้นพร้อมกับแก้ระบบ ไม่ใช่บอกผู้ใช้ว่าจะจำในอนาคต.
+
 ### Canonical context is not working-report output
 
 ห้ามลบ ย้าย เขียนทับ หรือย่อไฟล์ context หลักเพื่อ cleanup โดยไม่มีคำสั่ง

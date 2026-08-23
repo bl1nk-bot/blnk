@@ -5,6 +5,10 @@ The repository's canonical context is `AGENTS.md`, `TODO.md`,
 `docs/blueprint.md`, `docs/implementation-status.md`, `docs/plans/**`, and
 `.github/**`. Never treat those files as disposable reports.
 
+Read `docs/agent-operations.md` before delivery work. It is the persistent
+delivery lifecycle and learning ledger; update it when an operational mistake
+reveals a reusable process lesson.
+
 For headless work, prefer evidence-producing checks and a reviewable pull
 request over prose status updates. Do not create a report merely because a
 task could not be completed. Report an exact blocker in the task/PR instead.
