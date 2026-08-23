@@ -79,6 +79,26 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     println!("identity_uid={}", identity.uid());
     println!("signaling_endpoint_configured=true");
 
+    if args.qr {
+        let payload = format!(
+            "blnk://pair?uid={}&pin={}&signaling={}",
+            identity.uid(),
+            args.pin
+                .as_deref()
+                .or(config.pin.as_deref())
+                .unwrap_or_else(|| identity.pairing_code()),
+            urlencoding_or_raw(&signaling_url)
+        );
+        match blnk::utils::qr::render_terminal_qr(&payload) {
+            Ok(qr_matrix) => {
+                println!("\nPairing QR Code:\n{qr_matrix}\nScan with blnk client to connect.\n");
+            }
+            Err(e) => {
+                eprintln!("failed to render QR code: {e}");
+            }
+        }
+    }
+
     if args.local_fixture {
         let pin = args
             .pin
@@ -287,6 +307,10 @@ async fn run_devices(args: DevicesArgs) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn urlencoding_or_raw(input: &str) -> String {
+    input.replace(' ', "%20")
 }
 
 fn load_or_create_identity(path: &str) -> Result<Identity> {

@@ -15,6 +15,9 @@ pub struct ServeArgs {
     /// PIN used by the local fixture handshake.
     #[arg(long)]
     pub pin: Option<String>,
+    /// Render QR code in terminal for mobile/web pairing.
+    #[arg(long)]
+    pub qr: bool,
 }
 
 #[derive(Debug, Args, Clone, Default)]
@@ -92,6 +95,16 @@ mod tests {
         Cp(CpArgs),
         Devices(DevicesArgs),
         Web(WebArgs),
+    }
+
+    #[test]
+    fn serve_qr_flag_is_parseable() {
+        let cli =
+            TestCli::try_parse_from(["blnk", "serve", "--qr"]).expect("serve --qr should parse");
+        let TestCommand::Serve(args) = cli.command else {
+            panic!("expected serve command");
+        };
+        assert!(args.qr);
     }
 
     #[test]
