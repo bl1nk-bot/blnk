@@ -4,7 +4,7 @@
 
 **Implemented as a pre-release gate; ยังไม่ใช่ production release**
 
-ผล runner ล่าสุดของ gate ตรวจพบว่า `h2 0.4.15` มี patch เป็น `0.4.16` และถูกอัปเดตใน `Cargo.lock` แล้ว แต่ RustSec ยังรายงาน `rsa 0.9.10` ตาม `RUSTSEC-2023-0071` (Marvin timing side-channel; ยังไม่มี patch) รวมถึงคำเตือน unmaintained ของ `async-std 1.13.2`, `net2 0.2.39` และ `proc-macro-error 1.0.4` ผ่าน dependency ของ `mdns`/`err-derive` การตรวจนี้จึง **ล้มอย่างถูกต้องและ block production release** จนกว่าจะมีการตัดสินใจ/แก้ dependency ที่ปลอดภัย ไม่ได้ถูกปิดบังด้วย `continue-on-error` หรือ allowlist
+ผล runner ล่าสุดของ gate ยังรายงาน `rsa 0.9.10` ตาม `RUSTSEC-2023-0071` (Marvin timing side-channel; ยังไม่มี patch) ซึ่งเป็น production-release blocker. dependency `mdns` ที่ไม่ได้ถูกใช้ถูกถอดออกแล้ว จึงไม่เหลือคำเตือน unmaintained ของ `async-std`, `net2` และ `proc-macro-error` จาก dependency chain นั้น. การตรวจยัง **ล้มอย่างถูกต้องและ block production release** จนกว่าจะมีการตัดสินใจ/แก้ RSA ที่ปลอดภัย; ไม่ได้ถูกปิดบังด้วย `continue-on-error` หรือ allowlist
 
 เอกสารนี้กำหนดวิธีสร้างและตรวจ artifact ของ blnk Rust ให้ทำซ้ำได้จาก source commit เดียวกัน โดย workflow จะตรวจสอบและ upload artifact เป็น evidence เท่านั้น ไม่สร้าง Git tag และไม่ publish GitHub Release อัตโนมัติ
 
