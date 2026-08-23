@@ -1,0 +1,87 @@
+name: Status dashboard
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [opened, reopened, closed, ready_for_review]
+  issues:
+    types: [opened, reopened, closed]
+  release:
+    types: [published]
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: status-dashboard
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refresh the single live project status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const dashboardIssue = 78;
+            const esc = text => (text || '').replace(/[\r\n]+/g, ' ').replace(/([\[\]])/g, '\\$1');
+            const allIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', per_page: 100,
+            });
+            const issues = allIssues.filter(item => !item.pull_request && item.number !== dashboardIssue);
+            const prs = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'open', per_page: 100,
+            });
+            const branch = await github.rest.repos.getBranch({ owner, repo, branch: 'main' });
+            let latest = null;
+            try { latest = (await github.rest.repos.getLatestRelease({ owner, repo })).data; } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const issueLines = issues.length
+              ? issues.map(item => `- [#${item.number} ${esc(item.title)}](${item.html_url})`).join('\n')
+              : '- ไม่มี issue เปิดอยู่';
+            const prLines = prs.length
+              ? prs.map(pr => `- [#${pr.number} ${esc(pr.title)}](${pr.html_url}) — ${pr.draft ? 'draft' : 'รอ review/merge'}`).join('\n')
+              : '- ไม่มี PR เปิดอยู่';
+            const releaseLine = latest
+              ? `[#${latest.tag_name} ${esc(latest.name || latest.tag_name)}](${latest.html_url})`
+              : 'ยังไม่มี release';
+            const body = `<!-- blnk-status-dashboard: managed by .github/workflows/status-dashboard.yml -->
+
+# Project status
+
+อัปเดตอัตโนมัติจาก GitHub เมื่อ ${new Date().toISOString()} — ไม่ใช่ agent report
+
+## งานที่ยังเปิด
+
+${issueLines}
+
+## PR ที่ต้องตัดสินใจ
+
+${prLines}
+
+## Release ล่าสุด
+
+${releaseLine}
+
+## Main
+
+\`${branch.data.commit.sha}\`
+
+## สิ่งที่ระบบบังคับ
+
+- ทุก delivery PR ต้อง target \`main\`, link issue, ระบุเอกสาร/หลักฐาน และไม่มี review thread ค้าง
+- PR ต้อง bump patch version พร้อม Cargo.lock/CHANGELOG
+- หลัง merge จะตรวจว่าอยู่ใน \`main\` และสร้าง tag/release
+
+ดูรายละเอียดกติกาที่ [AGENTS.md](https://github.com/${owner}/${repo}/blob/main/AGENTS.md) และ workflow checks ใน PR.`;
+            await github.rest.issues.update({ owner, repo, issue_number: dashboardIssue, body });
