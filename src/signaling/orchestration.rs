@@ -903,8 +903,8 @@ mod tests {
         #[cfg(not(windows))]
         let shell_command = ShellCommand::new("printf").arg("remote shell\n");
         let exit = run_shell_client(&mut client.runtime, &shell_command)
-        .await
-        .expect("remote shell should complete");
+            .await
+            .expect("remote shell should complete");
         assert_eq!(exit, 0);
         run_file_client(
             &mut client.runtime,

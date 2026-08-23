@@ -271,7 +271,36 @@ async fn run_cp(args: CpArgs) -> Result<()> {
 
 async fn run_devices(args: DevicesArgs) -> Result<()> {
     let config = Config::load().context("load blnk configuration")?;
-    let registry = DeviceRegistry::load(&config.devices_path).context("load device registry")?;
+    let mut registry =
+        DeviceRegistry::load(&config.devices_path).context("load device registry")?;
+
+    if args.scan {
+        println!(
+            "Scanning local network for blnk peers (timeout: {}s)...",
+            args.timeout
+        );
+        let discovered = blnk::utils::discovery::discover_local_peers(
+            std::time::Duration::from_secs(args.timeout),
+        )
+        .await
+        .context("scan local peers via mDNS")?;
+
+        if discovered.is_empty() {
+            println!("No local peers discovered.");
+        } else {
+            println!("Discovered {} local peer(s):", discovered.len());
+            println!("ID\tENDPOINT");
+            for peer in &discovered {
+                println!("{}\t{}", peer.id, peer.endpoint);
+                registry.upsert(&peer.id, &peer.endpoint);
+            }
+            registry
+                .save(&config.devices_path)
+                .context("save discovered peers to registry")?;
+        }
+        return Ok(());
+    }
+
     if registry.devices.is_empty() {
         println!("No devices registered.");
         return Ok(());

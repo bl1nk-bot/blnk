@@ -72,6 +72,12 @@ pub struct DevicesArgs {
     /// List known devices.
     #[arg(long)]
     pub list: bool,
+    /// Scan and discover local network peers via mDNS.
+    #[arg(long)]
+    pub scan: bool,
+    /// Scan timeout in seconds (default: 2s).
+    #[arg(long, default_value_t = 2)]
+    pub timeout: u64,
 }
 
 #[cfg(test)]
@@ -92,6 +98,17 @@ mod tests {
         Cp(CpArgs),
         Devices(DevicesArgs),
         Web(WebArgs),
+    }
+
+    #[test]
+    fn devices_scan_flags_are_parseable() {
+        let cli = TestCli::try_parse_from(["blnk", "devices", "--scan", "--timeout", "5"])
+            .expect("devices scan args should parse");
+        let TestCommand::Devices(args) = cli.command else {
+            panic!("expected devices command");
+        };
+        assert!(args.scan);
+        assert_eq!(args.timeout, 5);
     }
 
     #[test]
