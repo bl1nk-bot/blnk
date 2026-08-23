@@ -898,10 +898,11 @@ mod tests {
         let server_root = root.clone();
         let server_task = tokio::spawn(serve_session(server, server_root));
 
-        let exit = run_shell_client(
-            &mut client.runtime,
-            &ShellCommand::new("printf").arg("remote shell\\n"),
-        )
+        #[cfg(windows)]
+        let shell_command = ShellCommand::new("cmd.exe").args(["/C", "echo remote shell"]);
+        #[cfg(not(windows))]
+        let shell_command = ShellCommand::new("printf").arg("remote shell\n");
+        let exit = run_shell_client(&mut client.runtime, &shell_command)
         .await
         .expect("remote shell should complete");
         assert_eq!(exit, 0);
