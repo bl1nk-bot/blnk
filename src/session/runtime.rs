@@ -14,6 +14,7 @@ use crate::peer::PeerHandle;
 use crate::proto_generated::control as wire;
 use crate::protocol::swsp::{Frame, FrameFlags};
 use crate::signaling::PROTOCOL_VERSION;
+use crate::stream::file::{FileTransferRequest, encode_data_frame, encode_request_frame};
 use crate::stream::{StreamEntry, StreamKind};
 use crate::utils::error::BlnkError;
 
@@ -334,6 +335,88 @@ impl SessionRuntime {
 
     pub fn close_stream(&mut self, stream_id: u32) -> SessionResult<StreamEntry> {
         self.session.close_stream(stream_id)
+    }
+
+    /// Opens a local file stream after the authenticated session is ready.
+    pub fn open_file_stream(
+        &mut self,
+        connect_path: impl Into<String>,
+    ) -> SessionResult<StreamEntry> {
+        self.open_stream(StreamKind::File, connect_path)
+    }
+
+    /// Accepts a peer-assigned file stream ID after the authenticated session is ready.
+    pub fn accept_file_stream(
+        &mut self,
+        stream_id: u32,
+        connect_path: impl Into<String>,
+    ) -> SessionResult<StreamEntry> {
+        self.session
+            .accept_stream(stream_id, StreamKind::File, connect_path)
+    }
+
+    /// Sends a file request as a SYN|DAT frame on an active file stream.
+    pub async fn send_file_request(
+        &self,
+        stream_id: u32,
+        request: &FileTransferRequest,
+    ) -> SessionResult<()> {
+        self.ensure_file_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_request_frame(stream_id, request)?)
+            .await
+    }
+
+    /// Sends one file-data chunk as a DAT frame, optionally carrying FIN.
+    pub async fn send_file_chunk(
+        &self,
+        stream_id: u32,
+        data: Vec<u8>,
+        final_chunk: bool,
+    ) -> SessionResult<()> {
+        self.ensure_file_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_data_frame(stream_id, data, final_chunk)?)
+            .await
+    }
+
+    /// Receives the next raw file-stream SWSP frame.
+    pub async fn recv_file_frame(&self) -> SessionResult<Frame> {
+        let frame = self.peer.recv_frame().await?;
+        if frame.stream_id != CONTROL_STREAM_ID || frame.flags.is_fin() {
+            return Ok(frame);
+        }
+        let message = Self::decode_control_frame(frame)?;
+        Err(BlnkError::Protocol(format!(
+            "unexpected control message while waiting for file frame: {message:?}"
+        )))
+    }
+
+    /// Sends FIN for an active file stream and removes it from the session registry.
+    pub async fn close_file_stream(&mut self, stream_id: u32) -> SessionResult<StreamEntry> {
+        self.ensure_file_stream(stream_id)?;
+        self.peer
+            .send_frame(&Frame::new(stream_id, FrameFlags::FIN, Vec::new()))
+            .await?;
+        self.session.close_stream(stream_id)
+    }
+
+    fn ensure_file_stream(&self, stream_id: u32) -> SessionResult<()> {
+        if self.state() != SessionState::Ready {
+            return Err(BlnkError::Session(
+                "session must be ready before using a file stream".into(),
+            ));
+        }
+        match self.session.stream_entry(stream_id) {
+            Some(entry) if entry.kind() == StreamKind::File => Ok(()),
+            Some(entry) => Err(BlnkError::Stream(format!(
+                "stream {stream_id} is not a file stream ({:?})",
+                entry.kind()
+            ))),
+            None => Err(BlnkError::Stream(format!(
+                "unknown file stream id: {stream_id}"
+            ))),
+        }
     }
 
     /// Runs the role-specific control exchange until both sides reach Ready.

@@ -1,7 +1,10 @@
 //! Stream registry and capability boundaries.
 //!
-//! Concrete shell, file, HTTP, TCP, and WebSocket handlers remain separate
-//! follow-up work. This module only owns stream identity and lifecycle.
+//! Concrete handlers remain separate from the stream identity registry.
+//! Issue #39 provides the sandboxed file-transfer handler; other handlers remain
+//! follow-up work.
+
+pub mod file;
 
 pub mod proxy;
 
@@ -100,6 +103,36 @@ impl StreamRegistry {
         }
 
         let stream_id = self.allocate_id()?;
+        let entry = StreamEntry {
+            stream_id,
+            kind,
+            connect_path,
+        };
+        self.active.insert(stream_id, entry.clone());
+        Ok(entry)
+    }
+
+    pub fn accept(
+        &mut self,
+        stream_id: u32,
+        kind: StreamKind,
+        connect_path: impl Into<String>,
+    ) -> StreamResult<StreamEntry> {
+        if stream_id == 0 {
+            return Err(BlnkError::Stream("stream id must be non-zero".into()));
+        }
+        let connect_path = connect_path.into();
+        if connect_path.trim().is_empty() {
+            return Err(BlnkError::Stream("connect_path must not be empty".into()));
+        }
+        if self.active.contains_key(&stream_id) {
+            return Err(BlnkError::Stream(format!(
+                "stream id already active: {stream_id}"
+            )));
+        }
+        if stream_id >= self.next_id {
+            self.next_id = stream_id.wrapping_add(1).max(1);
+        }
         let entry = StreamEntry {
             stream_id,
             kind,
