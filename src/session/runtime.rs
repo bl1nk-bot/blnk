@@ -15,6 +15,10 @@ use crate::proto_generated::control as wire;
 use crate::protocol::swsp::{Frame, FrameFlags};
 use crate::signaling::PROTOCOL_VERSION;
 use crate::stream::file::{FileTransferRequest, encode_data_frame, encode_request_frame};
+use crate::stream::shell::{
+    ShellCommand, encode_cancel_frame, encode_error_frame, encode_exit_frame, encode_input_frame,
+    encode_open_frame, encode_output_frame, encode_resize_frame,
+};
 use crate::stream::{StreamEntry, StreamKind};
 use crate::utils::error::BlnkError;
 
@@ -401,6 +405,157 @@ impl SessionRuntime {
         self.session.close_stream(stream_id)
     }
 
+    /// Opens a local shell stream after the authenticated session is ready.
+    pub fn open_shell_stream(
+        &mut self,
+        connect_path: impl Into<String>,
+    ) -> SessionResult<StreamEntry> {
+        self.open_stream(StreamKind::Shell, connect_path)
+    }
+
+    /// Accepts a peer-assigned shell stream ID after the authenticated session is ready.
+    pub fn accept_shell_stream(
+        &mut self,
+        stream_id: u32,
+        connect_path: impl Into<String>,
+    ) -> SessionResult<StreamEntry> {
+        self.session
+            .accept_stream(stream_id, StreamKind::Shell, connect_path)
+    }
+
+    /// Sends a shell open request using direct argv values and the existing SWSP SYN boundary.
+    pub async fn send_shell_open(
+        &self,
+        stream_id: u32,
+        command: &ShellCommand,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_open_frame(stream_id, command)?)
+            .await
+    }
+
+    /// Sends one shell stdin chunk, optionally carrying FIN.
+    pub async fn send_shell_input(
+        &self,
+        stream_id: u32,
+        data: Vec<u8>,
+        final_chunk: bool,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_input_frame(stream_id, data, final_chunk)?)
+            .await
+    }
+
+    /// Sends a validated terminal resize request. Pipe-based receivers may reject it as PTY-unsupported.
+    pub async fn send_shell_resize(
+        &self,
+        stream_id: u32,
+        cols: i32,
+        rows: i32,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_resize_frame(stream_id, cols, rows)?)
+            .await
+    }
+
+    /// Sends one shell stdout/stderr output chunk, optionally carrying FIN.
+    pub async fn send_shell_output(
+        &self,
+        stream_id: u32,
+        data: Vec<u8>,
+        final_chunk: bool,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_output_frame(stream_id, data, final_chunk)?)
+            .await
+    }
+
+    /// Sends a terminal process-exit message.
+    pub async fn send_shell_exit(
+        &self,
+        stream_id: u32,
+        code: i32,
+        signaled: bool,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_exit_frame(stream_id, code, signaled)?)
+            .await
+    }
+
+    /// Sends a policy/process error message.
+    pub async fn send_shell_error(
+        &self,
+        stream_id: u32,
+        message: impl Into<String>,
+    ) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&encode_error_frame(stream_id, message)?)
+            .await
+    }
+
+    /// Sends a shell cancellation message.
+    pub async fn send_shell_cancel(&self, stream_id: u32) -> SessionResult<()> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer.send_frame(&encode_cancel_frame(stream_id)?).await
+    }
+
+    /// Receives the next raw frame belonging to an active shell stream.
+    pub async fn recv_shell_frame(&self) -> SessionResult<Frame> {
+        let frame = self.peer.recv_frame().await?;
+        if frame.stream_id == CONTROL_STREAM_ID {
+            if frame.flags.is_fin() {
+                return Ok(frame);
+            }
+            let message = Self::decode_control_frame(frame)?;
+            return Err(BlnkError::Protocol(format!(
+                "unexpected control message while waiting for shell frame: {message:?}"
+            )));
+        }
+        if frame.flags.is_syn() {
+            if !frame.flags.is_dat() {
+                return Err(BlnkError::Protocol(
+                    "shell SYN frame must carry DAT payload".into(),
+                ));
+            }
+            return Ok(frame);
+        }
+        self.ensure_shell_stream(frame.stream_id)?;
+        Ok(frame)
+    }
+
+    /// Sends FIN for an active shell stream and removes it from the session registry.
+    pub async fn close_shell_stream(&mut self, stream_id: u32) -> SessionResult<StreamEntry> {
+        self.ensure_shell_stream(stream_id)?;
+        self.peer
+            .send_frame(&Frame::new(stream_id, FrameFlags::FIN, Vec::new()))
+            .await?;
+        self.session.close_stream(stream_id)
+    }
+
+    fn ensure_shell_stream(&self, stream_id: u32) -> SessionResult<()> {
+        if self.state() != SessionState::Ready {
+            return Err(BlnkError::Session(
+                "session must be ready before using a shell stream".into(),
+            ));
+        }
+        match self.session.stream_entry(stream_id) {
+            Some(entry) if entry.kind() == StreamKind::Shell => Ok(()),
+            Some(entry) => Err(BlnkError::Stream(format!(
+                "stream {stream_id} is not a shell stream ({:?})",
+                entry.kind()
+            ))),
+            None => Err(BlnkError::Stream(format!(
+                "unknown shell stream id: {stream_id}"
+            ))),
+        }
+    }
+
     fn ensure_file_stream(&self, stream_id: u32) -> SessionResult<()> {
         if self.state() != SessionState::Ready {
             return Err(BlnkError::Session(
@@ -688,6 +843,10 @@ impl SessionRuntime {
 mod tests {
     use super::*;
     use crate::peer::TwoPeerHarness;
+    use crate::stream::shell::{
+        decode_cancel_frame, decode_exit_frame, decode_input_frame, decode_open_frame,
+        decode_output_frame,
+    };
 
     async fn connected_runtime_pair(
         server_config: SessionRuntimeConfig,
@@ -840,6 +999,139 @@ mod tests {
         result.expect("disconnect should be handled");
         assert_eq!(server.state(), SessionState::Closed);
         assert_eq!(server.active_streams(), 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn shell_stream_round_trips_control_and_output_frames() {
+        let (mut server, mut client) = connected_runtime_pair(
+            SessionRuntimeConfig::server("123456"),
+            SessionRuntimeConfig::client("123456"),
+        )
+        .await;
+
+        let client_stream = client
+            .open_shell_stream("/shell")
+            .expect("client should open shell stream");
+        let stream_id = client_stream.id();
+        let command = ShellCommand::new("/bin/sh").args(["-c", "printf hello"]);
+        client
+            .send_shell_open(stream_id, &command)
+            .await
+            .expect("client should send shell open");
+
+        let open_frame = server
+            .recv_shell_frame()
+            .await
+            .expect("server should receive peer SYN before accept");
+        assert_eq!(
+            decode_open_frame(&open_frame).expect("open decode"),
+            command
+        );
+        server
+            .accept_shell_stream(stream_id, "/shell")
+            .expect("server should accept peer shell stream");
+
+        client
+            .send_shell_input(stream_id, b"stdin".to_vec(), false)
+            .await
+            .expect("client should send stdin");
+        let input_frame = server
+            .recv_shell_frame()
+            .await
+            .expect("server should receive stdin");
+        assert_eq!(
+            decode_input_frame(&input_frame).expect("input decode").data,
+            b"stdin"
+        );
+
+        server
+            .send_shell_output(stream_id, b"stdout".to_vec(), false)
+            .await
+            .expect("server should send stdout");
+        let output_frame = client
+            .recv_shell_frame()
+            .await
+            .expect("client should receive stdout");
+        assert_eq!(
+            decode_output_frame(&output_frame)
+                .expect("output decode")
+                .data,
+            b"stdout"
+        );
+
+        server
+            .send_shell_exit(stream_id, 0, false)
+            .await
+            .expect("server should send process exit");
+        let exit_frame = client
+            .recv_shell_frame()
+            .await
+            .expect("client should receive process exit");
+        assert_eq!(decode_exit_frame(&exit_frame).expect("exit decode").code, 0);
+
+        client
+            .close_shell_stream(stream_id)
+            .await
+            .expect("client should close shell stream");
+        let client_fin = server
+            .recv_shell_frame()
+            .await
+            .expect("server should receive client FIN");
+        assert!(client_fin.flags.is_fin());
+        server
+            .close_shell_stream(stream_id)
+            .await
+            .expect("server should close shell stream");
+        assert_eq!(client.active_streams(), 0);
+        assert_eq!(server.active_streams(), 0);
+
+        let cancel_stream = client
+            .open_shell_stream("/cancel")
+            .expect("client should open cancellation stream");
+        let cancel_id = cancel_stream.id();
+        client
+            .send_shell_open(cancel_id, &ShellCommand::new("/bin/sh"))
+            .await
+            .expect("client should send cancellation open");
+        let cancel_open = server
+            .recv_shell_frame()
+            .await
+            .expect("server should receive cancellation SYN");
+        assert_eq!(
+            decode_open_frame(&cancel_open)
+                .expect("cancellation open decode")
+                .program(),
+            "/bin/sh"
+        );
+        server
+            .accept_shell_stream(cancel_id, "/cancel")
+            .expect("server should accept cancellation stream");
+        client
+            .send_shell_cancel(cancel_id)
+            .await
+            .expect("client should send cancellation");
+        let cancel_frame = server
+            .recv_shell_frame()
+            .await
+            .expect("server should receive cancellation");
+        assert!(
+            decode_cancel_frame(&cancel_frame)
+                .expect("cancellation decode")
+                .requested
+        );
+        client
+            .close_shell_stream(cancel_id)
+            .await
+            .expect("client should close cancellation stream");
+        server
+            .close_shell_stream(cancel_id)
+            .await
+            .expect("server should close cancellation stream");
+        assert_eq!(client.active_streams(), 0);
+        assert_eq!(server.active_streams(), 0);
+
+        server.close().await.expect("server close");
+        client.close().await.expect("client close");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
