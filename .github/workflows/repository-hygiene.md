@@ -33,6 +33,7 @@ network: defaults
 
 # Outputs - what APIs and tools can the AI use?
 safe-outputs:
+  report-failure-as-issue: false
   create-agent-task:
     max: 1
   # actions:
