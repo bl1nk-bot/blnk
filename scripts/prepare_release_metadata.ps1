@@ -69,8 +69,8 @@ $updatedLock = [regex]::Replace($cargoLock, $lockPattern, "`${1}$expectedVersion
 if ($updatedLock -eq $cargoLock) { throw 'Could not update the blnk root package version in Cargo.lock.' }
 $updatedChangelog = [regex]::Replace(
     $changelog,
-    '(?m)^## \[0\.1\.',
-    "$heading`n- $Summary`n`n## [0.1.",
+    '(?m)^## \[\d+\.\d+\.',
+    "$heading`n- $Summary`n`n`${0}",
     1
 )
 if ($updatedChangelog -eq $changelog) { throw 'Could not insert the changelog entry.' }
