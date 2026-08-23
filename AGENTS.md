@@ -100,17 +100,43 @@ working report คือเอกสารผลหลังงานที่�
 
 ### Main, release, and agent hand-off
 
-งานส่งมอบมี lifecycle บังคับนี้: อ่าน `TODO.md` และ issue ที่เกี่ยวข้อง → ทำงาน
-ตาม issue → อัปเดต canonical docs/status ตามหลักฐานจริง → เปิด PR ที่ target
-`main` และมี `Closes #<issue>` → รัน verification → อ่าน/resolve review threads
-และตอบหรือบันทึกเหตุผลสำหรับข้อเสนอที่ไม่รับ → ถ้างานแก้มีขอบเขตใหม่ให้เปิด issue/
-PR แยกและ link กัน → merge PR → ตรวจ merge commit อยู่ใน `origin/main` และ release
-ถูกสร้าง. ห้าม merge เข้า feature/release/agent branch แล้วถือว่างานเสร็จ.
+ทำตามลำดับนี้ทุกครั้ง ห้ามข้ามหรือสลับลำดับ:
 
-`delivery-contract.yml`, `release-metadata.yml`, `main-integrity.yml` และ
-`release-on-merge.yml` เป็น automation หลักของ lifecycle นี้. ก่อนปิดงานให้ตรวจว่า
-checks ผ่านและไม่มีการ stage งานของผู้อื่น. ทุก PR เพิ่ม Cargo patch versionหนึ่งครั้ง,
-เพิ่ม CHANGELOG entry, และหลัง merge workflow จะสร้าง immutable tag/GitHub release.
+1. **เลือกงาน:** อ่าน `TODO.md`, `docs/implementation-status.md`, issue เปิด และ
+   PR เปิด. เลือก issue ที่ยังไม่ปิดเท่านั้น; ห้ามสร้างงาน cleanup/status ของตนเอง
+   แทน product work หรือปิด issue เพียงเพราะเห็น commit คล้ายกัน.
+2. **กำหนดขอบเขต:** อ่าน acceptance criteria, dependency และ canonical docs ของ
+   issue นั้น. ถ้าแก้เกิน scope ให้เปิด/ใช้ issue ใหม่และ link กัน; ไม่ขยายงานเงียบ ๆ.
+3. **ทำโค้ดก่อน metadata:** สร้าง branch จาก `main`, แก้ implementation และ
+   canonical docs ที่ข้อเท็จจริงเปลี่ยน. **ห้ามแก้ version, Cargo.lock version,
+   CHANGELOG release entry, tag, release, merge หรือ close issue ในขั้นนี้.**
+4. **local gate ก่อนทุก push:** รัน `cargo fmt --all -- --check`,
+   `cargo check --all-targets --locked`, `cargo test --all --locked`, และ
+   `cargo clippy --all --all-targets --locked -- -D warnings` (พร้อม check เฉพาะ
+   issue ถ้ามี). ต้องเห็น exit 0 ของ **ทุกคำสั่ง** บน HEAD ล่าสุด; output ที่ถูก
+   ตัด, command ถูก interrupt, หรือ compile ผ่านเพียงคำสั่งเดียวไม่ใช่หลักฐานผ่าน.
+   warning คือ failure. ถ้าไม่เขียว ให้แก้ code แล้วเริ่มข้อ 4 ใหม่.
+5. **push/PR draft:** หลังข้อ 4 เขียวเท่านั้นจึง push branch และเปิด **draft PR**
+   เข้า `main` พร้อม `Closes #<issue>`, documentation decision และ evidence. PR
+   ต้องไม่ target feature/release/agent branch. ห้ามส่ง branch ที่ local gate ยังไม่
+   ครบขึ้น remote ไม่ว่าด้วยเหตุผลใด.
+6. **release metadata แล้ว local gate ซ้ำ:** เมื่อมีหมายเลข PR จริง ให้ใช้
+   `scripts/prepare_release_metadata.ps1` อัปเดต version/Cargo.lock/CHANGELOG
+   พร้อมกัน. จากนั้นต้องรันข้อ 4 ใหม่บน metadata commit ก่อน push รอบนี้. ห้ามแก้
+   สามไฟล์นี้แยกกัน หรือ bump version ก่อน code gate แรกผ่าน.
+7. **remote CI และ review:** หลัง push HEAD ล่าสุด รอ CI/checks remote ทุกตัวเขียว
+   แล้วจึง mark PR ready. อ่าน review comments และ review threads ทั้งหมด; แก้และ
+   resolve ข้อที่ถูกต้อง, ข้อที่ไม่รับต้องตอบด้วยเหตุผลเชิงเทคนิค. หาก remediation
+   ใหญ่ ให้เปิด issue/PR แยกและ link ก่อนกลับมา PR เดิม.
+8. **merge/close:** merge เฉพาะ PR ที่ local gate ล่าสุดเขียว, remote checks ของ
+   HEAD เดียวกันเขียว และ review จบ. หลัง merge ตรวจ merge commit เป็น ancestor
+   ของ `origin/main`, ตรวจ tag/release target, แล้วจึงปิด issue. ห้ามปิด PR/issue
+   หรือสร้าง/ลบ report เพื่อทำให้ backlog ดูสะอาด.
+
+**Hard stop:** หากกำลังจะ bump version, merge, close issue/PR, delete document,
+หรือ publish ก่อนขั้นก่อนหน้าผ่าน ให้หยุดและกลับไปทำขั้นที่ขาด. `delivery-contract.yml`,
+`release-metadata.yml`, `main-integrity.yml` และ `release-on-merge.yml` เป็นหลักฐาน
+ประกอบ ไม่ใช่ข้ออ้างให้ข้ามลำดับนี้.
 
 ใช้ `gh aw` สำหรับงานตรวจซ้ำ งานที่ต้องตามผลหลัง issue ปิด และงาน headless.
 Workflow `repository-hygiene` เป็น read-only steward: เมื่อพบความผิดปกติให้สร้าง
