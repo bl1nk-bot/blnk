@@ -3,6 +3,8 @@
 //! Concrete shell, file, HTTP, TCP, and WebSocket handlers remain separate
 //! follow-up work. This module only owns stream identity and lifecycle.
 
+pub mod proxy;
+
 use std::collections::BTreeMap;
 
 use crate::utils::error::BlnkError;

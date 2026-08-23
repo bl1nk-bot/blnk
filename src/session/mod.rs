@@ -9,6 +9,12 @@ use crate::utils::error::BlnkError;
 
 pub type SessionResult<T> = Result<T, BlnkError>;
 
+pub mod runtime;
+
+pub use runtime::{
+    ControlMessage, SessionRole, SessionRuntime, SessionRuntimeConfig, SessionRuntimeSnapshot,
+};
+
 const PIN_LEN: usize = 6;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -235,6 +241,51 @@ impl Session {
         } else {
             self.state = SessionState::Ready;
             Ok(None)
+        }
+    }
+
+    /// Records that a client received the server's request for a PIN.
+    pub fn accept_auth_required(&mut self) -> SessionResult<()> {
+        match self.state {
+            SessionState::Connecting | SessionState::Authenticating => {
+                self.state = SessionState::Authenticating;
+                Ok(())
+            }
+            state => Err(BlnkError::Session(format!(
+                "cannot accept auth_required from {state:?}"
+            ))),
+        }
+    }
+
+    /// Records an authentication result received by a client.
+    ///
+    /// The final transition to `Ready` is intentionally driven by the wire
+    /// `ready` message so the runtime cannot expose streams before the server
+    /// completes the control handshake.
+    pub fn accept_auth_result(&mut self, success: bool) -> SessionResult<()> {
+        if self.state != SessionState::Authenticating {
+            return Err(BlnkError::Session(format!(
+                "cannot accept auth_result from {:?}",
+                self.state
+            )));
+        }
+        if success {
+            self.next_auth_allowed_at = None;
+        }
+        Ok(())
+    }
+
+    /// Marks the session ready after a valid wire `ready` message.
+    pub fn mark_ready(&mut self) -> SessionResult<()> {
+        match self.state {
+            SessionState::Connecting | SessionState::Authenticating => {
+                self.state = SessionState::Ready;
+                self.next_auth_allowed_at = None;
+                Ok(())
+            }
+            state => Err(BlnkError::Session(format!(
+                "cannot mark session ready from {state:?}"
+            ))),
         }
     }
 

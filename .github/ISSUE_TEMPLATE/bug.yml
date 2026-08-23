@@ -1,0 +1,77 @@
+name: Bug
+description: รายงานข้อผิดพลาดหรือพฤติกรรมที่ไม่ตรงตามที่ระบบควรทำ
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        กรุณาให้ข้อมูลที่ทำให้ผู้อื่นทำซ้ำปัญหาได้ ห้ามใส่ secret, private key, token หรือข้อมูลส่วนบุคคลใน Issue
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: ระบบปฏิบัติการ
+      description: เลือก platform ที่พบปัญหา
+      options:
+        - Android
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version หรือ commit
+      description: ระบุ version, branch หรือ commit ที่พบปัญหา
+      placeholder: "เช่น 0.1.0 หรือ abc1234"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: ขั้นตอนทำให้เกิดปัญหา
+      description: ระบุคำสั่งหรือขั้นตอนแบบเรียงลำดับที่ทำให้เกิดปัญหา
+      placeholder: |
+        1. เตรียม...
+        2. เรียกใช้...
+        3. สังเกต...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ผลลัพธ์ที่คาดหวัง
+      description: ระบบควรทำอะไร
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ผลลัพธ์ที่เกิดขึ้นจริง
+      description: ระบบทำอะไร และมี error message หรือ log ที่ตัดข้อมูลลับออกแล้วหรือไม่
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: หลักฐานและข้อมูลเพิ่มเติม
+      description: แนบ test output, stack trace, fixture หรือภาพประกอบที่ไม่มีข้อมูลลับ
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: การตรวจสอบก่อนส่ง
+      options:
+        - label: ฉันได้ลบ secret, private key, token และข้อมูลส่วนบุคคลออกแล้ว
+          required: true
+        - label: ฉันตรวจสอบแล้วว่า Issue นี้ยังไม่มีรายงานซ้ำ
+          required: true

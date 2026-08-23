@@ -1,0 +1,46 @@
+name: Documentation
+description: เสนอการแก้ไข เพิ่มเติม หรือปรับปรุงเอกสาร
+title: "[Docs]: "
+labels:
+  - documentation
+body:
+  - type: textarea
+    id: location
+    attributes:
+      label: ตำแหน่งเอกสาร
+      description: ระบุไฟล์, section, URL หรือส่วนของเอกสารที่เกี่ยวข้อง
+      placeholder: "เช่น docs/implementation-status.md หรือ README.md ส่วน Quick Start"
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: ปัญหาของเอกสารปัจจุบัน
+      description: อธิบายว่าข้อมูลส่วนใดไม่ชัดเจน ล้าสมัย หรือขัดกับ implementation
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: เนื้อหาหรือการเปลี่ยนแปลงที่เสนอ
+      description: อธิบายสิ่งที่ควรเพิ่ม แก้ไข หรือลบ
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: แหล่งอ้างอิงและหลักฐาน
+      description: ระบุ Issue, PR, test, specification หรือไฟล์ที่ยืนยันการเปลี่ยนแปลงนี้
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: การตรวจสอบขอบเขต
+      options:
+        - label: การเปลี่ยนแปลงนี้ไม่อ้างความสามารถเกิน implementation หรือ evidence ที่มี
+          required: true

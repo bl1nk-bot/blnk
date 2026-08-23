@@ -1,0 +1,57 @@
+name: Feature
+description: เสนอความสามารถใหม่หรือการพัฒนางานที่ยังไม่มีในระบบ
+title: "[Feature]: "
+labels:
+  - feat
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ขอบคุณสำหรับข้อเสนอ กรุณาอธิบายปัญหาและผลลัพธ์ที่ต้องการให้ชัดเจน โดยแยกสิ่งที่ต้องทำออกจากสิ่งที่ยังไม่อยู่ในขอบเขต
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: ปัญหาหรือความต้องการ
+      description: อธิบายว่าปัญหาใดที่ต้องการแก้ หรือผู้ใช้ต้องการทำอะไร
+      placeholder: อธิบายบริบทและเหตุผลของความต้องการนี้
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: แนวทางที่เสนอ
+      description: อธิบายพฤติกรรมหรือความสามารถที่ต้องการ โดยไม่จำเป็นต้องกำหนด implementation ละเอียด
+      placeholder: อธิบาย flow, input, output และข้อจำกัดที่คาดหวัง
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: ระบุเงื่อนไขที่ใช้ตรวจว่างานเสร็จและทดสอบได้
+      placeholder: |
+        - [ ] กรณีใช้งานหลักผ่าน
+        - [ ] กรณีผิดพลาดและขอบเขตจำกัดมีการทดสอบ
+        - [ ] เอกสารที่เกี่ยวข้องได้รับการอัปเดต
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependency และสิ่งที่ไม่อยู่ในขอบเขต
+      description: ระบุ Issue/PR ที่ต้องทำก่อน รวมถึง non-goals เพื่อป้องกัน scope creep
+      placeholder: "เช่น Depends-on: #123 หรือ ระบุว่ายังไม่รองรับ platform ใด"
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: ข้อมูลเพิ่มเติม
+      description: แนบตัวอย่าง, wire fixture, ภาพประกอบ หรือ reference ที่ช่วยให้ตรวจสอบได้
+    validations:
+      required: false
