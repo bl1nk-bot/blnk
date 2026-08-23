@@ -1,4 +1,5 @@
 use clap::Args;
+use std::net::IpAddr;
 
 #[derive(Debug, Args, Clone, Default)]
 pub struct ServeArgs {
@@ -34,6 +35,9 @@ pub struct ConnectArgs {
 
 #[derive(Debug, Args, Clone)]
 pub struct CpArgs {
+    /// Peer or device target for remote signaling/file transfer.
+    #[arg(long)]
+    pub target: Option<String>,
     pub source: String,
     pub destination: String,
     /// Use the in-process loopback fixture for a real authenticated file transfer.
@@ -42,6 +46,25 @@ pub struct CpArgs {
     /// Replace an existing destination in the receiver sandbox.
     #[arg(long)]
     pub overwrite: bool,
+    /// PIN used by the remote authenticated session.
+    #[arg(long)]
+    pub pin: Option<String>,
+}
+
+#[derive(Debug, Args, Clone)]
+pub struct WebArgs {
+    /// Bind address; the browser control surface accepts loopback addresses only.
+    #[arg(long, default_value = "127.0.0.1", value_parser = clap::value_parser!(IpAddr))]
+    pub host: IpAddr,
+    /// TCP port, or 0 to let the operating system select an ephemeral port.
+    #[arg(long, default_value_t = 0)]
+    pub port: u16,
+    /// Exact browser Origin allowed by the API and WebSocket handshake.
+    #[arg(long, default_value = "http://127.0.0.1:3000")]
+    pub origin: String,
+    /// Bootstrap bearer token; can also be provided through BLNK_WEB_TOKEN.
+    #[arg(long)]
+    pub bootstrap_token: Option<String>,
 }
 
 #[derive(Debug, Args, Clone, Default)]
@@ -68,6 +91,58 @@ mod tests {
         Connect(ConnectArgs),
         Cp(CpArgs),
         Devices(DevicesArgs),
+        Web(WebArgs),
+    }
+
+    #[test]
+    fn remote_cp_target_pin_and_overwrite_are_parseable() {
+        let cli = TestCli::try_parse_from([
+            "blnk",
+            "cp",
+            "--target",
+            "device-1",
+            "--pin",
+            "123456",
+            "--overwrite",
+            "source.txt",
+            "dest.txt",
+        ])
+        .expect("remote cp args should parse");
+        let TestCommand::Cp(args) = cli.command else {
+            panic!("expected cp command");
+        };
+        assert_eq!(args.target.as_deref(), Some("device-1"));
+        assert_eq!(args.pin.as_deref(), Some("123456"));
+        assert!(args.overwrite);
+        assert_eq!(args.source, "source.txt");
+        assert_eq!(args.destination, "dest.txt");
+    }
+
+    #[test]
+    fn web_loopback_options_are_parseable() {
+        let cli = TestCli::try_parse_from([
+            "blnk",
+            "web",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            "8080",
+            "--origin",
+            "http://127.0.0.1:3000",
+            "--bootstrap-token",
+            "fixture-token",
+        ])
+        .expect("web args should parse");
+        let TestCommand::Web(args) = cli.command else {
+            panic!("expected web command");
+        };
+        assert_eq!(
+            args.host,
+            "127.0.0.1".parse::<IpAddr>().expect("loopback ip")
+        );
+        assert_eq!(args.port, 8080);
+        assert_eq!(args.origin, "http://127.0.0.1:3000");
+        assert_eq!(args.bootstrap_token.as_deref(), Some("fixture-token"));
     }
 
     #[test]

@@ -26,6 +26,7 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - `connect`
 - `cp`
 - `devices`
+- `web`
 - `version`
 หน้าที่:
 - parse args
@@ -95,11 +96,15 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - uid/code management
 
 ### 2.9 Web/HTTP Layer
-ให้บริการ HTTP server และ static assets
-- route request
-- serve frontend assets
-- websocket endpoint
-- header rewrite / redirect handling
+ให้บริการ **loopback-only browser control surface** สำหรับ lifecycle/status ของ local browser session
+- bind เฉพาะ loopback address
+- ตรวจ exact configured Origin และ CORS แบบไม่ใช้ wildcard
+- bootstrap ด้วย bearer token แล้วออก HttpOnly/SameSite session cookie
+- ตรวจ CSRF token สำหรับ state-changing HTTP request และ WebSocket hello
+- bounded body/session/rate/frame/TTL limits และ sanitized error/log policy
+- HTTP `GET /healthz`, `POST /api/session`, `GET/POST /api/session/{id}` และ WebSocket status/close flow
+
+งานนี้ยังไม่ serve frontend assets และไม่ expose remote shell/file/proxy/signaling/WebRTC capability จาก browser; สิ่งเหล่านั้นต้องผ่าน authenticated session/capability boundary และมี evidence เฉพาะก่อนเพิ่ม surface
 
 ### 2.10 Utility Layer
 - QR code
@@ -155,8 +160,9 @@ blnk-rust/
 │   │   ├── qr.rs              # QR code generation
 │   │   ├── logging.rs         # Logging setup
 │   │   └── error.rs           # Error types
-│   └── web/                   # Web frontend assets (optional)
-│       └── static/            # Static files
+│   ├── web/                   # Loopback browser control surface
+│   │   └── mod.rs             # HTTP/WebSocket auth/session policy and fixtures
+
 ├── tests/                     # Integration tests
 ├── benchmarks/                # Performance benchmarks
 ├── proto/                     
@@ -188,19 +194,36 @@ blnk-rust/
 8. create data channel
 9. start session dispatcher
 
-## 4.2 Browser Connect Flow
+### 4.1.1 Remote CLI Connect/Copy Flow
 
-1. browser connects signaling server
-2. server sends request to device
-3. device creates offer
-4. browser receives offer
-5. browser sends answer
-6. ICE candidates exchanged
-7. data channel opens
-8. control stream starts
-9. session becomes ready
+1. CLI resolve `--target` through metadata-only `DeviceRegistry` and reject unknown target before dial
+2. connect to the configured signaling endpoint using `EndpointPolicy::PublicOnly`
+3. send `ConnectionRequest` with the client identity UID as `client_id`
+4. receive the target device `OfferMessage`; validate matching client ID and device public-key metadata
+5. create the non-trickle WebRTC answer and send `AnswerMessage` with an RSA-OAEP encrypted `{fingerprint, nonce, code}` request
+6. device decrypts and validates the opaque request, then both peers wait for the data channel
+7. run the authenticated PIN `SessionRuntime` handshake until `Ready`
+8. client opens shell/file stream; device owns one raw-frame reader and dispatches to the capability-specific handler
+9. close stream and runtime on completion, timeout, disconnect, protocol error or cancellation
+
+The production remote path uses the same module boundaries as the deterministic relay fixture. The fixture proves local behavior only; it does not prove external signaling-provider, original-Go, browser, TLS, STUN/TURN or NAT-traversal interoperability.
+
+## 4.2 Browser Control Flow (Issue #47)
+
+1. user starts `blnk web` with a loopback bind address, exact allowed Origin และ bootstrap token
+2. browser sends `POST /api/session` with the exact Origin and bearer token
+3. server creates a bounded local control session, returns a short-lived CSRF token and sets an HttpOnly/SameSite session cookie
+4. browser reads `GET /api/session/{id}` with the session cookie to inspect local control state
+5. browser may upgrade `GET /api/session/{id}/ws` only with the exact Origin and cookie, then sends a first `hello` message containing the CSRF token
+6. after the WebSocket handshake, only `status` and `close` messages are accepted; malformed, repeated hello, binary or oversized frames close the connection
+7. HTTP `POST /api/session/{id}` requires the session cookie and `X-CSRF-Token` and closes only the local control session
+
+This is a local lifecycle/status flow. It does not establish browser WebRTC, connect an external signaling provider, invoke remote shell/file/proxy services, terminate TLS, or prove original-Go/browser interoperability.
 
 ## 4.3 Stream Dispatch Flow
+
+For the current CLI remote path, the server dispatcher is single-reader: it first validates stream flags and ownership, then routes shell and file openers to their existing bounded services. A malformed opener, unknown stream or invalid terminal frame is a protocol error and triggers session cleanup rather than a success response.
+
 
 1. receive SWSP frame
 2. parse stream id and flags

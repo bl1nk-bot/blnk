@@ -36,7 +36,7 @@ webrtc = "0.20.0"
 bytes = "1.12.1"
 
 # Networking
-axum = "0.8.9"
+axum = { version = "0.8.9", features = ["ws"] }
 tungstenite = "0.30.0"
 reqwest = { version = "0.13.4", features = ["json"] }
 hyper = "1.11.0"
