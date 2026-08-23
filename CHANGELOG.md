@@ -1,13 +1,114 @@
 # Changelog
 
-การเปลี่ยนแปลงสำคัญของ blnk Rust จะบันทึกตามลำดับ version โดย release gate ต้องสร้าง artifact จาก source commit และ `Cargo.lock` ที่ระบุไว้ใน provenance ก่อนเผยแพร่ทุกครั้ง
+ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
-## [0.1.0] — MVP baseline (ยังไม่เผยแพร่ production)
+## [0.1.37] — PR #75
+- feat(web): เพิ่ม loopback browser control surface (`4a01ad8`)
 
-รุ่น baseline นี้รวม runnable Rust foundation, identity/pairing primitives, SWSP codec, typed signaling/session/stream boundaries, local WebRTC two-peer harness, authenticated session runtime, sandboxed file transfer, bounded shell stream, proxy policy/handlers, CLI local และ deterministic remote relay orchestration รวมถึง loopback-only browser control surface ที่สร้าง local session/status flow ผ่าน HTTP/WebSocket
+## [0.1.36] — PR #74
+- fix(security): ตรวจ PIN และป้องกัน encrypted request replay (`d4a6e9a`)
 
-Release gate evidence ของรุ่นนี้ต้องแยกเป็น Linux artifact ที่มี checksum/provenance และ smoke test, Windows build/test กับ binary smoke test และ Android `aarch64-linux-android` compile-only evidence ส่วน macOS, browser WebRTC interoperability, original-Go/provider interoperability, production TLS, STUN/TURN, NAT traversal, device/emulator runtime และ production deployment ยังไม่อยู่ในหลักฐานของรุ่นนี้
+## [0.1.35] — PR #72
+- feat(cli): ทำ remote signaling และ WebRTC orchestration ให้ใช้งานจริง (`3fab3f6`)
 
-รายการ artifact นี้ยังไม่ใช่ production release และไม่มี tag หรือการเผยแพร่ asset อัตโนมัติจาก workflow `release-gate.yml`
+## [0.1.34] — PR #59
+- ci: establish Linux Windows Android support matrix (`c82a991`)
 
-[0.1.0]: https://github.com/bl1nk-bot/blnk/issues/48
+## [0.1.33] — PR #58
+- test(compat): add versioned protocol compatibility baseline (`434f3b4`)
+
+## [0.1.32] — PR #57
+- feat(cli): connect MVP commands to authenticated runtime (`0bba4d1`)
+
+## [0.1.31] — PR #56
+- feat(proxy): add concrete TCP WebSocket and HTTP streams (`aa4d20f`)
+
+## [0.1.30] — PR #70
+- fix(proxy): แก้ CI test เรียก resolved target ไม่ตรง API (`d8b1f2c`)
+
+## [0.1.29] — PR #55
+- security(proxy): define deny-by-default proxy policy and ADR (`b62eaaf`)
+
+## [0.1.28] — PR #54
+- feat(shell): implement shell stream MVP (`cd48936`)
+
+## [0.1.27] — PR #60
+- security: add threat model and runtime hardening audit (`bd2cd1d`)
+
+## [0.1.26] — PR #68
+- fix(session): make remote-first shutdown idempotent (`cce647b`)
+
+## [0.1.25] — PR #66
+- fix(proxy): จำกัด HTTP response body แบบ incremental (`8fb84e8`)
+
+## [0.1.24] — PR #62
+- fix(ci): แก้ Windows dependency scope สำหรับ serde_json (`01095e9`)
+
+## [0.1.23] — PR #64
+- test: make Windows shell fixtures portable (`33bb170`)
+
+## [0.1.22] — PR #53
+- feat(file): implement sandboxed file-transfer MVP (`62a6c67`)
+
+## [0.1.21] — PR #52
+- feat(session): integrate authenticated runtime over peer (`9e71051`)
+
+## [0.1.20] — PR #51
+- feat(peer): implement WebRTC peer lifecycle harness (`fb0fd72`)
+
+## [0.1.19] — PR #50
+- docs: เพิ่ม Thai Issue Forms และแปล Issues (`edea4da`)
+
+## [0.1.18] — PR #36
+- fix(signaling): harden endpoint policy (`4cff39c`)
+
+## [0.1.17] — PR #34
+- feat: implement signaling WebSocket transport and local fixture (`71b69c8`)
+
+## [0.1.16] — PR #30
+- Add upstream identity PEM compatibility boundary (`4710589`)
+
+## [0.1.15] — PR #32
+- Docs: synchronize implementation status and roadmap (`0fddcca`)
+
+## [0.1.14] — PR #12
+- feat: add signaling session and stream foundations (`4862c2b`)
+
+## [0.1.13] — PR #26
+- fix: harden session and signaling validation (`111b732`)
+
+## [0.1.12] — PR #10
+- feat: implement SWSP raw frame codec (`0d4653f`)
+
+## [0.1.11] — PR #25
+- fix: classify SWSP length failures correctly (`e288b1e`)
+
+## [0.1.10] — PR #8
+- feat: implement identity and pairing primitives (`0f77fbe`)
+
+## [0.1.9] — PR #24
+- fix: harden identity and pairing boundaries (`4853e66`)
+
+## [0.1.8] — PR #29
+- fix: remove duplicate target dependency tables (`51a2c8a`)
+
+## [0.1.7] — PR #28
+- fix: restore shared dependency scope for Linux CI (`c6894ce`)
+
+## [0.1.6] — PR #6
+- feat: add runnable Rust foundation (`1476b30`)
+
+## [0.1.5] — PR #22
+- fix: reconcile foundation review findings (`c23d4a4`)
+
+## [0.1.4] — PR #14
+- build: add deterministic protobuf generation boundary (`f411123`)
+
+## [0.1.3] — PR #4
+- docs: reconcile implementation status and protocol decisions (`ac5aa2d`)
+
+## [0.1.2] — PR #3
+- [WIP] Set up code coverage reporting in CI workflows (`a80f483`)
+
+## [0.1.1] — PR #2
+- feat: scaffold initial foundation and docs (`235fecc`)

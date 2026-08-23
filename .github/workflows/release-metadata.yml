@@ -1,0 +1,29 @@
+name: Release metadata
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  one-patch-per-pr:
+    name: Require one patch version and changelog entry
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_ref="origin/${{ github.event.pull_request.base.ref }}"
+          base_version="$(git show "$base_ref:Cargo.toml" | sed -n 's/^version = "\([^"]*\)"/\1/p' | head -n1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)"
+          expected="$(node -e 'const v=process.argv[1].split("."); if(v.length!==3||v.some(x=>!/^\d+$/.test(x))) process.exit(1); v[2]=String(Number(v[2])+1); console.log(v.join("."))' "$base_version")"
+          test "$version" = "$expected" || { echo "expected Cargo.toml version $expected from $base_version, got $version"; exit 1; }
+          git diff --exit-code "$base_ref" -- Cargo.lock >/dev/null && { echo 'Cargo.lock must be updated with Cargo.toml'; exit 1; }
+          grep -Fq "## [$version] — PR #${{ github.event.pull_request.number }}" CHANGELOG.md || { echo "CHANGELOG.md needs heading for PR #${{ github.event.pull_request.number }} and $version"; exit 1; }

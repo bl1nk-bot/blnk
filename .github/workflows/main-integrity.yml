@@ -1,0 +1,50 @@
+name: Main integrity
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  require-main-base:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse a non-main merge destination
+        run: |
+          test "${{ github.event.pull_request.base.ref }}" = "main" || {
+            echo "Every delivery PR must target main; current base is ${{ github.event.pull_request.base.ref }}."
+            exit 1
+          }
+
+  verify-merged-prs-are-in-main:
+    if: github.event_name != 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every merged PR commit is reachable from main
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const main = context.payload.repository.default_branch;
+            const closed = await github.paginate(github.rest.pulls.list, {
+              owner, repo, state: 'closed', per_page: 100,
+            });
+            const missing = [];
+            for (const pr of closed.filter(pr => pr.merged_at && pr.merge_commit_sha)) {
+              const comparison = await github.rest.repos.compareCommits({
+                owner, repo, base: pr.merge_commit_sha, head: main,
+              });
+              if (!['ahead', 'identical'].includes(comparison.data.status)) {
+                missing.push(`#${pr.number} (${pr.merge_commit_sha}) is ${comparison.data.status} of ${main}`);
+              }
+            }
+            if (missing.length) core.setFailed(`Merged PRs missing from ${main}:\n${missing.join('\n')}`);
