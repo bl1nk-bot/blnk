@@ -1,0 +1,161 @@
+name: Release gate
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "README.md"
+      - "CHANGELOG.md"
+      - "rust-toolchain.toml"
+      - "scripts/release_gate.sh"
+      - ".github/workflows/release-gate.yml"
+      - "src/**"
+      - "proto/**"
+      - "build.rs"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-release:
+    name: Linux release artifact and smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          components: rustfmt, clippy
+
+      - name: Build and verify Linux release artifact
+        run: scripts/release_gate.sh
+
+      - name: Verify checksum and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          checksum_file="$(find dist -maxdepth 1 -name '*.tar.gz.sha256' -print -quit)"
+          test -n "$checksum_file"
+          sha256sum --check "$checksum_file"
+          archive="${checksum_file%.sha256}"
+          tar -xOf "$archive" "$(tar -tzf "$archive" | head -n 1)PROVENANCE.json" | jq -e '.name == "blnk" and (.version | length > 0) and (.source_commit | length > 0) and (.cargo_lock_sha256 | length == 64)'
+
+      - name: Upload Linux artifact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: blnk-linux-release-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+
+  windows-evidence:
+    name: Windows build/test and package evidence
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.0
+
+      - name: Run Windows validation
+        run: |
+          cargo fmt --all -- --check
+          cargo check --all-targets --locked
+          cargo test --all --locked --verbose
+
+      - name: Build and smoke-test Windows binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cargo build --locked --release
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches.Groups[1].Value
+          $target = 'x86_64-pc-windows-msvc'
+          $packageName = "blnk-v$version-$target"
+          $stage = Join-Path $env:RUNNER_TEMP $packageName
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/blnk.exe (Join-Path $stage 'blnk.exe')
+          Copy-Item README.md (Join-Path $stage 'README.md')
+          Set-Content -Path (Join-Path $stage 'VERSION') -Value $version -NoNewline
+          $lockHash = (Get-FileHash Cargo.lock -Algorithm SHA256).Hash.ToLowerInvariant()
+          $provenance = [ordered]@{
+            name = 'blnk'
+            version = $version
+            target = $target
+            source_commit = $env:GITHUB_SHA
+            rust_toolchain = '1.97.0'
+            cargo_lock_sha256 = $lockHash
+            build_command = 'cargo build --locked --release'
+            smoke_command = '.\blnk.exe --version'
+          }
+          $provenance | ConvertTo-Json | Set-Content -Path (Join-Path $stage 'PROVENANCE.json')
+          $smoke = & (Join-Path $stage 'blnk.exe') --version
+          if ($smoke -ne "blnk $version") { throw "unexpected smoke output: $smoke" }
+          $archive = Join-Path $env:RUNNER_TEMP "$packageName.zip"
+          Compress-Archive -Path $stage -DestinationPath $archive -CompressionLevel Optimal
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $archive -Leaf)" | Set-Content -Path "$archive.sha256" -NoNewline
+
+      - name: Upload Windows artifact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: blnk-windows-release-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/blnk-v*.zip
+            ${{ runner.temp }}/blnk-v*.zip.sha256
+
+  android-compile:
+    name: Android compile-only evidence
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Android SDK and NDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install pinned Android NDK
+        run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
+
+      - name: Install pinned Rust target
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: aarch64-linux-android
+
+      - name: Compile Android target only
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+          export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          cargo check --target aarch64-linux-android --lib --locked
+
+  dependency-audit:
+    name: Rust dependency advisory audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Audit Cargo.lock
+        uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

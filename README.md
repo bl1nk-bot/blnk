@@ -65,6 +65,16 @@ Issue #45 กำหนดคำว่า **รองรับ** ให้แย�
 
 การผ่าน Linux ไม่ใช่หลักฐานแทน Windows หรือ Android และการมี target ใน `rust-toolchain.toml` ไม่ใช่หลักฐานของ linker, packaging, device smoke หรือ external interoperability รายละเอียด decision และ evidence levels อยู่ใน [`docs/decisions/issue-45-support-matrix.md`](docs/decisions/issue-45-support-matrix.md)
 
+## Release Gate
+
+ก่อนตัดสินใจ release ให้รัน gate ที่บันทึกไว้ใน [`docs/releases/issue-48-release-gate.md`](docs/releases/issue-48-release-gate.md):
+
+```bash
+scripts/release_gate.sh
+```
+
+คำสั่งนี้ใช้ `Cargo.lock` แบบ locked, รัน Linux validation, สร้าง tarball/checksum/provenance และตรวจ `blnk --version` หลัง extract artifact โดยไม่ publish tag หรือ GitHub Release อัตโนมัติ Workflow [`release-gate.yml`](.github/workflows/release-gate.yml) เพิ่ม Windows build/test/package evidence, Android `aarch64-linux-android` compile-only evidence และ RustSec advisory audit บน runner จริง การมี Linux artifact หรือ compile evidence ไม่ใช่หลักฐานของ browser/external interoperability, production TLS, device runtime, signed installer หรือ macOS support
+
 ## Quick Start
 
 > **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration และ browser control surface ใช้หลักฐาน deterministic/local เท่านั้น ยังไม่อ้าง external interoperability หรือ production deployment
