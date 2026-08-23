@@ -48,13 +48,13 @@ blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-pe
 
 ## สถานะการพัฒนา
 
-**สถานะปัจจุบัน: pre-foundation / ยังไม่พร้อมใช้งานจริง** โครงการมี architecture, protocol drafts และ CLI surface เป็นฐาน แต่ implementation หลักของ signaling, WebRTC, identity, pairing, session, stream handlers และ web integration ยังอยู่ใน roadmap การมีคำสั่ง CLI หรือ protobuf schema ไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
+**สถานะปัจจุบัน: local MVP / ยังไม่พร้อมใช้งานจริง** โครงการมี runnable foundation, identity, signaling/WebRTC local harness, authenticated session, file-transfer/shell MVP และ CLI fixture workflow แล้ว แต่ remote signaling-to-WebRTC orchestration, external interoperability, production proxy integration และ web integration ยังอยู่ใน roadmap การมีคำสั่ง CLI หรือ protobuf schema เพียงอย่างเดียวไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
 
 ผลตรวจสอบล่าสุดและรายการงานที่ต้องทำอยู่ใน [`docs/implementation-status.md`](docs/implementation-status.md) ส่วนลำดับความสำคัญและกติกาแก้ความขัดแย้งของเอกสารอยู่ใน [`docs/plans/core-foundation.md`](docs/plans/core-foundation.md)
 
 ## Quick Start
 
-> **หมายเหตุ:** คำสั่งด้านล่างเป็น intended workflow ของโปรเจค ปัจจุบันต้องทำ foundation work ให้เสร็จก่อนจึงจะ build และ run ได้ครบตามที่เอกสารกำหนด
+> **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration ยังไม่อ้างว่าใช้งานได้จริง
 
 
 ### สร้างโปรเจค
@@ -84,17 +84,26 @@ cargo clippy --all --all-targets -- -D warnings
 ### run
 
 ```bash
-cargo run -- serve
-cargo run -- connect
-cargo run -- cp
+# สร้าง/โหลด identity และเริ่ม local fixture แบบ one-shot
+cargo run -- serve --local-fixture --once
+
+# authenticated shell transcript ผ่าน local WebRTC fixture
+cargo run -- connect --local-fixture
+cargo run -- connect --local-fixture --command printf "%s\\n" hello
+
+# authenticated file-transfer transcript
+cargo run -- cp --local-fixture ./local.txt remote.txt
+
+# ดู metadata ของ devices ที่รู้จัก โดยไม่เปิดเผย credential
+cargo run -- devices --list
 ```
 
 ## CLI Commands
 
-- `serve` - โหมดรับการเชื่อมต่อและให้บริการ
-- `connect` - เชื่อมต่อไปยัง device ผ่าน signaling
-- `cp` - คัดลอกไฟล์ระหว่างปลายทาง
-- `devices` - จัดการรายการอุปกรณ์
+- `serve` - โหลด/สร้าง identity และเริ่ม service; `--local-fixture` ใช้ local one-shot/running fixture
+- `connect` - ใช้ `--local-fixture` เพื่อ authenticated shell transcript; remote target ตรวจ registry และรายงานข้อจำกัดอย่างชัดเจน
+- `cp` - ใช้ `--local-fixture` เพื่อ authenticated sandboxed file transfer
+- `devices` - อ่าน persistent metadata-only device registry โดยไม่แสดง private key หรือ access code
 - `version` - แสดงเวอร์ชัน
 
 ## Dependencies หลัก

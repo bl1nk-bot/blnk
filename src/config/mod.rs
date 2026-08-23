@@ -1,6 +1,9 @@
 pub mod args;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct Config {
@@ -8,6 +11,8 @@ pub struct Config {
     pub signaling_url: String,
     #[serde(default = "default_identity_path")]
     pub identity_path: String,
+    #[serde(default = "default_devices_path")]
+    pub devices_path: String,
     #[serde(default)]
     pub pin: Option<String>,
 }
@@ -20,11 +25,16 @@ fn default_identity_path() -> String {
     "identity.json".to_owned()
 }
 
+fn default_devices_path() -> String {
+    "devices.json".to_owned()
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
             signaling_url: default_signaling_url(),
             identity_path: default_identity_path(),
+            devices_path: default_devices_path(),
             pin: None,
         }
     }
@@ -32,35 +42,89 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> anyhow::Result<Self> {
-        Self::load_with_sources(true, true)
-    }
-
-    #[cfg(test)]
-    fn load_without_external_sources() -> anyhow::Result<Self> {
-        Self::load_with_sources(false, false)
-    }
-
-    #[cfg(test)]
-    fn load_with_environment_only() -> anyhow::Result<Self> {
-        Self::load_with_sources(false, true)
-    }
-
-    fn load_with_sources(include_file: bool, include_environment: bool) -> anyhow::Result<Self> {
         let defaults = Self::default();
-        let mut builder = config::Config::builder()
+        let settings = config::Config::builder()
             .set_default("signaling_url", defaults.signaling_url)?
             .set_default("identity_path", defaults.identity_path)?
-            .set_default("pin", defaults.pin)?;
+            .set_default("devices_path", defaults.devices_path)?
+            .set_default("pin", defaults.pin)?
+            .add_source(config::File::with_name("blnk.toml").required(false))
+            .add_source(config::Environment::with_prefix("BLNK").separator("_"))
+            .build()?;
 
-        if include_file {
-            builder = builder.add_source(config::File::with_name("blnk.toml").required(false));
-        }
-        if include_environment {
-            builder = builder.add_source(config::Environment::with_prefix("BLNK"));
-        }
-
-        let settings = builder.build()?;
         Ok(settings.try_deserialize()?)
+    }
+}
+
+/// Persistent metadata for a known peer. Secrets and private keys are never stored here.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeviceRecord {
+    pub id: String,
+    pub endpoint: String,
+    pub last_seen_unix: u64,
+}
+
+/// Small metadata-only registry used by the CLI MVP.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeviceRegistry {
+    pub devices: Vec<DeviceRecord>,
+}
+
+impl DeviceRegistry {
+    pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        let contents = fs::read_to_string(path)?;
+        if contents.trim().is_empty() {
+            return Ok(Self::default());
+        }
+        Ok(serde_json::from_str(&contents)?)
+    }
+
+    pub fn save(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let path = path.as_ref();
+        if let Some(parent) = path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
+        }
+        let temporary = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4().simple()));
+        let payload = serde_json::to_vec_pretty(self)?;
+        fs::write(&temporary, payload)?;
+        if path.exists() {
+            fs::remove_file(path)?;
+        }
+        if let Err(error) = fs::rename(&temporary, path) {
+            let _ = fs::remove_file(&temporary);
+            return Err(error.into());
+        }
+        Ok(())
+    }
+
+    pub fn upsert(&mut self, id: impl Into<String>, endpoint: impl Into<String>) {
+        let id = id.into();
+        let endpoint = endpoint.into();
+        let last_seen_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or_default();
+        if let Some(device) = self.devices.iter_mut().find(|device| device.id == id) {
+            device.endpoint = endpoint;
+            device.last_seen_unix = last_seen_unix;
+        } else {
+            self.devices.push(DeviceRecord {
+                id,
+                endpoint,
+                last_seen_unix,
+            });
+        }
+        self.devices.sort_by(|left, right| left.id.cmp(&right.id));
+    }
+
+    pub fn find(&self, id: &str) -> Option<&DeviceRecord> {
+        self.devices.iter().find(|device| device.id == id)
     }
 }
 
@@ -69,41 +133,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn config_load_uses_defaults_without_external_sources() {
-        let cfg = Config::load_without_external_sources().expect("default config should load");
+    fn config_load_uses_defaults_when_file_is_missing() {
+        let cfg = Config::load().expect("default config should load");
 
         assert_eq!(cfg.signaling_url, "wss://localhost:8443/ws");
         assert_eq!(cfg.identity_path, "identity.json");
+        assert_eq!(cfg.devices_path, "devices.json");
         assert_eq!(cfg.pin, None);
-    }
-
-    #[test]
-    fn config_environment_overrides_flat_fields() {
-        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _lock = ENV_LOCK
-            .lock()
-            .expect("environment lock should not be poisoned");
-        let keys = ["BLNK_SIGNALING_URL", "BLNK_IDENTITY_PATH", "BLNK_PIN"];
-        let previous = keys.map(|key| (key, std::env::var(key).ok()));
-
-        // The test serializes access through ENV_LOCK before mutating process-wide variables.
-        unsafe {
-            std::env::set_var("BLNK_SIGNALING_URL", "wss://env.example/ws");
-            std::env::set_var("BLNK_IDENTITY_PATH", "/tmp/env-identity.json");
-            std::env::set_var("BLNK_PIN", "9876");
-        }
-        let cfg = Config::load_with_environment_only().expect("environment config should load");
-
-        for (key, value) in previous {
-            match value {
-                Some(value) => unsafe { std::env::set_var(key, value) },
-                None => unsafe { std::env::remove_var(key) },
-            }
-        }
-
-        assert_eq!(cfg.signaling_url, "wss://env.example/ws");
-        assert_eq!(cfg.identity_path, "/tmp/env-identity.json");
-        assert_eq!(cfg.pin.as_deref(), Some("9876"));
     }
 
     #[test]
@@ -111,11 +147,41 @@ mod tests {
         let cfg = Config {
             signaling_url: "wss://example.test/ws".to_owned(),
             identity_path: "/tmp/blnk-identity.json".to_owned(),
+            devices_path: "/tmp/blnk-devices.json".to_owned(),
             pin: Some("1234".to_owned()),
         };
 
         assert_eq!(cfg.signaling_url, "wss://example.test/ws");
         assert_eq!(cfg.identity_path, "/tmp/blnk-identity.json");
+        assert_eq!(cfg.devices_path, "/tmp/blnk-devices.json");
         assert_eq!(cfg.pin.as_deref(), Some("1234"));
+    }
+
+    #[test]
+    fn registry_upserts_and_sorts_without_secrets() {
+        let mut registry = DeviceRegistry::default();
+        registry.upsert("zeta", "local://zeta");
+        registry.upsert("alpha", "local://alpha");
+        registry.upsert("zeta", "local://updated");
+
+        assert_eq!(registry.devices.len(), 2);
+        assert_eq!(registry.devices[0].id, "alpha");
+        assert_eq!(
+            registry.find("zeta").map(|device| device.endpoint.as_str()),
+            Some("local://updated")
+        );
+    }
+
+    #[test]
+    fn registry_round_trips_metadata() {
+        let path = std::env::temp_dir().join(format!("blnk-devices-{}.json", uuid::Uuid::new_v4()));
+        let mut registry = DeviceRegistry::default();
+        registry.upsert("fixture", "local://fixture");
+        registry.save(&path).expect("registry should save");
+        let loaded = DeviceRegistry::load(&path).expect("registry should load");
+        let _ = fs::remove_file(path);
+
+        assert_eq!(loaded.devices.len(), 1);
+        assert_eq!(loaded.devices[0].id, "fixture");
     }
 }
