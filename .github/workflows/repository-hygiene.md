@@ -1,9 +1,6 @@
 ---
 # Trigger - when should this workflow run?
 on:
-  issues:
-    types: [closed]
-  schedule: daily
   workflow_dispatch:
 
 # Alternative triggers (uncomment to use):

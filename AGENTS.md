@@ -96,11 +96,17 @@ working report คือเอกสารผลหลังงานที่�
 
 ### Main, release, and agent hand-off
 
-งานส่งมอบทุกชิ้นต้องเป็น PR ที่ target `main` เท่านั้น. ห้าม merge เข้า feature,
-release, หรือ agent branch แล้วถือว่างานเสร็จ. ก่อนปิดงานให้ตรวจว่า merge commit
-ของ PR อยู่ใน `origin/main`, release metadata check ผ่าน, และไม่มีการ stage งาน
-ของผู้อื่น. ทุก PR เพิ่ม Cargo patch version หนึ่งครั้ง, เพิ่ม CHANGELOG entry,
-และหลัง merge workflow จะสร้าง immutable tag/GitHub release.
+งานส่งมอบมี lifecycle บังคับนี้: อ่าน `TODO.md` และ issue ที่เกี่ยวข้อง → ทำงาน
+ตาม issue → อัปเดต canonical docs/status ตามหลักฐานจริง → เปิด PR ที่ target
+`main` และมี `Closes #<issue>` → รัน verification → อ่าน/resolve review threads
+และตอบหรือบันทึกเหตุผลสำหรับข้อเสนอที่ไม่รับ → ถ้างานแก้มีขอบเขตใหม่ให้เปิด issue/
+PR แยกและ link กัน → merge PR → ตรวจ merge commit อยู่ใน `origin/main` และ release
+ถูกสร้าง. ห้าม merge เข้า feature/release/agent branch แล้วถือว่างานเสร็จ.
+
+`delivery-contract.yml`, `release-metadata.yml`, `main-integrity.yml` และ
+`release-on-merge.yml` เป็น automation หลักของ lifecycle นี้. ก่อนปิดงานให้ตรวจว่า
+checks ผ่านและไม่มีการ stage งานของผู้อื่น. ทุก PR เพิ่ม Cargo patch versionหนึ่งครั้ง,
+เพิ่ม CHANGELOG entry, และหลัง merge workflow จะสร้าง immutable tag/GitHub release.
 
 ใช้ `gh aw` สำหรับงานตรวจซ้ำ งานที่ต้องตามผลหลัง issue ปิด และงาน headless.
 Workflow `repository-hygiene` เป็น read-only steward: เมื่อพบความผิดปกติให้สร้าง

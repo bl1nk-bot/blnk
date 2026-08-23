@@ -1,0 +1,50 @@
+name: Delivery contract
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  verify:
+    name: Issue, documentation, and review contract
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enforce delivery lifecycle evidence
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const body = pr.body || '';
+            const failures = [];
+            if (pr.base.ref !== 'main') failures.push(`PR base must be main, got ${pr.base.ref}.`);
+            if (!/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*#\d+/i.test(body)) {
+              failures.push('PR body must link its delivery issue with Closes #<number>.');
+            }
+            for (const item of [
+              'Base branch คือ `main`',
+              'PR body มี `Closes #<issue>`',
+              'อัปเดต canonical docs/status',
+              '`Cargo.toml` และ `Cargo.lock`',
+              'เพิ่มหัวข้อ `## [x.y.z] — PR #...`',
+              'รัน verification ที่เกี่ยวข้อง',
+              'อ่าน review comments ทั้งหมดแล้ว',
+            ]) {
+              const escaped = item.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              if (!new RegExp(`- \\[x\\] ${escaped}`, 'i').test(body)) failures.push(`Unchecked required checklist item: ${item}`);
+            }
+            const docs = body.match(/## Documentation decision\s*\n+([\s\S]*?)(?=\n## |$)/i)?.[1]?.trim();
+            if (!docs || docs.startsWith('<!--')) failures.push('Documentation decision must name updated canonical docs or a specific N/A reason.');
+            const query = `query($owner:String!, $repo:String!, $number:Int!) {
+              repository(owner:$owner, name:$repo) {
+                pullRequest(number:$number) { reviewThreads(first:100) { nodes { isResolved path line comments(first:1) { nodes { body } } } } }
+              }
+            }`;
+            const result = await github.graphql(query, { owner: context.repo.owner, repo: context.repo.repo, number: pr.number });
+            const unresolved = result.repository.pullRequest.reviewThreads.nodes.filter(t => !t.isResolved);
+            if (unresolved.length) failures.push(`${unresolved.length} unresolved review thread(s) remain.`);
+            if (failures.length) core.setFailed(failures.join('\n'));
