@@ -25,7 +25,7 @@ A compiled schema, dependency, or CLI command is not an acceptance result by its
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all`, and `cargo clippy --all --all-targets -- -D warnings` pass on Linux after the dependency and CI fixes | Passing on Linux |
 | CI | Format, test, and clippy jobs run on the main workflow; a cross-platform matrix and release workflow are not yet present | Partial |
 | Tests | Unit and boundary tests cover configuration, identity, pairing, SWSP, signaling, session, and generated-protobuf compilation; there is no complete two-peer remote-access test | Boundary coverage only |
-| Release | No verified Linux/Windows/Android binary artifacts, checksums, or installation flow are published | Not started |
+| Release | Automated multi-platform release workflow (`.github/workflows/release.yml`) builds Linux (x86_64, aarch64), Windows (x86_64), Android (aarch64, armv7), generates SHA256SUMS, and publishes to GitHub Releases on tag push | Implemented |
 
 ## Acceptance Gates
 
