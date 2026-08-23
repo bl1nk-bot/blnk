@@ -1,0 +1,5 @@
+{
+  "protocol_version": 3,
+  "events": ["connect", "auth_required", "auth", "auth_result", "ready"],
+  "routing": "direct"
+}
