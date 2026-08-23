@@ -264,40 +264,155 @@ pub trait StreamHandler {
 
 ## 6.4 TCP Stream
 
-### `TcpStreamHandler`
-- open TCP connection
-- forward raw bytes bidirectionally
+Issue #42 เพิ่ม concrete service ใน `src/stream/proxy_handler.rs`; ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง
+
+```rust
+pub struct ProxyStreamService { /* policy + bounded concurrency */ }
+
+impl ProxyStreamService {
+    pub fn new(policy: ProxyPolicy) -> Result<Self>;
+    pub async fn open_tcp(
+        &self,
+        stream_id: u32,
+        open: proto::stream::TcpOpen,
+        authorization: ProxyAuthorization,
+    ) -> Result<TcpProxyStream>;
+}
+
+impl TcpProxyStream {
+    pub async fn send(&mut self, data: &[u8]) -> Result<()>;
+    pub async fn recv(&mut self, max_bytes: usize) -> Result<Vec<u8>>;
+    pub async fn close(self) -> Result<()>;
+}
+```
+
+`open_tcp` ตรวจ target ด้วย `ProxyPolicy`, pin DNS answer set ก่อน dial/retry, ใช้ connect/idle/resource limits และคืน stable policy/transport errors เมื่อปฏิเสธหรือ timeout
 
 ### Related Types
-- `TCPOpen`
-- `TCPData`
+- `TcpOpen`, `TcpData`
+- `TcpProxyStream`
+- `ProxyStreamService`
 
 ---
 
 ## 6.5 WebSocket Stream
 
-### `WebSocketStreamHandler`
-- open WebSocket target
-- bridge text/binary frames
+```rust
+impl ProxyStreamService {
+    pub async fn open_websocket(
+        &self,
+        stream_id: u32,
+        open: proto::stream::WebSocketOpen,
+        authorization: ProxyAuthorization,
+    ) -> Result<WebSocketProxyStream>;
+}
+
+impl WebSocketProxyStream {
+    pub async fn send(&mut self, data: &[u8]) -> Result<()>;
+    pub async fn recv(&mut self) -> Result<Option<Vec<u8>>>;
+    pub async fn close(&mut self) -> Result<()>;
+}
+```
+
+`ws` ใช้ policy-approved pinned TCP socket และ bridge text/binary payload เป็น bytes; `wss` ถูกปฏิเสธอย่าง explicit จนกว่าจะมี TLS connector ที่มี DNS pinning และ cross-platform certificate evidence ไม่ใช่การ fallback เป็น plain TCP
 
 ### Related Types
-- `WebSocketOpen`
-- `WebSocketMessage`
+- `WebSocketOpen`, `WebSocketData`
+- `WebSocketProxyStream`
+- `ProxyStreamService`
 
 ---
 
 ## 6.6 HTTP Stream
 
-### `HttpStreamHandler`
-- process HTTP request metadata
-- stream request/response body
-- rewrite headers
-- follow redirect policy
+```rust
+impl ProxyStreamService {
+    pub async fn request_http(
+        &self,
+        base_target: url::Url,
+        request: proto::stream::HttpRequest,
+        body: Vec<u8>,
+        authorization: ProxyAuthorization,
+    ) -> Result<HttpProxyResponse>;
+}
+
+pub struct HttpProxyResponse {
+    pub response: proto::stream::HttpResponse,
+    pub body: Vec<u8>,
+    pub redirects_followed: u8,
+}
+```
+
+HTTP ใช้ one-request transcript ใน Issue #42 ไม่ใช่ full-duplex body stream ปิด automatic redirects และ validate ทุก redirect ด้วย `ProxyPolicy`; hop-by-hop headers และ caller-supplied `content-length` ถูกตัดออก และ response body/headers อยู่ภายใต้ limits/redaction boundary
 
 ### Related Types
-- `HTTPRequest`
-- `HTTPResponse`
-- `HTTPData`
+- `HttpRequest`, `HttpResponse`, `HttpData`
+- `HttpProxyResponse`
+- `ProxyStreamService`
+
+---
+
+## 6.7 Proxy Security Policy
+
+`src/stream/proxy.rs` เป็น policy boundary กลางที่ `ProxyStreamService` ใน `src/stream/proxy_handler.rs` เรียกใช้สำหรับ TCP, WebSocket และ HTTP โมดูล policy **ไม่เปิด socket เอง** แต่ถูกบังคับใช้ก่อน connect, retry และ redirect ทุกครั้ง ส่วนการ dispatch จาก authenticated `SessionRuntime` ยังเป็นงานถัดไป
+
+### Core types and methods
+
+```rust
+pub enum ProxyAuthorization {
+    None,
+    Allowlisted,
+    UserConfirmed,
+}
+
+pub struct ProxyPolicy { /* deny-by-default configuration */ }
+
+impl ProxyPolicy {
+    pub fn deny_by_default() -> Self;
+    pub fn validate_target(
+        &self,
+        target: &url::Url,
+        authorization: ProxyAuthorization,
+    ) -> Result<ValidatedProxyTarget, ProxyPolicyError>;
+    pub async fn resolve_and_validate(
+        &self,
+        target: &url::Url,
+        authorization: ProxyAuthorization,
+    ) -> Result<ResolvedProxyTarget, ProxyPolicyError>;
+    pub fn validate_retry(
+        &self,
+        resolved: &ResolvedProxyTarget,
+        retry_address: std::net::SocketAddr,
+    ) -> Result<(), ProxyPolicyError>;
+    pub fn validate_redirect(
+        &self,
+        original: &ValidatedProxyTarget,
+        next: &url::Url,
+        authorization: ProxyAuthorization,
+        redirect_count: u8,
+    ) -> Result<ValidatedProxyTarget, ProxyPolicyError>;
+}
+```
+
+`ProxyPolicy::deny_by_default()` ไม่ยอมรับ target ที่ไม่มี authorization, ปฏิเสธ credentials/fragment/unsupported scheme และตรวจ private, loopback, link-local, multicast, reserved, documentation และ IPv4-mapped IPv6 ตาม ADR-041 การเปิด local target หรือ user confirmation ต้องตั้งค่าอย่าง explicit และยังต้องผ่าน authorization ทุกครั้ง
+
+`resolve_and_validate` ตรวจ DNS answers ทั้งหมดแล้วคืน address set ที่ pin ไว้ใน `ResolvedProxyTarget`; handler ห้าม resolve ใหม่ระหว่าง retry โดยไม่เรียก `validate_retry` การ follow redirect ต้องส่ง URL ใหม่กลับเข้า `validate_redirect` เพื่อบังคับ same-origin, scheme downgrade และ redirect-count policy อีกครั้ง
+
+### Resource and redaction boundary
+
+`ProxyResourceLimits` กำหนด request/response size, active concurrency, buffered bytes, connect/idle timeout และ redirect ceiling ส่วน `check_request_size`, `check_response_size`, `check_concurrent_streams` และ `check_buffered_bytes` คืน `ProxyPolicyError` แบบ deterministic เมื่อเกิน limit เมื่อ timeout หรือ cancellation เกิดขึ้น handler ต้องยกเลิก pending I/O และปิด stream โดยไม่ bypass policy
+
+`redact_target_for_log` แสดงเพียง `scheme://host:port` และ `redact_header_value` ซ่อน credential-bearing headers เป็น `<redacted>` ห้าม log raw URL ที่มี query token, userinfo, fragment หรือ request/response body `ProxyPolicyError::code()` เป็น stable code สำหรับ metrics และ mapping ไปยัง `BlnkError::Stream`; ไม่ควรส่งข้อความ low-level resolver กลับ remote
+
+### Related types
+
+- `ProxyScheme`
+- `ProxyTargetKey`
+- `ValidatedProxyTarget`
+- `ResolvedProxyTarget`
+- `ProxyAuthorization`
+- `ProxyResourceLimits`
+- `ProxyPolicyError`
 
 ---
 

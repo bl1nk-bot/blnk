@@ -225,6 +225,30 @@ impl ProxyResourceLimits {
         }
         Ok(())
     }
+
+    pub fn check_request_size(self, bytes: u64) -> ProxyResult<()> {
+        if bytes > self.max_request_bytes {
+            Err(ProxyPolicyError::RequestLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn check_response_size(self, bytes: u64) -> ProxyResult<()> {
+        if bytes > self.max_response_bytes {
+            Err(ProxyPolicyError::ResponseLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn check_buffered_bytes(self, bytes: usize) -> ProxyResult<()> {
+        if bytes > self.max_buffered_bytes {
+            Err(ProxyPolicyError::BackpressureLimitExceeded)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// Normalized scheme/host/port identity used for exact allowlist and origin checks.
@@ -770,7 +794,7 @@ mod tests {
         assert_eq!(
             policy
                 .validate_resolved_target(
-                    ProxyAuthorization::Allowlisted,
+                    &Url::parse("http://reserved.example:80").expect("valid target"),
                     ProxyAuthorization::UserConfirmed,
                     &[SocketAddr::from(([192, 0, 2, 10], 80))],
                 )
