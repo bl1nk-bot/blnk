@@ -97,4 +97,3 @@ Closes #45 เมื่อ PR ที่นำ decision นี้ไปใช้�
 [1]: ../architecture.md
 [2]: ../implementation-status.md
 [3]: ../api.md
-
