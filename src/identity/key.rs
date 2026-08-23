@@ -468,6 +468,12 @@ fn set_private_permissions(file: &std::fs::File) -> Result<(), BlnkError> {
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
     }
 
+    #[cfg(windows)]
+    {
+        // Windows inherits ACLs from the user-private identity directory.
+        let _ = file;
+    }
+
     Ok(())
 }
 
