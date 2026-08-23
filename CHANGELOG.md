@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.1.38] — PR #94
+- docs: เพิ่ม CONTRIBUTING.md และ PROTOCOL.md อธิบาย workflow และ SWSP protocol architecture
+
 ## [0.1.37] — PR #75
 - feat(web): เพิ่ม loopback browser control surface (`4a01ad8`)
 
