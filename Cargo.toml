@@ -57,6 +57,10 @@ qrcode = "0.14.1"
 mdns = "3.0.0"
 url = "2.0"
 getrandom = "0.3"
+base64 = "0.22"
+rsa = { version = "0.9", features = ["sha2", "pem"] }
+sha2 = { version = "0.10", features = ["oid"] }
+subtle = "2.6"
 
 # System
 [target.'cfg(unix)'.dependencies]
