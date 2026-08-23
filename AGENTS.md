@@ -77,6 +77,36 @@
 - อย่าอ้างว่าคุณบันทึกอะไรไว้ เว้นแต่คุณจะสร้างหรือแก้ไขเอกสารนั้นจริง ๆ
 - ถามก่อนการกระทําภายนอกหรือพฤติกรรมทําลายล้างเมื่อเหมาะสม
 
+## Project delivery contract
+
+### Canonical context is not working-report output
+
+ห้ามลบ ย้าย เขียนทับ หรือย่อไฟล์ context หลักเพื่อ cleanup โดยไม่มีคำสั่ง
+ระบุไฟล์จากผู้ใช้: `AGENTS.md`, `README.md`, `TODO.md`, `specs/spec.md`,
+`docs/architecture.md`, `docs/api.md`, `docs/blueprint.md`,
+`docs/implementation-status.md`, `docs/plans/**`, และ workflow/configuration
+ใน `.github/**`. ไฟล์เหล่านี้เป็น contract/สถานะที่ agent รุ่นถัดไปต้องอ่าน
+ไม่ใช่ working report แม้งานบางส่วนจะเสร็จแล้วก็ตาม.
+
+working report คือเอกสารผลหลังงานที่ผูกกับ issue/PR หนึ่งงานโดยเฉพาะเท่านั้น.
+ก่อนลบ ต้องพิสูจน์จาก GitHub ว่า issue ปิดแล้ว, acceptance work อยู่ใน `main`,
+และไม่มี canonical context อ้างเอกสารนั้นเป็นแหล่งหลัก. ทำผ่าน PR ที่ review
+ได้และลบเฉพาะ report กับลิงก์ที่ stale; ห้ามลบเป็นชุดจากชื่อโฟลเดอร์หรือเดา
+จากชื่อไฟล์. หากพิสูจน์ไม่ได้ ให้คงไฟล์ไว้และรายงานว่าไม่แน่ใจ.
+
+### Main, release, and agent hand-off
+
+งานส่งมอบทุกชิ้นต้องเป็น PR ที่ target `main` เท่านั้น. ห้าม merge เข้า feature,
+release, หรือ agent branch แล้วถือว่างานเสร็จ. ก่อนปิดงานให้ตรวจว่า merge commit
+ของ PR อยู่ใน `origin/main`, release metadata check ผ่าน, และไม่มีการ stage งาน
+ของผู้อื่น. ทุก PR เพิ่ม Cargo patch version หนึ่งครั้ง, เพิ่ม CHANGELOG entry,
+และหลัง merge workflow จะสร้าง immutable tag/GitHub release.
+
+ใช้ `gh aw` สำหรับงานตรวจซ้ำ งานที่ต้องตามผลหลัง issue ปิด และงาน headless.
+Workflow `repository-hygiene` เป็น read-only steward: เมื่อพบความผิดปกติให้สร้าง
+`agent-task` หนึ่งรายการที่เปิด PR แก้ไขได้ ไม่ให้ลบ/merge/publish โดยตรง. อ่าน
+`.github/aw/instructions.md` เพิ่มเติมก่อนแก้ workflow หรือ report hygiene.
+
 ## การบํารุงรักษาอย่างรวดเร็ว
 
 - หากคําแนะนําเหล่านี้ไม่ตรงกับพื้นผิวเครื่องมือจริงอีกต่อไป ให้อัปเดตเอกสารนี้
