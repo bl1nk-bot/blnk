@@ -75,6 +75,38 @@ scripts/release_gate.sh
 
 คำสั่งนี้ใช้ `Cargo.lock` แบบ locked, รัน Linux validation, สร้าง tarball/checksum/provenance และตรวจ `blnk --version` หลัง extract artifact โดยไม่ publish tag หรือ GitHub Release อัตโนมัติ Workflow [`release-gate.yml`](.github/workflows/release-gate.yml) เพิ่ม Windows build/test/package evidence, Android `aarch64-linux-android` compile-only evidence และ RustSec advisory audit บน runner จริง การมี Linux artifact หรือ compile evidence ไม่ใช่หลักฐานของ browser/external interoperability, production TLS, device runtime, signed installer หรือ macOS support
 
+## การติดตั้งและอัปเดต (Installation & Updates)
+
+### ติดตั้งคำสั่งเดียว (One-line Install)
+
+* **Windows (PowerShell):**
+  ```powershell
+  irm https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.ps1 | iex
+  ```
+  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า User `PATH` ให้อัตโนมัติ)*
+
+* **Linux (Bash):**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash
+  ```
+  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า `PATH` ใน `.bashrc`/`.zshrc` ให้อัตโนมัติ)*
+
+### การอัปเดต (Updates)
+
+โดยดีฟอลต์ ระบบจะตั้งค่าเป็น **Manual Update**
+
+* **อัปเดตแบบ Manual (เช็คและอัปเกรดเป็นเวอร์ชันล่าสุด):**
+  - Windows: `.\scripts\update.ps1`
+  - Linux: `curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash`
+* **เปิดใช้งาน Auto Update:**
+  - Windows: `.\scripts\update.ps1 -SetAuto`
+  - Linux: `./scripts/install.sh --auto-update`
+* **สลับกลับเป็น Manual Update:**
+  - Windows: `.\scripts\update.ps1 -SetManual`
+  - Linux: `./scripts/install.sh --manual-update`
+
+---
+
 ## Quick Start
 
 > **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration และ browser control surface ใช้หลักฐาน deterministic/local เท่านั้น ยังไม่อ้าง external interoperability หรือ production deployment

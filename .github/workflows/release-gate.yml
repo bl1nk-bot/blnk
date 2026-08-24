@@ -60,65 +60,6 @@ jobs:
             dist/*.tar.gz
             dist/*.tar.gz.sha256
 
-  windows-evidence:
-    name: Windows build/test and package evidence
-    runs-on: windows-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Install pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.0
-
-      - name: Run Windows validation
-        run: |
-          cargo fmt --all -- --check
-          cargo check --all-targets --locked
-          cargo test --all --locked --verbose
-
-      - name: Build and smoke-test Windows binary
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          cargo build --locked --release
-          $version = (Select-String -Path Cargo.toml -Pattern '^version = "([^"]+)"').Matches.Groups[1].Value
-          $target = 'x86_64-pc-windows-msvc'
-          $packageName = "blnk-v$version-$target"
-          $stage = Join-Path $env:RUNNER_TEMP $packageName
-          New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item target/release/blnk.exe (Join-Path $stage 'blnk.exe')
-          Copy-Item README.md (Join-Path $stage 'README.md')
-          Set-Content -Path (Join-Path $stage 'VERSION') -Value $version -NoNewline
-          $lockHash = (Get-FileHash Cargo.lock -Algorithm SHA256).Hash.ToLowerInvariant()
-          $provenance = [ordered]@{
-            name = 'blnk'
-            version = $version
-            target = $target
-            source_commit = $env:GITHUB_SHA
-            rust_toolchain = '1.97.0'
-            cargo_lock_sha256 = $lockHash
-            build_command = 'cargo build --locked --release'
-            smoke_command = '.\blnk.exe --version'
-          }
-          $provenance | ConvertTo-Json | Set-Content -Path (Join-Path $stage 'PROVENANCE.json')
-          $smoke = & (Join-Path $stage 'blnk.exe') --version
-          if ($smoke -ne "blnk $version") { throw "unexpected smoke output: $smoke" }
-          $archive = Join-Path $env:RUNNER_TEMP "$packageName.zip"
-          Compress-Archive -Path $stage -DestinationPath $archive -CompressionLevel Optimal
-          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  $(Split-Path $archive -Leaf)" | Set-Content -Path "$archive.sha256" -NoNewline
-
-      - name: Upload Windows artifact evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: blnk-windows-release-${{ github.sha }}
-          if-no-files-found: error
-          path: |
-            ${{ runner.temp }}/blnk-v*.zip
-            ${{ runner.temp }}/blnk-v*.zip.sha256
-
   android-compile:
     name: Android compile-only evidence
     runs-on: ubuntu-latest

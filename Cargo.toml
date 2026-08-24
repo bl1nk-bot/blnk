@@ -1,6 +1,6 @@
 [package]
 name = "blnk"
-version = "0.2.6"
+version = "0.2.7"
 edition = "2024"
 authors = ["Dollawatt Chidjai"]
 description = "Remote access multitool in Rust"
@@ -57,8 +57,8 @@ uuid = { version = "1.0", features = ["v4"] }
 qrcode = "0.14.1"
 mdns = "3.0.0"
 url = "2.0"
-getrandom = "0.3"
-base64 = "0.22"
+getrandom = "0.4"
+base64 = "0.23"
 rsa = { version = "0.9", features = ["sha2", "pem"] }
 sha2 = { version = "0.10", features = ["oid"] }
 subtle = "2.6"
