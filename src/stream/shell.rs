@@ -2,7 +2,7 @@
 //!
 //! This module deliberately does not claim PTY, browser, Android production, or
 //! original-client interoperability. Commands are executed directly through
-//! [`tokio::process::Command`]; no implicit shell interpolation is performed.
+//! [`Command`]; no implicit shell interpolation is performed.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Component, Path, PathBuf};

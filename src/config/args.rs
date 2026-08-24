@@ -15,6 +15,9 @@ pub struct ServeArgs {
     /// PIN used by the local fixture handshake.
     #[arg(long)]
     pub pin: Option<String>,
+    /// Render terminal QR code for device pairing.
+    #[arg(long)]
+    pub qr: bool,
 }
 
 #[derive(Debug, Args, Clone, Default)]
@@ -72,6 +75,9 @@ pub struct DevicesArgs {
     /// List known devices.
     #[arg(long)]
     pub list: bool,
+    /// Discover peers on local LAN via mDNS.
+    #[arg(long)]
+    pub local: bool,
 }
 
 #[cfg(test)]

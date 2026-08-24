@@ -115,7 +115,7 @@ fn tcp_target(open: &wire::TcpOpen) -> ProxyHandlerResult<Url> {
 fn websocket_request(
     target: &Url,
     headers: &HashMap<String, String>,
-) -> ProxyHandlerResult<tungstenite::http::Request<()>> {
+) -> ProxyHandlerResult<http::Request<()>> {
     use tungstenite::{client::IntoClientRequest, http::header::HeaderName};
 
     let mut request = target
@@ -128,7 +128,7 @@ fn websocket_request(
         }
         let name = HeaderName::from_bytes(name.as_bytes())
             .map_err(|_| protocol_error("invalid WebSocket header name"))?;
-        let value = tungstenite::http::HeaderValue::from_str(value)
+        let value = http::HeaderValue::from_str(value)
             .map_err(|_| protocol_error("invalid WebSocket header value"))?;
         request.headers_mut().insert(name, value);
     }
@@ -715,7 +715,7 @@ mod tests {
         let server = tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.expect("accept");
             let mut data = [0; 7];
-            tokio::io::AsyncReadExt::read_exact(&mut socket, &mut data)
+            AsyncReadExt::read_exact(&mut socket, &mut data)
                 .await
                 .expect("read");
             socket.write_all(&data).await.expect("echo");
