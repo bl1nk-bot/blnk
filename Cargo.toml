@@ -1,6 +1,6 @@
 [package]
 name = "blnk"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 authors = ["Dollawatt Chidjai"]
 description = "Remote access multitool in Rust"
@@ -76,6 +76,10 @@ protoc-bin-vendored = "3"
 
 [dev-dependencies]
 tokio-test = "0.4"
+
+[[bench]]
+name = "performance"
+harness = false
 
 [profile.release]
 opt-level = 3
