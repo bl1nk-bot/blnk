@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.0] — PR #98
+- release: build Linux, Windows, and Android packages from version tags; publish verified `SHA256SUMS` to the matching GitHub Release
+
 ## [0.1.37] — PR #75
 - feat(web): เพิ่ม loopback browser control surface (`4a01ad8`)
 

@@ -3,27 +3,17 @@ use blnk::config::args::{ConnectArgs, CpArgs, DevicesArgs, ServeArgs, WebArgs};
 use blnk::config::{Config, DeviceRegistry};
 use blnk::identity::Identity;
 use blnk::peer::TwoPeerHarness;
-use blnk::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN;
 use blnk::session::{SessionRuntime, SessionRuntimeConfig};
 use blnk::signaling::EndpointPolicy;
 use blnk::signaling::orchestration::{
     DEFAULT_ORCHESTRATION_TIMEOUT, accept_server_session, connect_target, run_file_client,
     run_shell_client, serve_session_with_shutdown,
 };
-use blnk::stream::file::{
-    FileOperation, FileTransferCancellation, FileTransferConfig, FileTransferRequest,
-    FileTransferResponse, FileTransferService, collect_data_frames, decode_request_frame,
-    decode_response_metadata, encode_response_frames,
-};
-use blnk::stream::shell::{
-    ShellCommand, ShellPolicy, ShellStreamHandler, decode_error_frame, decode_exit_frame,
-    decode_open_frame, decode_output_frame,
-};
+use blnk::stream::shell::ShellCommand;
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
 use clap::{Parser, Subcommand};
-use std::io::Write;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio_util::sync::CancellationToken;
 
 const LOCAL_FIXTURE_DEVICE_ID: &str = "local-fixture";
@@ -78,6 +68,26 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
     println!("identity_uid={}", identity.uid());
     println!("signaling_endpoint_configured=true");
+
+    let mdns_responder = blnk::discovery::MdnsResponder::new();
+    let _ = mdns_responder.start_announcing(identity.uid(), 0);
+
+    if args.qr {
+        let pairing_payload = blnk::qr::PairingQrPayload {
+            uid: identity.uid().to_string(),
+            pairing_code: identity.pairing_code().to_string(),
+            endpoint: signaling_url.clone(),
+        };
+        let payload_str = pairing_payload.to_payload_string();
+        println!("\n--- Pairing QR Code ---");
+        match blnk::qr::render_qr_terminal(&payload_str)
+            .or_else(|_| blnk::qr::render_qr_ascii(&payload_str))
+        {
+            Ok(qr_rendered) => println!("{qr_rendered}"),
+            Err(err) => println!("Failed to render QR: {err}"),
+        }
+        println!("-----------------------\n");
+    }
 
     if args.local_fixture {
         let pin = args
@@ -270,6 +280,32 @@ async fn run_cp(args: CpArgs) -> Result<()> {
 }
 
 async fn run_devices(args: DevicesArgs) -> Result<()> {
+    if args.local {
+        println!("Discovering blnk peers on local network (mDNS)...");
+        let peers = blnk::discovery::discover_local_peers(
+            blnk::discovery::DEFAULT_MDNS_DISCOVERY_TIMEOUT,
+        )
+        .await
+        .context("mDNS peer discovery failed")?;
+
+        if peers.is_empty() {
+            println!("No local blnk peers found.");
+            return Ok(());
+        }
+
+        println!("ID\tIP\tPORT\tHOST");
+        for peer in peers {
+            println!(
+                "{}\t{}\t{}\t{}",
+                peer.id,
+                peer.ip,
+                peer.port,
+                peer.host_name.as_deref().unwrap_or("-")
+            );
+        }
+        return Ok(());
+    }
+
     let config = Config::load().context("load blnk configuration")?;
     let registry = DeviceRegistry::load(&config.devices_path).context("load device registry")?;
     if registry.devices.is_empty() {
@@ -340,70 +376,25 @@ async fn fixture_pair(pin: &str) -> Result<(SessionRuntime, SessionRuntime)> {
 }
 
 async fn run_local_shell(pin: &str, command: ShellCommand) -> Result<i32> {
-    let (mut client, mut server) = fixture_pair(pin).await?;
-    let stream = client
-        .open_shell_stream("/")
-        .context("open local shell stream")?;
-    let stream_id = stream.id();
-    client
-        .send_shell_open(stream_id, &command)
-        .await
-        .context("send shell open")?;
-
-    let open_frame = server
-        .recv_shell_frame()
-        .await
-        .context("receive shell open")?;
-    let server_command = decode_open_frame(&open_frame).context("decode shell open")?;
-    server
-        .accept_shell_stream(stream_id, "/")
-        .context("accept shell stream")?;
-
+    let (mut client, server) = fixture_pair(pin).await?;
     let root = std::env::current_dir().context("get shell fixture root")?;
-    let policy = ShellPolicy::new(root).context("create shell policy")?;
-    let handler = ShellStreamHandler::new(policy);
-    let result = handler
-        .run(server_command, CancellationToken::new())
-        .await
-        .context("execute bounded shell command")?;
-    if !result.stdout.is_empty() {
-        server
-            .send_shell_output(stream_id, result.stdout.clone(), false)
-            .await
-            .context("send shell stdout")?;
-    }
-    if !result.stderr.is_empty() {
-        server
-            .send_shell_output(stream_id, result.stderr.clone(), false)
-            .await
-            .context("send shell stderr")?;
-    }
-    server
-        .send_shell_exit(stream_id, result.exit_code.unwrap_or(-1), result.signaled)
-        .await
-        .context("send shell exit")?;
+    let server_task = tokio::spawn(serve_session_with_shutdown(
+        blnk::signaling::orchestration::ServerSession {
+            runtime: server,
+            client_id: LOCAL_FIXTURE_DEVICE_ID.to_string(),
+        },
+        root,
+        CancellationToken::new(),
+    ));
 
-    loop {
-        let frame = client
-            .recv_shell_frame()
-            .await
-            .context("receive shell result")?;
-        if frame.flags.is_fin() {
-            if let Ok(exit) = decode_exit_frame(&frame) {
-                let _ = client.close_shell_stream(stream_id).await;
-                let _ = server.close().await;
-                let _ = client.close().await;
-                return Ok(exit.code);
-            }
-            let error = decode_error_frame(&frame)
-                .map(|message| message.message)
-                .unwrap_or_else(|_| "remote shell failed".to_owned());
-            let _ = server.close().await;
-            let _ = client.close().await;
-            bail!("remote shell error: {error}");
-        }
-        let output = decode_output_frame(&frame).context("decode shell output")?;
-        client_output(&output.data)?;
+    let result = run_shell_client(&mut client, &command).await;
+    let close_result = client.close().await;
+    let _ = server_task.await;
+
+    match (result, close_result) {
+        (Err(error), _) => Err(error.into()),
+        (Ok(_), Err(error)) => Err(error.into()),
+        (Ok(code), Ok(())) => Ok(code),
     }
 }
 
@@ -421,141 +412,25 @@ async fn run_local_cp_inner(
     destination: &str,
     overwrite: bool,
 ) -> Result<()> {
-    let is_download = source.strip_prefix("remote:");
-    let (request, upload, local_destination) = if let Some(remote_path) = is_download {
-        (
-            FileTransferRequest::get(remote_path, None).context("create download request")?,
-            Vec::new(),
-            Some(PathBuf::from(destination)),
-        )
-    } else {
-        let data =
-            std::fs::read(source).with_context(|| format!("read local source {}", source))?;
-        (
-            FileTransferRequest::put(destination, data.len() as u64, overwrite),
-            data,
-            None,
-        )
-    };
+    let (mut client, server) = fixture_pair(DEFAULT_FIXTURE_PIN).await?;
+    let server_task = tokio::spawn(serve_session_with_shutdown(
+        blnk::signaling::orchestration::ServerSession {
+            runtime: server,
+            client_id: LOCAL_FIXTURE_DEVICE_ID.to_string(),
+        },
+        fixture_root.to_path_buf(),
+        CancellationToken::new(),
+    ));
 
-    let service = FileTransferService::new(
-        FileTransferConfig::new(fixture_root).context("create receiver file service")?,
-    );
-    let (mut client, mut server) = fixture_pair(DEFAULT_FIXTURE_PIN).await?;
-    let stream = client
-        .open_file_stream("/")
-        .context("open local file stream")?;
-    let stream_id = stream.id();
-    client
-        .send_file_request(stream_id, &request)
-        .await
-        .context("send file request")?;
+    let result = run_file_client(&mut client, source, destination, overwrite).await;
+    let close_result = client.close().await;
+    let _ = server_task.await;
 
-    let open_frame = server
-        .recv_file_frame()
-        .await
-        .context("receive file request")?;
-    let received_request = decode_request_frame(&open_frame).context("decode file request")?;
-    server
-        .accept_file_stream(stream_id, "/")
-        .context("accept file stream")?;
-
-    if received_request.operation == FileOperation::Put {
-        if upload.is_empty() {
-            client
-                .send_file_chunk(stream_id, Vec::new(), true)
-                .await
-                .context("send empty file chunk")?;
-        } else {
-            for (index, chunk) in upload.chunks(DEFAULT_MAX_PAYLOAD_LEN).enumerate() {
-                client
-                    .send_file_chunk(
-                        stream_id,
-                        chunk.to_vec(),
-                        (index + 1) * DEFAULT_MAX_PAYLOAD_LEN >= upload.len(),
-                    )
-                    .await
-                    .context("send file chunk")?;
-            }
-        }
+    match (result, close_result) {
+        (Err(error), _) => Err(error.into()),
+        (Ok(_), Err(error)) => Err(error.into()),
+        (Ok(()), Ok(())) => Ok(()),
     }
-
-    let mut body_frames = Vec::new();
-    if received_request.operation == FileOperation::Put {
-        loop {
-            let frame = server
-                .recv_file_frame()
-                .await
-                .context("receive file chunk")?;
-            let final_chunk = frame.flags.is_fin();
-            body_frames.push(frame);
-            if final_chunk {
-                break;
-            }
-        }
-    }
-    let upload_body = collect_data_frames(
-        body_frames,
-        received_request.size,
-        service.config().max_file_size,
-        &FileTransferCancellation::default(),
-    )
-    .context("collect file upload")?;
-    let response = service
-        .execute(
-            received_request.clone(),
-            &upload_body,
-            &FileTransferCancellation::default(),
-        )
-        .await
-        .context("execute receiver file operation")?;
-    for frame in encode_response_frames(stream_id, &response).context("encode file response")? {
-        server
-            .send_file_chunk(stream_id, frame.payload, frame.flags.is_fin())
-            .await
-            .context("send file response")?;
-    }
-
-    let mut received_data = Vec::new();
-    let mut metadata_seen = false;
-    loop {
-        let frame = client
-            .recv_file_frame()
-            .await
-            .context("receive file response")?;
-        if !metadata_seen {
-            let metadata = decode_response_metadata(&request, &frame)
-                .context("decode file response metadata")?;
-            metadata_seen = true;
-            if let FileTransferResponse::Download { info, .. } = metadata {
-                println!("received={} bytes={}", info.name, info.size);
-            }
-        } else if request.operation == FileOperation::Get {
-            received_data.extend_from_slice(&frame.payload);
-        }
-        if frame.flags.is_fin() {
-            break;
-        }
-    }
-
-    if let Some(destination) = local_destination {
-        if let Some(parent) = destination.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("create local destination parent {}", parent.display()))?;
-        }
-        std::fs::write(&destination, received_data)
-            .with_context(|| format!("write local destination {}", destination.display()))?;
-        println!("copied {} -> {}", source, destination.display());
-    } else {
-        println!("copied {} -> remote:{}", source, destination);
-    }
-
-    let _ = client.close_file_stream(stream_id).await;
-    let _ = server.close().await;
-    let _ = client.close().await;
-    Ok(())
 }
 
 fn shell_command_from_args(args: &[String]) -> Result<ShellCommand> {
@@ -577,13 +452,6 @@ fn shell_command_from_args(args: &[String]) -> Result<ShellCommand> {
         .first()
         .ok_or_else(|| anyhow!("shell command must not be empty"))?;
     Ok(ShellCommand::new(program).args(args.iter().skip(1).cloned()))
-}
-
-fn client_output(data: &[u8]) -> Result<()> {
-    let mut stdout = std::io::stdout().lock();
-    stdout.write_all(data).context("write command output")?;
-    stdout.flush().context("flush command output")?;
-    Ok(())
 }
 
 #[cfg(test)]

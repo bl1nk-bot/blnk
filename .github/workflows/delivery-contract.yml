@@ -29,7 +29,7 @@ jobs:
               'Base branch คือ `main`',
               'PR body มี `Closes #<issue>`',
               'อัปเดต canonical docs/status',
-              '`Cargo.toml` และ `Cargo.lock`',
+              '`Cargo.toml` เพิ่ม semantic version ถัดไปหนึ่งครั้ง และ `Cargo.lock` สอดคล้องกัน',
               'เพิ่มหัวข้อ `## [x.y.z] — PR #...`',
               'รัน verification ที่เกี่ยวข้อง',
               'อ่าน review comments ทั้งหมดแล้ว',

@@ -19,6 +19,6 @@ canonical references have been checked. A cleanup agent may delete only the
 specific verified report and stale links in the same PR.
 
 All delivery PRs target `main`. Every PR bumps the patch version exactly once,
-adds the matching changelog entry, and relies on the release workflow to make
+adds the matching changelog entry and the next semantic version, and relies on the release workflow to make
 the immutable tag and GitHub Release. Never retag, overwrite a release, or
 merge a PR without passing the automated checks.

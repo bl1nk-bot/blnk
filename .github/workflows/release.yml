@@ -1,0 +1,193 @@
+name: Build release assets
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_call:
+    inputs:
+      tag:
+        description: Existing release tag to build and publish.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-assets-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)"
+          test -n "$version"
+          test "$tag" = "v$version"
+          printf 'tag=%s\nversion=%s\n' "$tag" "$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Linux ${{ matrix.target }}
+    needs: metadata
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            cross: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: ${{ matrix.target }}
+      - if: matrix.cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --locked --release --target "${{ matrix.target }}" --bin blnk
+          else
+            cargo build --locked --release --target "${{ matrix.target }}" --bin blnk
+          fi
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "$package"
+          install -m 755 "target/${{ matrix.target }}/release/blnk" "$package/blnk"
+          cp README.md "$package/README.md"
+          tar -czf "$package.tar.gz" "$package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          if-no-files-found: error
+          path: blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}.tar.gz
+
+  android:
+    name: Android ${{ matrix.target }}
+    needs: metadata
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [armv7-linux-androideabi, aarch64-linux-android]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+          persist-credentials: false
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDK
+        shell: bash
+        run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          if [ "${{ matrix.target }}" = "armv7-linux-androideabi" ]; then
+            export CC_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang"
+            export AR_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          else
+            export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+            export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          fi
+          cargo build --locked --release --target "${{ matrix.target }}" --bin blnk
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "$package"
+          install -m 755 "target/${{ matrix.target }}/release/blnk" "$package/blnk"
+          cp README.md "$package/README.md"
+          tar -czf "$package.tar.gz" "$package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          if-no-files-found: error
+          path: blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}.tar.gz
+
+  windows:
+    name: Windows x86_64-pc-windows-msvc
+    needs: metadata
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build and package release binary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = 'x86_64-pc-windows-msvc'
+          $package = "blnk-v${{ needs.metadata.outputs.version }}-$target"
+          cargo build --locked --release --target $target --bin blnk
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item "target/$target/release/blnk.exe" "$package/blnk.exe"
+          Copy-Item README.md "$package/README.md"
+          Compress-Archive -Path $package -DestinationPath "$package.zip" -CompressionLevel Optimal
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-x86_64-pc-windows-msvc
+          if-no-files-found: error
+          path: blnk-v${{ needs.metadata.outputs.version }}-x86_64-pc-windows-msvc.zip
+
+  publish:
+    name: Attach release assets
+    needs: [metadata, linux, android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Verify checksums and attach immutable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 5
+          sha256sum ./* > SHA256SUMS
+          sha256sum --check SHA256SUMS
+          if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$REPOSITORY" --verify-tag --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" ./* --repo "$REPOSITORY"

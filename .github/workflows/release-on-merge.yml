@@ -17,12 +17,15 @@ jobs:
   tag-and-publish:
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
-      - name: Create immutable tag and GitHub release
+      - id: release
+        name: Create immutable tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -44,3 +47,10 @@ Source commit: \`$MERGE_SHA\`
 
 This release was created automatically after the PR was merged into \`main\`."
           gh release create "$tag" --repo "$REPOSITORY" --target "$MERGE_SHA" --title "$tag" --notes "$notes"
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+
+  build-release-assets:
+    needs: tag-and-publish
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: v${{ needs.tag-and-publish.outputs.version }}

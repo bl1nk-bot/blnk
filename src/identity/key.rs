@@ -461,11 +461,16 @@ fn set_private_directory_permissions(path: &Path) -> Result<(), BlnkError> {
     Ok(())
 }
 
-fn set_private_permissions(file: &std::fs::File) -> Result<(), BlnkError> {
+fn set_private_permissions(file: &fs::File) -> Result<(), BlnkError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = file;
     }
 
     Ok(())

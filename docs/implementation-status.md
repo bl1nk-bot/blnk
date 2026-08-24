@@ -23,9 +23,9 @@ A compiled schema, dependency, or CLI command is not an acceptance result by its
 | SWSP codec | Typed flags, canonical eight-byte little-endian header, max-payload enforcement, incomplete-frame handling, round-trip tests, and negative tests are implemented | Codec implemented; data-channel integration pending |
 | Signaling/session/stream boundaries | Typed message boundaries, discriminator validation, PIN policy, retry handling, state machine, and stream registry are implemented | Boundary implemented; runtime transport integration pending |
 | Build | `cargo fmt --all -- --check`, `cargo check --all-targets`, `cargo test --all`, and `cargo clippy --all --all-targets -- -D warnings` pass on Linux after the dependency and CI fixes | Passing on Linux |
-| CI | Format, test, and clippy jobs run on the main workflow; a cross-platform matrix and release workflow are not yet present | Partial |
+| CI | Format, test, clippy, Windows, and Android checks run in GitHub Actions. `release.yml` builds the declared Linux, Windows, and Android target packages from a version tag, verifies an aggregate `SHA256SUMS`, and attaches the assets to the immutable GitHub Release | Workflow present; runner evidence is required per tag |
 | Tests | Unit and boundary tests cover configuration, identity, pairing, SWSP, signaling, session, and generated-protobuf compilation; there is no complete two-peer remote-access test | Boundary coverage only |
-| Release | No verified Linux/Windows/Android binary artifacts, checksums, or installation flow are published | Not started |
+| Release | A matching `v<version>` tag builds packages for the declared Linux, Windows, and Android targets and publishes them with one verified `SHA256SUMS` asset. Published artifacts do not by themselves prove production deployment, device support, signing, or original-client interoperability | Automation implemented; release readiness remains gated by runner evidence and the documented security checks |
 
 ## Acceptance Gates
 

@@ -3,7 +3,7 @@
 - [ ] Base branch คือ `main` (ห้าม merge PR ไป feature/release branch)
 - [ ] PR body มี `Closes #<issue>` สำหรับ issue ที่ส่งมอบ
 - [ ] อัปเดต canonical docs/status ที่งานนี้กระทบ หรือเขียนเหตุผลในหัวข้อ Documentation decision
-- [ ] `Cargo.toml` และ `Cargo.lock` เพิ่ม patch จาก version บน `main` หนึ่งครั้งพอดี
+- [ ] `Cargo.toml` เพิ่ม semantic version ถัดไปหนึ่งครั้ง และ `Cargo.lock` สอดคล้องกัน
 - [ ] เพิ่มหัวข้อ `## [x.y.z] — PR #...` ใน `CHANGELOG.md`
 - [ ] รัน verification ที่เกี่ยวข้องและระบุผลในหัวข้อ Evidence
 - [ ] อ่าน review comments ทั้งหมดแล้ว; resolve review threads หรือบันทึกเหตุผลที่ไม่แก้
