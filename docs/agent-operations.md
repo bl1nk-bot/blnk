@@ -14,7 +14,7 @@ process พัฒนาได้จากหลักฐานและข้อ
    (`implementation-status`, architecture/API/spec/README ตามผลกระทบ). ห้ามใช้
    report แทน source of truth.
 4. เปิด PR เข้า `main` พร้อม `Closes #<issue>`, documentation decision, และ
-   verification evidence. PR gate บังคับ version/Cargo.lock/CHANGELOG patch.
+   verification evidence. PR gate บังคับ semantic version/Cargo.lock/CHANGELOG entry.
 5. อ่าน review ทั้งหมด. แก้ข้อที่ถูกต้องและ resolve thread; หากไม่แก้ ให้ตอบด้วย
    เหตุผลเชิงเทคนิคที่ตรวจได้. ห้ามเงียบหรือ merge ทั้งที่ thread ค้าง.
 6. หลัง merge ตรวจว่า merge commit เป็น ancestor ของ `origin/main`. ระบบสร้าง tag
@@ -57,7 +57,7 @@ references รายไฟล์.
 ### 2026-08-23 — release metadata is delivery state
 
 version, changelog, tag และ GitHub release ต้อง map กลับได้ถึง PR/commit เดียวกัน.
-ทุก PR เพิ่ม patch หนึ่งครั้งและหลัง merge ต้องตรวจ tag/release target; อย่าเก็บ
+ทุก PR เพิ่ม semantic version ที่ถูกต้องหนึ่งครั้งและหลัง merge ต้องตรวจ tag/release target; อย่าเก็บ
 release state ไว้ในคำตอบหรือจำด้วยมือ.
 
 ### 2026-08-23 — automation is not delegation
