@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.5] — PR #92
+- security(audit): เพิ่ม cargo audit step ใน CI ตรวจสอบ dependency vulnerabilities (closes #86)
+
 ## [0.2.4] — PR #93
 - perf(bench): เพิ่ม benchmark suite สำหรับ SWSP framing throughput และ cryptographic operations (closes #87)
 
