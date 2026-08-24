@@ -514,7 +514,7 @@ dependencies = [
 
 [[package]]
 name = "blnk"
-version = "0.1.37"
+version = "0.1.38"
 dependencies = [
  "anyhow",
  "async-broadcast",
