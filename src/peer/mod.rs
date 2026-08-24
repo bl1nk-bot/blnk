@@ -152,8 +152,13 @@ impl PeerEvents {
 }
 
 impl PeerHandle {
-    /// Builds a peer using loopback UDP sockets and the Tokio runtime.
+    /// Builds a peer using loopback UDP sockets and the Tokio runtime with default ICE configuration.
     pub async fn new() -> Result<Self, BlnkError> {
+        Self::with_ice_servers(&[]).await
+    }
+
+    /// Builds a peer using loopback UDP sockets, Tokio runtime, and specified ICE/STUN/TURN servers.
+    pub async fn with_ice_servers(ice_servers: &[String]) -> Result<Self, BlnkError> {
         let (inbound_tx, inbound_rx) = async_channel::bounded(32);
         let events = Arc::new(PeerEvents {
             inbound_tx,
@@ -178,8 +183,18 @@ impl PeerHandle {
         let registry = register_default_interceptors(Registry::new(), &mut media)
             .map_err(|error| peer_error("register interceptors", error))?;
 
+        let mut config_builder = RTCConfigurationBuilder::new();
+        if !ice_servers.is_empty() {
+            let server_urls: Vec<String> = ice_servers.to_vec();
+            config_builder =
+                config_builder.with_ice_servers(vec![webrtc::peer_connection::RTCIceServer {
+                    urls: server_urls,
+                    ..Default::default()
+                }]);
+        }
+
         let connection = PeerConnectionBuilder::new()
-            .with_configuration(RTCConfigurationBuilder::new().build())
+            .with_configuration(config_builder.build())
             .with_media_engine(media)
             .with_interceptor_registry(registry)
             .with_handler(events.clone())
@@ -563,6 +578,15 @@ mod tests {
             .close()
             .await
             .expect("answerer should close");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn peer_with_custom_ice_servers_initializes() {
+        let servers = vec!["stun:stun.l.google.com:19302".to_owned()];
+        let peer = PeerHandle::with_ice_servers(&servers)
+            .await
+            .expect("peer with ice servers should construct");
+        peer.close().await.expect("peer should close cleanly");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.2] — PR #91
+- feat(nat): รองรับการกำหนด STUN/TURN ICE servers ผ่าน Config และ PeerHandle::with_ice_servers (closes #84)
+
 ## [0.2.1] — PR #100
 - docs: เพิ่ม `CONTRIBUTING.md` และ `PROTOCOL.md` อธิบายขั้นตอนการมีส่วนร่วมและ SWSP protocol architecture (closes #88)
 

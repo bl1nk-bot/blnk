@@ -15,6 +15,15 @@ pub struct Config {
     pub devices_path: String,
     #[serde(default)]
     pub pin: Option<String>,
+    #[serde(default = "default_ice_servers")]
+    pub ice_servers: Vec<String>,
+}
+
+fn default_ice_servers() -> Vec<String> {
+    vec![
+        "stun:stun.l.google.com:19302".to_owned(),
+        "stun:stun1.l.google.com:19302".to_owned(),
+    ]
 }
 
 fn default_signaling_url() -> String {
@@ -36,6 +45,7 @@ impl Default for Config {
             identity_path: default_identity_path(),
             devices_path: default_devices_path(),
             pin: None,
+            ice_servers: default_ice_servers(),
         }
     }
 }
@@ -48,6 +58,7 @@ impl Config {
             .set_default("identity_path", defaults.identity_path)?
             .set_default("devices_path", defaults.devices_path)?
             .set_default("pin", defaults.pin)?
+            .set_default("ice_servers", defaults.ice_servers)?
             .add_source(config::File::with_name("blnk.toml").required(false))
             .add_source(config::Environment::with_prefix("BLNK").separator("_"))
             .build()?;
@@ -149,12 +160,14 @@ mod tests {
             identity_path: "/tmp/blnk-identity.json".to_owned(),
             devices_path: "/tmp/blnk-devices.json".to_owned(),
             pin: Some("1234".to_owned()),
+            ice_servers: vec!["stun:custom.stun.org:3478".to_owned()],
         };
 
         assert_eq!(cfg.signaling_url, "wss://example.test/ws");
         assert_eq!(cfg.identity_path, "/tmp/blnk-identity.json");
         assert_eq!(cfg.devices_path, "/tmp/blnk-devices.json");
         assert_eq!(cfg.pin.as_deref(), Some("1234"));
+        assert_eq!(cfg.ice_servers, vec!["stun:custom.stun.org:3478"]);
     }
 
     #[test]
