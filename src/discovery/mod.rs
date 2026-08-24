@@ -62,9 +62,7 @@ impl Drop for MdnsResponder {
 }
 
 /// Discover blnk peers on the local LAN network using mDNS.
-pub async fn discover_local_peers(
-    timeout: Duration,
-) -> Result<Vec<DiscoveredPeer>, BlnkError> {
+pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPeer>, BlnkError> {
     let discovery = match mdns::discover::all(BLNK_MDNS_SERVICE_NAME, timeout) {
         Ok(d) => d,
         Err(e) => {
@@ -96,7 +94,9 @@ pub async fn discover_local_peers(
                             ip = Some(IpAddr::V6(*v6));
                         }
                     }
-                    mdns::RecordKind::SRV { port: p, target, .. } => {
+                    mdns::RecordKind::SRV {
+                        port: p, target, ..
+                    } => {
                         port = *p;
                         host_name = Some(target.clone());
                     }
@@ -112,7 +112,9 @@ pub async fn discover_local_peers(
             }
 
             let resolved_id = uid.or_else(|| {
-                host_name.as_ref().and_then(|h| h.split('.').next().map(|s| s.to_string()))
+                host_name
+                    .as_ref()
+                    .and_then(|h| h.split('.').next().map(|s| s.to_string()))
             });
 
             if let (Some(id), Some(ip)) = (resolved_id, ip) {
