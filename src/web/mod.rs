@@ -1095,9 +1095,7 @@ mod tests {
         );
 
         socket
-            .send(tungstenite::Message::Text(
-                "x".repeat(512).into(),
-            ))
+            .send(tungstenite::Message::Text("x".repeat(512).into()))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;

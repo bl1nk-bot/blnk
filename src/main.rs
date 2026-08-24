@@ -282,11 +282,10 @@ async fn run_cp(args: CpArgs) -> Result<()> {
 async fn run_devices(args: DevicesArgs) -> Result<()> {
     if args.local {
         println!("Discovering blnk peers on local network (mDNS)...");
-        let peers = blnk::discovery::discover_local_peers(
-            blnk::discovery::DEFAULT_MDNS_DISCOVERY_TIMEOUT,
-        )
-        .await
-        .context("mDNS peer discovery failed")?;
+        let peers =
+            blnk::discovery::discover_local_peers(blnk::discovery::DEFAULT_MDNS_DISCOVERY_TIMEOUT)
+                .await
+                .context("mDNS peer discovery failed")?;
 
         if peers.is_empty() {
             println!("No local blnk peers found.");
