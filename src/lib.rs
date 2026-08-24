@@ -4,7 +4,6 @@ pub mod identity;
 pub mod peer;
 pub mod proto_generated;
 pub mod protocol;
-pub mod qr;
 pub mod session;
 pub mod signaling;
 pub mod stream;
