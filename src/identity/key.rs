@@ -178,10 +178,10 @@ impl Identity {
 
         let mut output = Vec::new();
         output.extend_from_slice(
-            encode_pem_block("PRIVATE KEY", private_key_der.as_bytes()).as_bytes(),
+            encode_pem_block("PRIVATE KEY", private_key_der.as_bytes())?.as_bytes(),
         );
         output.extend_from_slice(
-            encode_pem_block("BITBANG ACCESS CODE", &access_code_bytes).as_bytes(),
+            encode_pem_block("BITBANG ACCESS CODE", &access_code_bytes)?.as_bytes(),
         );
         Ok(output)
     }
@@ -353,15 +353,17 @@ fn decode_pem_block(contents: &str, block_type: &str) -> Result<Vec<u8>, BlnkErr
         .map_err(|error| BlnkError::Identity(format!("decode {block_type} block: {error}")))
 }
 
-fn encode_pem_block(block_type: &str, bytes: &[u8]) -> String {
+fn encode_pem_block(block_type: &str, bytes: &[u8]) -> Result<String, BlnkError> {
     let encoded = STANDARD.encode(bytes);
     let mut output = format!("-----BEGIN {block_type}-----\n");
     for chunk in encoded.as_bytes().chunks(64) {
-        output.push_str(std::str::from_utf8(chunk).expect("base64 output is ASCII"));
+        let chunk_str = std::str::from_utf8(chunk)
+            .map_err(|error| BlnkError::Identity(format!("encode PEM block UTF-8: {error}")))?;
+        output.push_str(chunk_str);
         output.push('\n');
     }
     let _ = writeln!(output, "-----END {block_type}-----");
-    output
+    Ok(output)
 }
 
 fn generate_pairing_code() -> Result<String, BlnkError> {

@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.6] — PR #101
+- fix(security): ใช้ Sha256 digest constant-time check ใน constant_time_string_eq และส่งผ่าน typed error แทน expect ใน PEM encoding
+
 ## [0.2.5] — PR #92
 - security(audit): เพิ่ม cargo audit step ใน CI ตรวจสอบ dependency vulnerabilities (closes #86)
 

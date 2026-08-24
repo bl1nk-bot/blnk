@@ -719,15 +719,9 @@ fn fingerprint_for_sdp(sdp: &str) -> String {
 }
 
 fn constant_time_string_eq(expected: &str, provided: &str) -> bool {
-    let expected_bytes = expected.as_bytes();
-    let provided_bytes = provided.as_bytes();
-    let max_len = expected_bytes.len().max(provided_bytes.len());
-    let mut difference = 0_u8;
-    for index in 0..max_len {
-        difference |= expected_bytes.get(index).copied().unwrap_or_default()
-            ^ provided_bytes.get(index).copied().unwrap_or_default();
-    }
-    difference == 0 && expected_bytes.len() == provided_bytes.len()
+    let expected_digest = Sha256::digest(expected.as_bytes());
+    let provided_digest = Sha256::digest(provided.as_bytes());
+    expected_digest.ct_eq(&provided_digest).into()
 }
 
 fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
