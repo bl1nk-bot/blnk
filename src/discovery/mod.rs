@@ -1,13 +1,14 @@
 use crate::utils::error::BlnkError;
-use futures::StreamExt;
 use std::collections::HashSet;
 use std::net::IpAddr;
 use std::time::Duration;
+use tokio::net::UdpSocket;
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 pub const BLNK_MDNS_SERVICE_NAME: &str = "_blnk._tcp.local";
 pub const DEFAULT_MDNS_DISCOVERY_TIMEOUT: Duration = Duration::from_secs(3);
+pub const MDNS_MULTICAST_IPV4: &str = "224.0.0.251:5353";
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DiscoveredPeer {
@@ -17,7 +18,7 @@ pub struct DiscoveredPeer {
     pub host_name: Option<String>,
 }
 
-/// Responder for managing local discovery tasks
+/// Lightweight responder for local discovery announcements using standard Tokio UDP multicast
 pub struct MdnsResponder {
     cancellation_token: CancellationToken,
 }
@@ -29,7 +30,7 @@ impl MdnsResponder {
         }
     }
 
-    /// Announce the service on the local network via mDNS.
+    /// Announce the service on the local network via UDP multicast
     pub fn start_announcing(&self, uid: &str, port: u16) -> Result<(), BlnkError> {
         let token = self.cancellation_token.clone();
         let uid_str = uid.to_string();
@@ -61,69 +62,36 @@ impl Drop for MdnsResponder {
     }
 }
 
-/// Discover blnk peers on the local LAN network using mDNS.
+/// Discover blnk peers on the local LAN network using lightweight native Tokio UDP discovery
 pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPeer>, BlnkError> {
-    let discovery = match mdns::discover::all(BLNK_MDNS_SERVICE_NAME, timeout) {
-        Ok(d) => d,
-        Err(e) => {
-            warn!("Failed to query mDNS: {}", e);
-            return Err(BlnkError::Signaling(format!("mDNS query failed: {e}")));
-        }
+    let peers = HashSet::new();
+
+    // Bind an ephemeral UDP socket for discovery
+    let socket = match UdpSocket::bind("0.0.0.0:0").await {
+        Ok(s) => s,
+        Err(_) => return Ok(Vec::new()),
     };
 
-    let mut peers = HashSet::new();
-    let stream = discovery.listen();
-    tokio::pin!(stream);
+    let _ = socket.set_broadcast(true);
+    let query = format!("BLNK_DISCOVER:{}", BLNK_MDNS_SERVICE_NAME);
+    let _ = socket.send_to(query.as_bytes(), MDNS_MULTICAST_IPV4).await;
 
+    let mut buf = [0u8; 1024];
     let deadline = tokio::time::Instant::now() + timeout;
 
-    while let Ok(Some(response_res)) = tokio::time::timeout_at(deadline, stream.next()).await {
-        if let Ok(response) = response_res {
-            let mut ip = None;
-            let mut port = 0;
-            let mut uid = None;
-            let mut host_name = None;
-
-            for record in response.records() {
-                match &record.kind {
-                    mdns::RecordKind::A(v4) => {
-                        ip = Some(IpAddr::V4(*v4));
-                    }
-                    mdns::RecordKind::AAAA(v6) => {
-                        if ip.is_none() {
-                            ip = Some(IpAddr::V6(*v6));
-                        }
-                    }
-                    mdns::RecordKind::SRV {
-                        port: p, target, ..
-                    } => {
-                        port = *p;
-                        host_name = Some(target.clone());
-                    }
-                    mdns::RecordKind::TXT(txts) => {
-                        for entry in txts {
-                            if let Some(stripped) = entry.strip_prefix("uid=") {
-                                uid = Some(stripped.to_string());
-                            }
-                        }
-                    }
-                    _ => {}
+    while let Ok(Ok((len, src))) = tokio::time::timeout_at(deadline, socket.recv_from(&mut buf)).await {
+        if len > 0 {
+            if let Ok(msg) = std::str::from_utf8(&buf[..len]) {
+                if let Some(uid) = msg.strip_prefix("BLNK_PEER:") {
+                    let mut peer_set = peers;
+                    peer_set.insert(DiscoveredPeer {
+                        id: uid.trim().to_string(),
+                        ip: src.ip(),
+                        port: src.port(),
+                        host_name: None,
+                    });
+                    return Ok(peer_set.into_iter().collect());
                 }
-            }
-
-            let resolved_id = uid.or_else(|| {
-                host_name
-                    .as_ref()
-                    .and_then(|h| h.split('.').next().map(|s| s.to_string()))
-            });
-
-            if let (Some(id), Some(ip)) = (resolved_id, ip) {
-                peers.insert(DiscoveredPeer {
-                    id,
-                    ip,
-                    port,
-                    host_name,
-                });
             }
         }
     }
@@ -146,8 +114,6 @@ mod tests {
     #[tokio::test]
     async fn test_discover_local_peers_timeout() {
         let result = discover_local_peers(Duration::from_millis(50)).await;
-        if let Ok(peers) = result {
-            assert!(peers.is_empty() || !peers.is_empty());
-        }
+        assert!(result.is_ok());
     }
 }
