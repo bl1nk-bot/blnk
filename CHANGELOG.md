@@ -2,6 +2,13 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.8] — PR #106
+- docs: เพิ่ม demo animation (.gif) และ terminal screen captures (.png) พร้อมปรับปรุง README สื่อสารความสามารถหลักของโครงการให้ชัดเจน
+
+## [0.2.7] — PR #102
+- feat(installer): เพิ่ม one-line install & update scripts (`install.ps1`, `update.ps1`, `install.sh`) และปรับปรุง CI/Release workflows ให้ประหยัดโควตา
+- docs: อัปเดต `TODO.md` และ `README.md` พร้อมคู่มือการติดตั้งและสถานะ roadmap ล่าสุด
+
 ## [0.2.6] — PR #101
 - fix(security): ใช้ Sha256 digest constant-time check ใน constant_time_string_eq และส่งผ่าน typed error แทน expect ใน PEM encoding
 

@@ -168,4 +168,36 @@ mod tests {
         assert!(args.local_fixture);
         assert_eq!(args.command, ["printf", "hello"]);
     }
+
+    #[test]
+    fn serve_and_devices_flags_are_parseable() {
+        let cli = TestCli::try_parse_from([
+            "blnk",
+            "serve",
+            "--signaling-url",
+            "ws://127.0.0.1:9000",
+            "--local-fixture",
+            "--once",
+            "--pin",
+            "654321",
+            "--qr",
+        ])
+        .expect("serve args should parse");
+        let TestCommand::Serve(args) = cli.command else {
+            panic!("expected serve command");
+        };
+        assert_eq!(args.signaling_url.as_deref(), Some("ws://127.0.0.1:9000"));
+        assert!(args.local_fixture);
+        assert!(args.once);
+        assert_eq!(args.pin.as_deref(), Some("654321"));
+        assert!(args.qr);
+
+        let cli_devices = TestCli::try_parse_from(["blnk", "devices", "--list", "--local"])
+            .expect("devices args should parse");
+        let TestCommand::Devices(dev_args) = cli_devices.command else {
+            panic!("expected devices command");
+        };
+        assert!(dev_args.list);
+        assert!(dev_args.local);
+    }
 }

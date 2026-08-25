@@ -1,2 +1,30 @@
+# Rust build artifacts
 /target
 /dist/
+**/*.rs.bk
+*.pdb
+
+# Local identity & runtime files
+identity.json
+devices.json
+config.toml
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Test coverage & profiling
+*.profraw
+*.profdata
+/coverage/
+
+# Benchmarks
+/benches/target/

@@ -1,6 +1,26 @@
 # blnk Rust
 
->blnk Rust คือการพอร์ต `bitbang-cli` จากภาษา Go มาเป็น Rust โดยรักษาความสามารถหลักให้เทียบเท่าต้นฉบับ และออกแบบใหม่ให้เหมาะกับการพัฒนา, ทดสอบ, และดูแลรักษาในระยะยาว
+> **blnk** เป็น CLI tool ภาษา Rust สำหรับ remote access แบบ peer-to-peer ผ่าน WebRTC โดยไม่ต้องสมัครบัญชี ไม่ต้องตั้งค่า Port Forwarding และมีความปลอดภัยสูงด้วย RSA-2048 identity และ Short Authentication String (SAS)
+
+![blnk Demo](docs/assets/blnk-demo.gif)
+
+## ไฮไลต์ความสามารถ (Features)
+
+- **Peer-to-Peer Shell & File Transfer:** ควบคุมรีโมตเชลล์และรับส่งไฟล์ความเร็วสูงผ่าน WebRTC Data Channel ด้วยโปรโตคอล SWSP
+- **Local LAN Discovery (mDNS):** ค้นหาอุปกรณ์ในวงเครือข่ายเดียวกันอัตโนมัติด้วยคำสั่ง `blnk devices --local`
+- **Instant Terminal QR Code:** สร้าง ASCII/ANSI QR Code บน Terminal เพื่อสแกนจับคู่อุปกรณ์ได้อย่างรวดเร็ว (`blnk serve --qr`)
+- **NAT Traversal:** รองรับ STUN/TURN ICE Servers สำหรับเชื่อมต่อข้ามไฟร์วอลล์
+- **Zero Configuration Loopback Fixture:** ทดสอบฟังก์ชันทั้งหมดได้ทันทีในเครื่องเดียวด้วย `--local-fixture`
+
+---
+
+## ภาพตัวอย่างการใช้งาน (Previews)
+
+| การเปิดบริการและแสดง QR Code (`blnk serve --qr`) | การค้นหาอุปกรณ์ LAN และเชื่อมต่อ (`blnk devices` & `connect`) |
+|---|---|
+| ![blnk Serve QR](docs/assets/blnk-serve-qr.png) | ![blnk Connect & Transfer](docs/assets/blnk-connect-transfer.png) |
+
+---
 
 ## วัตถุประสงค์
 
@@ -74,6 +94,38 @@ scripts/release_gate.sh
 ```
 
 คำสั่งนี้ใช้ `Cargo.lock` แบบ locked, รัน Linux validation, สร้าง tarball/checksum/provenance และตรวจ `blnk --version` หลัง extract artifact โดยไม่ publish tag หรือ GitHub Release อัตโนมัติ Workflow [`release-gate.yml`](.github/workflows/release-gate.yml) เพิ่ม Windows build/test/package evidence, Android `aarch64-linux-android` compile-only evidence และ RustSec advisory audit บน runner จริง การมี Linux artifact หรือ compile evidence ไม่ใช่หลักฐานของ browser/external interoperability, production TLS, device runtime, signed installer หรือ macOS support
+
+## การติดตั้งและอัปเดต (Installation & Updates)
+
+### ติดตั้งคำสั่งเดียว (One-line Install)
+
+* **Windows (PowerShell):**
+  ```powershell
+  irm https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.ps1 | iex
+  ```
+  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า User `PATH` ให้อัตโนมัติ)*
+
+* **Linux (Bash):**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash
+  ```
+  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า `PATH` ใน `.bashrc`/`.zshrc` ให้อัตโนมัติ)*
+
+### การอัปเดต (Updates)
+
+โดยดีฟอลต์ ระบบจะตั้งค่าเป็น **Manual Update**
+
+* **อัปเดตแบบ Manual (เช็คและอัปเกรดเป็นเวอร์ชันล่าสุด):**
+  - Windows: `.\scripts\update.ps1`
+  - Linux: `curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash`
+* **เปิดใช้งาน Auto Update:**
+  - Windows: `.\scripts\update.ps1 -SetAuto`
+  - Linux: `./scripts/install.sh --auto-update`
+* **สลับกลับเป็น Manual Update:**
+  - Windows: `.\scripts\update.ps1 -SetManual`
+  - Linux: `./scripts/install.sh --manual-update`
+
+---
 
 ## Quick Start
 

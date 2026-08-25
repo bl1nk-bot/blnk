@@ -44,6 +44,10 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -73,15 +77,15 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     let _ = mdns_responder.start_announcing(identity.uid(), 0);
 
     if args.qr {
-        let pairing_payload = blnk::qr::PairingQrPayload {
+        let pairing_payload = blnk::utils::qr::PairingQrPayload {
             uid: identity.uid().to_string(),
             pairing_code: identity.pairing_code().to_string(),
             endpoint: signaling_url.clone(),
         };
         let payload_str = pairing_payload.to_payload_string();
         println!("\n--- Pairing QR Code ---");
-        match blnk::qr::render_qr_terminal(&payload_str)
-            .or_else(|_| blnk::qr::render_qr_ascii(&payload_str))
+        match blnk::utils::qr::render_qr_terminal(&payload_str)
+            .or_else(|_| blnk::utils::qr::render_qr_ascii(&payload_str))
         {
             Ok(qr_rendered) => println!("{qr_rendered}"),
             Err(err) => println!("Failed to render QR: {err}"),

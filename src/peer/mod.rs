@@ -54,6 +54,21 @@ struct PeerEvents {
 
 #[async_trait]
 impl PeerConnectionEventHandler for PeerEvents {
+    async fn on_ice_candidate(&self, _event: RTCPeerConnectionIceEvent) {}
+
+    async fn on_ice_candidate_error(&self, _event: RTCPeerConnectionIceErrorEvent) {}
+
+    async fn on_signaling_state_change(&self, _state: RTCSignalingState) {}
+
+    async fn on_ice_connection_state_change(&self, state: RTCIceConnectionState) {
+        tracing::debug!(?state, "WebRTC ICE connection state changed");
+        if state == RTCIceConnectionState::Failed {
+            let mut failure = self.connection_failure.lock().await;
+            *failure = Some("ICE connection entered Failed state".to_owned());
+            self.connection_state_changed.notify_waiters();
+        }
+    }
+
     async fn on_ice_gathering_state_change(&self, state: RTCIceGatheringState) {
         if state == RTCIceGatheringState::Complete {
             self.gathering_done.store(true, Ordering::Release);
@@ -79,24 +94,9 @@ impl PeerConnectionEventHandler for PeerEvents {
         }
     }
 
-    async fn on_ice_connection_state_change(&self, state: RTCIceConnectionState) {
-        tracing::debug!(?state, "WebRTC ICE connection state changed");
-        if state == RTCIceConnectionState::Failed {
-            let mut failure = self.connection_failure.lock().await;
-            *failure = Some("ICE connection entered Failed state".to_owned());
-            self.connection_state_changed.notify_waiters();
-        }
-    }
-
     async fn on_data_channel(&self, channel: Arc<dyn DataChannel>) {
         self.install_channel(channel).await;
     }
-
-    async fn on_ice_candidate(&self, _event: RTCPeerConnectionIceEvent) {}
-
-    async fn on_ice_candidate_error(&self, _event: RTCPeerConnectionIceErrorEvent) {}
-
-    async fn on_signaling_state_change(&self, _state: RTCSignalingState) {}
 }
 
 impl PeerEvents {

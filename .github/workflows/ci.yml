@@ -36,15 +36,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.0
       - run: cargo test --all --verbose
 
-  windows:
-    name: Build and test (Windows)
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.97.0
-      - run: cargo check --all-targets
-      - run: cargo test --all --verbose
-
   android:
     name: Compile (Android)
     runs-on: ubuntu-latest

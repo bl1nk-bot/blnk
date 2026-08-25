@@ -1,6 +1,6 @@
 [package]
 name = "blnk"
-version = "0.2.6"
+version = "0.2.8"
 edition = "2024"
 authors = ["Dollawatt Chidjai"]
 description = "Remote access multitool in Rust"
@@ -24,11 +24,7 @@ tokio-util = "0.7.19"
 futures = "0.3.33"
 async-trait = "0.1.91"           # Type erasure for async trait methods
 async-channel = "2.5.0"
-async-broadcast = "0.7.2"
-event-listener = "5.4.1"
 prost = "0.14.4"
-prost-types = "0.14.4"
-prost-derive = "0.14.4"
 
 # For WebSocket support
 tokio-tungstenite = "0.30.0"
@@ -39,7 +35,6 @@ bytes = "1.12.1"
 axum = { version = "0.8.9", features = ["ws"] }
 tungstenite = "0.30.0"
 reqwest = { version = "0.13.4", features = ["json"] }
-hyper = "1.11.0"
 http = "1.5.0"
 
 # CLI & Config
@@ -55,10 +50,9 @@ thiserror = "2.0.19"
 anyhow = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 qrcode = "0.14.1"
-mdns = "3.0.0"
 url = "2.0"
-getrandom = "0.3"
-base64 = "0.22"
+getrandom = "0.4"
+base64 = "0.23"
 rsa = { version = "0.9", features = ["sha2", "pem"] }
 sha2 = { version = "0.10", features = ["oid"] }
 subtle = "2.6"
@@ -75,7 +69,6 @@ prost-build = "0.14.4"
 protoc-bin-vendored = "3"
 
 [dev-dependencies]
-tokio-test = "0.4"
 
 [[bench]]
 name = "performance"
