@@ -1,6 +1,26 @@
 # blnk Rust
 
->blnk Rust คือการพอร์ต `bitbang-cli` จากภาษา Go มาเป็น Rust โดยรักษาความสามารถหลักให้เทียบเท่าต้นฉบับ และออกแบบใหม่ให้เหมาะกับการพัฒนา, ทดสอบ, และดูแลรักษาในระยะยาว
+> **blnk** เป็น CLI tool ภาษา Rust สำหรับ remote access แบบ peer-to-peer ผ่าน WebRTC โดยไม่ต้องสมัครบัญชี ไม่ต้องตั้งค่า Port Forwarding และมีความปลอดภัยสูงด้วย RSA-2048 identity และ Short Authentication String (SAS)
+
+![blnk Demo](docs/assets/blnk-demo.gif)
+
+## ไฮไลต์ความสามารถ (Features)
+
+- **Peer-to-Peer Shell & File Transfer:** ควบคุมรีโมตเชลล์และรับส่งไฟล์ความเร็วสูงผ่าน WebRTC Data Channel ด้วยโปรโตคอล SWSP
+- **Local LAN Discovery (mDNS):** ค้นหาอุปกรณ์ในวงเครือข่ายเดียวกันอัตโนมัติด้วยคำสั่ง `blnk devices --local`
+- **Instant Terminal QR Code:** สร้าง ASCII/ANSI QR Code บน Terminal เพื่อสแกนจับคู่อุปกรณ์ได้อย่างรวดเร็ว (`blnk serve --qr`)
+- **NAT Traversal:** รองรับ STUN/TURN ICE Servers สำหรับเชื่อมต่อข้ามไฟร์วอลล์
+- **Zero Configuration Loopback Fixture:** ทดสอบฟังก์ชันทั้งหมดได้ทันทีในเครื่องเดียวด้วย `--local-fixture`
+
+---
+
+## ภาพตัวอย่างการใช้งาน (Previews)
+
+| การเปิดบริการและแสดง QR Code (`blnk serve --qr`) | การค้นหาอุปกรณ์ LAN และเชื่อมต่อ (`blnk devices` & `connect`) |
+|---|---|
+| ![blnk Serve QR](docs/assets/blnk-serve-qr.png) | ![blnk Connect & Transfer](docs/assets/blnk-connect-transfer.png) |
+
+---
 
 ## วัตถุประสงค์
 

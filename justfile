@@ -39,6 +39,18 @@ build-release:
 bench:
     cargo bench
 
+# Bump patch version and sync Cargo.lock + CHANGELOG.md (usage: just bump [pr_number] [message])
+bump pr="0" msg="chore: release update":
+    @python scripts/bump_version.py {{pr}} "{{msg}}"
+
+# Setup git hooks to use just for local CI checks before push
+setup-hooks:
+    @mkdir -p .git/hooks
+    @echo '#!/bin/sh' > .git/hooks/pre-push
+    @echo 'echo "==> Running just ci before push..."' >> .git/hooks/pre-push
+    @echo 'just ci || exit 1' >> .git/hooks/pre-push
+    @chmod +x .git/hooks/pre-push
+    @echo "==> Git pre-push hook installed successfully!"
 # Clean build artifacts
 clean:
     cargo clean

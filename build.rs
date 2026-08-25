@@ -19,13 +19,14 @@ fn main() {
 
     // Dynamically discover all .proto files in the proto directory to easily support future features
     let mut proto_files = Vec::new();
-    if proto_dir.exists() && proto_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&proto_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("proto") {
-                    proto_files.push(path);
-                }
+    if proto_dir.exists()
+        && proto_dir.is_dir()
+        && let Ok(entries) = fs::read_dir(&proto_dir)
+    {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("proto") {
+                proto_files.push(path);
             }
         }
     }

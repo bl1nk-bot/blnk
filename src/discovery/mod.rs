@@ -64,7 +64,7 @@ impl Drop for MdnsResponder {
 
 /// Discover blnk peers on the local LAN network using lightweight native Tokio UDP discovery
 pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPeer>, BlnkError> {
-    let peers = HashSet::new();
+    let mut peers = HashSet::new();
 
     // Bind an ephemeral UDP socket for discovery
     let socket = match UdpSocket::bind("0.0.0.0:0").await {
@@ -79,20 +79,19 @@ pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPee
     let mut buf = [0u8; 1024];
     let deadline = tokio::time::Instant::now() + timeout;
 
-    while let Ok(Ok((len, src))) = tokio::time::timeout_at(deadline, socket.recv_from(&mut buf)).await {
-        if len > 0 {
-            if let Ok(msg) = std::str::from_utf8(&buf[..len]) {
-                if let Some(uid) = msg.strip_prefix("BLNK_PEER:") {
-                    let mut peer_set = peers;
-                    peer_set.insert(DiscoveredPeer {
-                        id: uid.trim().to_string(),
-                        ip: src.ip(),
-                        port: src.port(),
-                        host_name: None,
-                    });
-                    return Ok(peer_set.into_iter().collect());
-                }
-            }
+    while let Ok(Ok((len, src))) =
+        tokio::time::timeout_at(deadline, socket.recv_from(&mut buf)).await
+    {
+        if len > 0
+            && let Ok(msg) = std::str::from_utf8(&buf[..len])
+            && let Some(uid) = msg.strip_prefix("BLNK_PEER:")
+        {
+            peers.insert(DiscoveredPeer {
+                id: uid.trim().to_string(),
+                ip: src.ip(),
+                port: src.port(),
+                host_name: None,
+            });
         }
     }
 
