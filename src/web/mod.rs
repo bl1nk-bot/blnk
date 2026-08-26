@@ -10,7 +10,7 @@ use axum::extract::{Json, Path, State};
 use axum::http::header::{
     ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
     ACCESS_CONTROL_ALLOW_ORIGIN, AUTHORIZATION, CACHE_CONTROL, CONTENT_LENGTH, COOKIE, ORIGIN,
-    SET_COOKIE, VARY, WWW_AUTHENTICATE, X_CONTENT_TYPE_OPTIONS,
+    SET_COOKIE, VARY, WWW_AUTHENTICATE, X_CONTENT_TYPE_OPTIONS, X_FRAME_OPTIONS,
 };
 use axum::http::{HeaderMap, HeaderValue, Request, StatusCode};
 use axum::middleware::{Next, from_fn_with_state};
@@ -398,6 +398,9 @@ async fn security_headers(
     response
         .headers_mut()
         .insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    response
+        .headers_mut()
+        .insert(X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
     response
         .headers_mut()
         .insert(VARY, HeaderValue::from_static("Origin"));
@@ -1014,6 +1017,13 @@ mod tests {
             .await
             .expect("health request");
         assert_eq!(disallowed_origin.status(), ReqwestStatusCode::OK);
+        assert_eq!(
+            disallowed_origin
+                .headers()
+                .get("x-frame-options")
+                .and_then(|value| value.to_str().ok()),
+            Some("DENY")
+        );
         assert!(
             disallowed_origin
                 .headers()
