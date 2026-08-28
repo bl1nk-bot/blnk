@@ -806,13 +806,17 @@ fn csrf_allowed(headers: &HeaderMap, expected: &str) -> bool {
 
 fn session_cookie(headers: &HeaderMap) -> Option<&str> {
     headers
-        .get(COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_header| {
-            cookie_header.split(';').find_map(|part| {
-                let (name, value) = part.trim().split_once('=')?;
-                (name == SESSION_COOKIE_NAME).then_some(value)
-            })
+        .get_all(COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|cookie_header| cookie_header.split(';'))
+        .find_map(|part| {
+            let (name, value) = part.trim().split_once('=')?;
+            if name == SESSION_COOKIE_NAME {
+                Some(value.trim().trim_matches('"'))
+            } else {
+                None
+            }
         })
 }
 
@@ -1100,5 +1104,16 @@ mod tests {
             .expect("oversized frame send");
         let _ = socket.next().await;
         server.shutdown().await.expect("fixture shutdown");
+    }
+
+    #[test]
+    fn session_cookie_parses_multiple_headers_and_quoted_values() {
+        let mut headers = HeaderMap::new();
+        headers.append(COOKIE, HeaderValue::from_static("other=123"));
+        headers.append(
+            COOKIE,
+            HeaderValue::from_static("blnk_session=\"test_token_123\""),
+        );
+        assert_eq!(session_cookie(&headers), Some("test_token_123"));
     }
 }
