@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.10] — PR #116
+- fix(security): prevent short-circuit timing leak in pin comparison
+
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop
 
