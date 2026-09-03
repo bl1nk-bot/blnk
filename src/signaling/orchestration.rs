@@ -732,7 +732,8 @@ fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
     expected_fixed[..expected_copy_len].copy_from_slice(&expected.as_bytes()[..expected_copy_len]);
     provided_fixed[..provided_copy_len].copy_from_slice(&provided.as_bytes()[..provided_copy_len]);
     let contents_match: bool = expected_fixed.ct_eq(&provided_fixed).into();
-    contents_match && expected.len() == PIN_LEN && provided.len() == PIN_LEN
+    // Use bitwise AND to avoid short-circuiting timing side-channels during PIN comparison
+    contents_match & (expected.len() == PIN_LEN) & (provided.len() == PIN_LEN)
 }
 
 fn validate_timeout(timeout: Duration) -> SignalingResult<()> {
