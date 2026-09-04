@@ -1,2 +1,0 @@
-[advisories]
-ignore = ["RUSTSEC-2023-0071"] # No patch available yet for RSA crate (Marvin Attack)
