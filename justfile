@@ -51,7 +51,6 @@ setup-hooks:
     @echo 'just ci || exit 1' >> .git/hooks/pre-push
     @chmod +x .git/hooks/pre-push
     @echo "==> Git pre-push hook installed successfully!"
-
 # Clean build artifacts
 clean:
     cargo clean

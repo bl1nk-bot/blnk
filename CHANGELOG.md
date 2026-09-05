@@ -1,7 +1,5 @@
 # Changelog
 
-ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
-
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
