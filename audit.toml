@@ -1,0 +1,3 @@
+# Configuration for cargo-audit / rustsec audit-check
+[advisories]
+ignore = ["RUSTSEC-2023-0071"]
