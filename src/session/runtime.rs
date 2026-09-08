@@ -163,7 +163,7 @@ impl ControlMessage {
 }
 
 /// Configuration for one side of a session runtime.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SessionRuntimeConfig {
     pub role: SessionRole,
     pub session: SessionConfig,
@@ -174,6 +174,24 @@ pub struct SessionRuntimeConfig {
     pub capabilities: Vec<String>,
     pub routing: String,
     pub control_timeout: Duration,
+}
+
+impl std::fmt::Debug for SessionRuntimeConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let expected_pin = self.expected_pin.as_ref().map(|_| "<redacted>");
+        let auth_pins: Vec<&'static str> = self.auth_pins.iter().map(|_| "<redacted>").collect();
+        f.debug_struct("SessionRuntimeConfig")
+            .field("role", &self.role)
+            .field("session", &self.session)
+            .field("expected_pin", &expected_pin)
+            .field("auth_pins", &auth_pins)
+            .field("connect_path", &self.connect_path)
+            .field("server_version", &self.server_version)
+            .field("capabilities", &self.capabilities)
+            .field("routing", &self.routing)
+            .field("control_timeout", &self.control_timeout)
+            .finish()
+    }
 }
 
 impl SessionRuntimeConfig {
@@ -1224,5 +1242,23 @@ mod tests {
         );
         let peer = harness.answerer;
         peer.close().await.expect("peer close");
+    }
+
+    #[test]
+    fn session_runtime_config_debug_redacts_pins() {
+        let server_config = SessionRuntimeConfig::server("secret-server-pin");
+        let client_config = SessionRuntimeConfig::client("secret-client-pin")
+            .with_auth_pins(vec!["secret-pin-1".into(), "secret-pin-2".into()]);
+
+        let server_debug = format!("{server_config:?}");
+        let client_debug = format!("{client_config:?}");
+
+        assert!(!server_debug.contains("secret-server-pin"));
+        assert!(server_debug.contains("<redacted>"));
+
+        assert!(!client_debug.contains("secret-client-pin"));
+        assert!(!client_debug.contains("secret-pin-1"));
+        assert!(!client_debug.contains("secret-pin-2"));
+        assert!(client_debug.contains("<redacted>"));
     }
 }
