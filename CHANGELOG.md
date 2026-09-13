@@ -1,7 +1,6 @@
 # Changelog
 
-## [0.2.11] — PR #122, #123
-- chore(security): prevent session PIN leak in debug logs
+## [0.2.12] — PR #123
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
 
 ## [0.2.10]

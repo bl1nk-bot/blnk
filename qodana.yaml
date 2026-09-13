@@ -1,4 +1,4 @@
 version: "1.0"
-linter: jetbrains/qodana-rust:latest
+linter: jetbrains/qodana-cd:2024.2
 profile:
   name: qodana.starter
