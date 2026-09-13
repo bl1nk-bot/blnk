@@ -1,14 +1,16 @@
 # Changelog
 
-## [0.2.11] — PR #122, #123
+## [0.2.13] — PR #122, #123
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
 
-## [0.2.10]
+## [0.2.12]
 - chore(security): prevent bootstrap token leak in debug logs
 
-## [0.2.10]
+## [0.2.11]
 - fix(web): support multiple cookie headers and quoted session tokens
+## [0.2.10] — PR #108
+- chore(security): remove expect in proxy frame flag helpers to prevent potential panic in production code
 
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop

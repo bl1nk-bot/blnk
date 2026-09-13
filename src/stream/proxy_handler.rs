@@ -33,15 +33,14 @@ use super::proxy::{
 pub type ProxyHandlerResult<T> = Result<T, BlnkError>;
 
 const SYN_DAT_BITS: u16 = FrameFlags::SYN.bits() | FrameFlags::DAT.bits();
-const DAT_MORE_BITS: u16 = FrameFlags::DAT.bits() | FrameFlags::MORE.bits();
 const MAX_FRAME_DATA: usize = 16 * 1024;
 
 fn syn_dat_flags() -> FrameFlags {
-    FrameFlags::from_bits(SYN_DAT_BITS).expect("SYN|DAT is a valid SWSP combination")
+    FrameFlags::SYN | FrameFlags::DAT
 }
 
 fn dat_more_flags() -> FrameFlags {
-    FrameFlags::from_bits(DAT_MORE_BITS).expect("DAT|MORE is a valid SWSP combination")
+    FrameFlags::DAT | FrameFlags::MORE
 }
 
 fn policy_error(error: ProxyPolicyError) -> BlnkError {
