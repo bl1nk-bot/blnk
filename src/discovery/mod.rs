@@ -86,7 +86,7 @@ pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPee
             && let Ok(msg) = std::str::from_utf8(&buf[..len])
             && let Some(uid) = msg.strip_prefix("BLNK_PEER:")
         {
-            let id = uid.trim();
+            let id = uid;
             // Security: Validate network-supplied peer ID to prevent terminal/log injection and memory bounds issues.
             if is_valid_peer_id(id) {
                 peers.insert(DiscoveredPeer {
