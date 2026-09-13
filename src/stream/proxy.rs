@@ -696,6 +696,9 @@ pub fn is_sensitive_header(name: &str) -> bool {
             | "www-authenticate"
             | "x-api-key"
             | "x-auth-token"
+            | "x-csrf-token"
+            | "x-xsrf-token"
+            | "x-access-token"
     )
 }
 
@@ -1019,6 +1022,18 @@ mod tests {
         assert!(!safe.contains("secret"));
         assert_eq!(
             redact_header_value("Authorization", "Bearer secret"),
+            REDACTED_VALUE
+        );
+        assert_eq!(
+            redact_header_value("X-CSRF-Token", "csrf-secret-123"),
+            REDACTED_VALUE
+        );
+        assert_eq!(
+            redact_header_value("X-XSRF-TOKEN", "xsrf-secret-456"),
+            REDACTED_VALUE
+        );
+        assert_eq!(
+            redact_header_value("X-Access-Token", "access-token-789"),
             REDACTED_VALUE
         );
         assert_eq!(
