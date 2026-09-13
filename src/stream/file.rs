@@ -786,6 +786,12 @@ pub fn decode_response_metadata(
 }
 
 fn safe_relative_path(request_path: &str) -> StreamResult<PathBuf> {
+    // Security: reject embedded null bytes to prevent null byte injection vulnerabilities.
+    if request_path.contains('\0') {
+        return Err(BlnkError::Stream(
+            "null bytes in file path are not allowed".into(),
+        ));
+    }
     let path = Path::new(request_path);
     if path.is_absolute() {
         return Err(BlnkError::Stream(
@@ -1021,6 +1027,20 @@ mod tests {
         );
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(outside);
+    }
+
+    #[tokio::test]
+    async fn null_byte_path_is_rejected() {
+        let root = temp_root("nullbyte");
+        let service = FileTransferService::new(FileTransferConfig::new(&root).expect("config"));
+        let cancellation = FileTransferCancellation::default();
+        assert!(
+            service
+                .execute(FileTransferRequest::stat("file\0.txt"), &[], &cancellation,)
+                .await
+                .is_err()
+        );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
