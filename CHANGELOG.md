@@ -1,6 +1,11 @@
 # Changelog
 
-ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
+## [0.2.11] — PR #122, #123
+- chore(security): prevent session PIN leak in debug logs
+- fix(proxy): redact sensitive CSRF and access tokens in proxy headers
+
+## [0.2.10]
+- chore(security): prevent bootstrap token leak in debug logs
 
 ## [0.2.10] — PR #108
 - chore(security): remove expect in proxy frame flag helpers to prevent potential panic in production code
@@ -10,6 +15,7 @@
 
 ## [0.2.8] — PR #106
 - docs: เพิ่ม demo animation (.gif) และ terminal screen captures (.png) พร้อมปรับปรุง README สื่อสารความสามารถหลักของโครงการให้ชัดเจน
+
 ## [0.2.7] — PR #102
 - feat(installer): เพิ่ม one-line install & update scripts (`install.ps1`, `update.ps1`, `install.sh`) และปรับปรุง CI/Release workflows ให้ประหยัดโควตา
 - docs: อัปเดต `TODO.md` และ `README.md` พร้อมคู่มือการติดตั้งและสถานะ roadmap ล่าสุด
