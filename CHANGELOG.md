@@ -1,11 +1,13 @@
 # Changelog
 
-## [0.2.11] — PR #122, #123, #124, #125, #126
+## [0.2.11] — PR #108, #122, #123, #124, #125, #126, #127
+- chore(security): prevent bootstrap token leak in debug logs
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
 - chore(security): redact PIN secrets in SessionRuntimeConfig Debug formatting
 - fix(security): prevent null byte injection in file paths
 - chore(config): redact sensitive pin in Config Debug output
+- chore(security): redact TURN credential in IceServer Debug formatting
 
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
