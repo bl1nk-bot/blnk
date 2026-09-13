@@ -7,6 +7,9 @@
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
+## [0.2.10] — PR #108
+- chore(security): remove expect in proxy frame flag helpers to prevent potential panic in production code
+
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop
 
