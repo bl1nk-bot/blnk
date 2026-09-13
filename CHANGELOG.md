@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.11] — PR #122
+- chore(security): prevent session PIN leak in debug logs
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
