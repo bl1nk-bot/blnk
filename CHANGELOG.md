@@ -1,11 +1,17 @@
 # Changelog
 
-## [0.2.11] — PR #122, #123
+## [0.2.11] — PR #122, #123, #124, #125, #126
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
+- chore(security): redact PIN secrets in SessionRuntimeConfig Debug formatting
+- fix(security): prevent null byte injection in file paths
+- chore(config): redact sensitive pin in Config Debug output
 
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
+
+## [0.2.10] — PR #108
+- chore(security): remove expect in proxy frame flag helpers to prevent potential panic in production code
 
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop
