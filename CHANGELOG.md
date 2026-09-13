@@ -1,9 +1,10 @@
 # Changelog
 
-## [0.2.11] — PR #122, #123, #124
+## [0.2.11] — PR #122, #123, #124, #125
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
 - chore(security): redact PIN secrets in SessionRuntimeConfig Debug formatting
+- fix(security): prevent null byte injection in file paths
 
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
