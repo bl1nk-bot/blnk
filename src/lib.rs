@@ -6,6 +6,7 @@ pub mod proto_generated;
 pub mod protocol;
 pub mod session;
 pub mod signaling;
+pub mod storage;
 pub mod stream;
 pub mod utils;
 pub mod web;

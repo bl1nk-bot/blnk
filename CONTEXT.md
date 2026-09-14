@@ -97,3 +97,25 @@
 **MdnsResponder** — UDP multicast announcer with CancellationToken lifecycle.
 
 **BLNK_MDNS_SERVICE_NAME** — `_blnk._tcp.local`.
+
+## Object Storage
+
+**Object** — Versioned transferable unit identified by `id` and `kind`. Its searchable metadata is stored in SQLite and its sensitive payload is referenced through an opaque `payload_ref`.
+
+**ObjectKind** — Versioned discriminator such as `mcp.server`, `provider`, `profile`, `prompt`, `skill`, `workspace.pack`, `note`, or `secret.password`.
+
+**Sensitivity** — Storage policy: `public`, `internal`, `sensitive`, or `secret`. `secret` payloads must not enter SQLite metadata, FTS, audit events, URLs, QR content, or logs.
+
+**ObjectRevision** — Immutable payload revision associated with an object. Updating an object creates a new revision and changes `current_revision` transactionally.
+
+**payload_ref** — Opaque vault reference. It must not be derived from a title, path, credential, or raw payload.
+
+**StorageState** — Cross-store write state: `staged`, `ready`, `deleting`, or `corrupt`. It coordinates SQLite metadata with the encrypted vault during crash recovery.
+
+**Encrypted Vault** — Separate encrypted payload store. It uses a vault root key obtained from an OS keychain or passphrase provider and records key versions, authenticated encryption metadata, and payload hashes.
+
+**AppAdapter** — Client-specific projection boundary that detects live configuration, imports it into normalized objects, previews activation, applies changes atomically, and rolls back from a backup.
+
+**ImportHandler** — Shared pipeline for every input channel: parse → normalize → validate → policy check → redacted preview → explicit confirmation → stage → commit → receipt.
+
+**Share** — Time-bounded delivery record that references an object or pack, records channel and recipient policy, and tracks opened, verified, consumed, revoked, and expired states.
