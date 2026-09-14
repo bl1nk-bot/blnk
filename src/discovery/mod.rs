@@ -86,16 +86,30 @@ pub async fn discover_local_peers(timeout: Duration) -> Result<Vec<DiscoveredPee
             && let Ok(msg) = std::str::from_utf8(&buf[..len])
             && let Some(uid) = msg.strip_prefix("BLNK_PEER:")
         {
-            peers.insert(DiscoveredPeer {
-                id: uid.trim().to_string(),
-                ip: src.ip(),
-                port: src.port(),
-                host_name: None,
-            });
+            let id = uid;
+            // Security: Validate network-supplied peer ID to prevent terminal/log injection and memory bounds issues.
+            if is_valid_peer_id(id) {
+                peers.insert(DiscoveredPeer {
+                    id: id.to_string(),
+                    ip: src.ip(),
+                    port: src.port(),
+                    host_name: None,
+                });
+            }
         }
     }
 
     Ok(peers.into_iter().collect())
+}
+
+/// Validates that a peer ID received over untrusted local discovery network packets
+/// is non-empty, bounded in size, and contains only safe ASCII characters.
+fn is_valid_peer_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 #[cfg(test)]
@@ -114,5 +128,20 @@ mod tests {
     async fn test_discover_local_peers_timeout() {
         let result = discover_local_peers(Duration::from_millis(50)).await;
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_is_valid_peer_id_validates_input() {
+        assert!(is_valid_peer_id("peer-123"));
+        assert!(is_valid_peer_id("2iuGA9MzJw9GJY35ilAiHA"));
+        assert!(is_valid_peer_id("device.local_1"));
+
+        // Rejections
+        assert!(!is_valid_peer_id(""));
+        assert!(!is_valid_peer_id("   "));
+        assert!(!is_valid_peer_id("peer\n123"));
+        assert!(!is_valid_peer_id("peer\x1b[31mred"));
+        assert!(!is_valid_peer_id("peer;rm -rf /"));
+        assert!(!is_valid_peer_id(&"a".repeat(65)));
     }
 }
