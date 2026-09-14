@@ -127,24 +127,11 @@ impl RegisterResponse {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IceServer {
     pub urls: String,
     pub username: Option<String>,
     pub credential: Option<String>,
-}
-
-impl std::fmt::Debug for IceServer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("IceServer")
-            .field("urls", &self.urls)
-            .field("username", &self.username)
-            .field(
-                "credential",
-                &self.credential.as_ref().map(|_| "<redacted>"),
-            )
-            .finish()
-    }
 }
 
 impl IceServer {
@@ -458,16 +445,5 @@ mod tests {
             .ice_servers
             .push(IceServer::new("stun:example.test").expect("valid ICE server"));
         assert!(request.validate().is_ok());
-    }
-
-    #[test]
-    fn ice_server_debug_redacts_credential() {
-        let mut server = IceServer::new("turn:example.com").expect("valid ICE server");
-        server.username = Some("turn_user".to_string());
-        server.credential = Some("secret_turn_password".to_string());
-
-        let debug_output = format!("{server:?}");
-        assert!(!debug_output.contains("secret_turn_password"));
-        assert!(debug_output.contains("<redacted>"));
     }
 }

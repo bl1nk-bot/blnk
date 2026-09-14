@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use subtle::{Choice, ConstantTimeEq};
+use subtle::ConstantTimeEq;
 
 use crate::stream::{StreamEntry, StreamKind, StreamRegistry};
 use crate::utils::error::BlnkError;
@@ -397,11 +397,8 @@ fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
     expected_fixed[..expected_copy_len].copy_from_slice(&expected[..expected_copy_len]);
     provided_fixed[..provided_copy_len].copy_from_slice(&provided[..provided_copy_len]);
 
-    let contents_match = expected_fixed.ct_eq(&provided_fixed);
-    let expected_len_match = Choice::from((expected.len() == PIN_LEN) as u8);
-    let provided_len_match = Choice::from((provided.len() == PIN_LEN) as u8);
-
-    (contents_match & expected_len_match & provided_len_match).into()
+    let contents_match: bool = expected_fixed.ct_eq(&provided_fixed).into();
+    contents_match & (expected.len() == PIN_LEN) & (provided.len() == PIN_LEN)
 }
 
 #[cfg(test)]
