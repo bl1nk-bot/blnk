@@ -45,7 +45,7 @@ const DEFAULT_MAX_FRAME_BYTES: usize = 64 * 1024;
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Configuration for the local browser surface.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BrowserControlConfig {
     pub bind_addr: SocketAddr,
     pub allowed_origin: String,
