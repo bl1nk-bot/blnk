@@ -1,0 +1,100 @@
+syntax = "proto3";
+package blnk.share;
+
+import "object_model.proto";
+import "common.proto";
+
+enum ShareChannel {
+  SHARE_CHANNEL_UNSPECIFIED = 0;
+  SHARE_CHANNEL_LOCAL_FILE = 1;
+  SHARE_CHANNEL_CLIPBOARD = 2;
+  SHARE_CHANNEL_QR = 3;
+  SHARE_CHANNEL_DEEP_LINK = 4;
+  SHARE_CHANNEL_HTTPS = 5;
+  SHARE_CHANNEL_P2P = 6;
+  SHARE_CHANNEL_SYNC = 7;
+  SHARE_CHANNEL_API = 8;
+}
+enum TrustPolicy {
+  TRUST_POLICY_UNSPECIFIED = 0;
+  TRUST_POLICY_LOCAL = 1;
+  TRUST_POLICY_PRIVATE_DEVICE = 2;
+  TRUST_POLICY_SELECTED_RECIPIENT = 3;
+  TRUST_POLICY_LINK_BEARER = 4;
+  TRUST_POLICY_DELEGATED = 5;
+}
+enum ShareStatus {
+  SHARE_STATUS_UNSPECIFIED = 0;
+  SHARE_STATUS_CREATED = 1;
+  SHARE_STATUS_OFFERED = 2;
+  SHARE_STATUS_OPENED = 3;
+  SHARE_STATUS_VERIFIED = 4;
+  SHARE_STATUS_CONSUMED = 5;
+  SHARE_STATUS_REVOKED = 6;
+  SHARE_STATUS_EXPIRED = 7;
+  SHARE_STATUS_FAILED = 8;
+}
+message ShareRecord {
+  string id = 1;
+  string object_id = 2;
+  string pack_manifest_json = 3;
+  string envelope_ref = 4;
+  ShareChannel channel = 5;
+  TrustPolicy trust_policy = 6;
+  string recipient_device_id = 7;
+  string recipient_hint = 8;
+  int64 expires_at = 9;
+  bool one_time = 10;
+  ShareStatus status = 11;
+  uint32 attempts = 12;
+  uint32 max_attempts = 13;
+  int64 locked_until = 14;
+  string created_by_device_id = 15;
+  int64 created_at = 16;
+  int64 opened_at = 17;
+  int64 consumed_at = 18;
+  int64 revoked_at = 19;
+}
+message ShareEnvelope {
+  uint32 version = 1;
+  string share_id = 2;
+  string sender_device_id = 3;
+  string recipient_device_id = 4;
+  repeated blnk.object.ObjectRecord objects = 5;
+  bytes encrypted_payload = 6;
+  bytes signature = 7;
+  string signature_algorithm = 8;
+  string payload_hash = 9;
+  int64 expires_at = 10;
+  bool one_time = 11;
+  TrustPolicy trust_policy = 12;
+  map<string, string> headers = 13;
+}
+message ShareEvent {
+  string share_id = 1;
+  string event_type = 2;
+  string actor_device_id = 3;
+  string result = 4;
+  map<string, string> metadata = 5;
+  int64 created_at = 6;
+}
+message CreateShareRequest {
+  repeated string object_ids = 1;
+  ShareChannel channel = 2;
+  TrustPolicy trust_policy = 3;
+  string recipient_device_id = 4;
+  int64 ttl_seconds = 5;
+  bool one_time = 6;
+  bool include_secrets = 7;
+}
+message ReceiveShareRequest {
+  bytes envelope = 1;
+  string access_code = 2;
+  bool preview_only = 3;
+}
+message ReceiveShareResponse {
+  ShareRecord share = 1;
+  repeated blnk.object.ObjectPreview previews = 2;
+  bool verified = 3;
+}
+message RevokeShareRequest { string share_id = 1; }

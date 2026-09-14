@@ -1,0 +1,49 @@
+syntax = "proto3";
+package blnk.vault;
+
+message VaultKey {
+  uint32 version = 1;
+  string key_ref = 2;
+  string algorithm = 3;
+  string status = 4;
+  int64 created_at = 5;
+  int64 retired_at = 6;
+}
+message VaultRecord {
+  string payload_ref = 1;
+  string object_id = 2;
+  uint64 revision = 3;
+  uint32 key_version = 4;
+  string storage_state = 5;
+  string algorithm = 6;
+  bytes nonce = 7;
+  bytes ciphertext = 8;
+  string aad_hash = 9;
+  string payload_hash = 10;
+  uint64 payload_size = 11;
+  int64 created_at = 12;
+  int64 deleted_at = 13;
+}
+message PutPayloadRequest {
+  string payload_ref = 1;
+  string object_id = 2;
+  uint64 revision = 3;
+  string media_type = 4;
+  bytes plaintext = 5;
+}
+message PutPayloadResponse { VaultRecord record = 1; }
+message GetPayloadRequest { string payload_ref = 1; string purpose = 2; }
+message GetPayloadResponse { bytes plaintext = 1; string media_type = 2; }
+message RotateKeysRequest { uint32 target_key_version = 1; }
+message RotateKeysResponse {
+  uint32 from_key_version = 1;
+  uint32 to_key_version = 2;
+  uint64 migrated_records = 3;
+  uint64 failed_records = 4;
+}
+message VaultRecoveryRecord {
+  string payload_ref = 1;
+  string metadata_state = 2;
+  string vault_state = 3;
+  string action = 4;
+}

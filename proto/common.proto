@@ -1,0 +1,87 @@
+syntax = "proto3";
+package blnk.common;
+
+import "google/protobuf/empty.proto";
+
+enum Sensitivity {
+  SENSITIVITY_UNSPECIFIED = 0;
+  SENSITIVITY_PUBLIC = 1;
+  SENSITIVITY_INTERNAL = 2;
+  SENSITIVITY_SENSITIVE = 3;
+  SENSITIVITY_SECRET = 4;
+}
+
+enum ObjectStatus {
+  OBJECT_STATUS_UNSPECIFIED = 0;
+  OBJECT_STATUS_DRAFT = 1;
+  OBJECT_STATUS_ACTIVE = 2;
+  OBJECT_STATUS_ARCHIVED = 3;
+  OBJECT_STATUS_REVOKED = 4;
+  OBJECT_STATUS_DELETED = 5;
+}
+
+enum StorageState {
+  STORAGE_STATE_UNSPECIFIED = 0;
+  STORAGE_STATE_STAGED = 1;
+  STORAGE_STATE_READY = 2;
+  STORAGE_STATE_DELETING = 3;
+  STORAGE_STATE_CORRUPT = 4;
+}
+
+enum ResultStatus {
+  RESULT_STATUS_UNSPECIFIED = 0;
+  RESULT_STATUS_SUCCESS = 1;
+  RESULT_STATUS_FAILURE = 2;
+  RESULT_STATUS_DENIED = 3;
+}
+
+message ObjectId { string value = 1; }
+message PayloadRef { string value = 1; }
+message DeviceId { string value = 1; }
+message AppId { string value = 1; }
+message Timestamp { int64 unix_seconds = 1; }
+message OpaqueJson { string json = 1; }
+
+message Provenance {
+  string source_type = 1;
+  string source_uri = 2;
+  string source_app_id = 3;
+  string source_hash = 4;
+  map<string, string> attributes = 5;
+}
+
+message Policy {
+  bool requires_confirmation = 1;
+  bool allow_export = 2;
+  bool allow_sync = 3;
+  bool allow_clipboard = 4;
+  bool one_time = 5;
+  int64 ttl_seconds = 6;
+  repeated string allowed_device_ids = 7;
+  map<string, string> attributes = 8;
+}
+
+message PageRequest {
+  uint32 page_size = 1;
+  string page_token = 2;
+}
+message PageInfo {
+  string next_page_token = 1;
+  uint64 total_size = 2;
+}
+message Empty {
+  option deprecated = true;
+}
+message ErrorDetail {
+  string code = 1;
+  string message = 2;
+  map<string, string> metadata = 3;
+}
+message OperationResult {
+  ResultStatus status = 1;
+  ErrorDetail error = 2;
+}
+
+// Keeps google.protobuf.Empty in the schema dependency graph for clients that
+// expose RPC methods generated from this contract.
+message EmptyImportMarker { google.protobuf.Empty value = 1; }

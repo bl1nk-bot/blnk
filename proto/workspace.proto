@@ -1,0 +1,58 @@
+syntax = "proto3";
+package blnk.workspace;
+
+import "object_model.proto";
+import "common.proto";
+
+enum ProjectionMode {
+  PROJECTION_MODE_UNSPECIFIED = 0;
+  PROJECTION_MODE_DISABLED = 1;
+  PROJECTION_MODE_ENABLED = 2;
+  PROJECTION_MODE_MERGED = 3;
+}
+message WorkspacePack {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string object_ids = 4;
+  repeated ObjectSelection selections = 5;
+  blnk.common.Policy policy = 6;
+  uint32 manifest_version = 7;
+  int64 created_at = 8;
+  int64 updated_at = 9;
+}
+message ObjectSelection {
+  string object_id = 1;
+  bool include = 2;
+  bool include_secrets = 3;
+  string reason = 4;
+}
+message Projection {
+  string app_id = 1;
+  string object_id = 2;
+  string target_path = 3;
+  ProjectionMode mode = 4;
+  map<string, string> mapping = 5;
+  string content_hash = 6;
+}
+message PromptDocument {
+  string object_id = 1;
+  string content = 2;
+  repeated string target_files = 3;
+  string format = 4;
+}
+message SkillDocument {
+  string object_id = 1;
+  string name = 2;
+  string directory = 3;
+  string content_hash = 4;
+  string repository = 5;
+  string branch = 6;
+  repeated string target_apps = 7;
+}
+message WorkspaceSnapshot {
+  string workspace_id = 1;
+  repeated blnk.object.ObjectRecord objects = 2;
+  repeated Projection projections = 3;
+  string snapshot_hash = 4;
+}
