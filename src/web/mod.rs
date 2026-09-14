@@ -45,7 +45,7 @@ const DEFAULT_MAX_FRAME_BYTES: usize = 64 * 1024;
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Configuration for the local browser surface.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BrowserControlConfig {
     pub bind_addr: SocketAddr,
     pub allowed_origin: String,
@@ -398,6 +398,14 @@ async fn security_headers(
     response
         .headers_mut()
         .insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    response.headers_mut().insert(
+        axum::http::header::HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static("frame-ancestors 'none'"),
+    );
     response
         .headers_mut()
         .insert(VARY, HeaderValue::from_static("Origin"));
@@ -1018,6 +1026,17 @@ mod tests {
             .await
             .expect("health request");
         assert_eq!(disallowed_origin.status(), ReqwestStatusCode::OK);
+        assert_eq!(
+            disallowed_origin.headers().get("x-frame-options").unwrap(),
+            "DENY"
+        );
+        assert_eq!(
+            disallowed_origin
+                .headers()
+                .get("content-security-policy")
+                .unwrap(),
+            "frame-ancestors 'none'"
+        );
         assert!(
             disallowed_origin
                 .headers()
