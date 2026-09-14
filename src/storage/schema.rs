@@ -158,8 +158,7 @@ pub fn create_tables(conn: &Connection) -> SqlResult<()> {
             description,
             tags,
             kind,
-            provenance,
-            content=''
+            provenance
         );
 
         CREATE TABLE IF NOT EXISTS object_revisions (

@@ -23,6 +23,7 @@ message VaultRecord {
   uint64 payload_size = 11;
   int64 created_at = 12;
   int64 deleted_at = 13;
+  string media_type = 14;
 }
 message PutPayloadRequest {
   string payload_ref = 1;

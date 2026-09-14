@@ -5,5 +5,7 @@
 //! intentionally handled by a separate vault module.
 
 pub mod schema;
+pub mod store;
 
 pub use schema::{SCHEMA_VERSION, create_tables, schema_version};
+pub use store::SqliteStore;

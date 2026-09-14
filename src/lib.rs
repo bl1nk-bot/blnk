@@ -9,6 +9,7 @@ pub mod signaling;
 pub mod storage;
 pub mod stream;
 pub mod utils;
+pub mod vault;
 pub mod web;
 
 pub use utils::error::BlnkError;
