@@ -1,220 +1,77 @@
-# blnk Rust
+# blnk
 
-> **blnk** เป็น CLI tool ภาษา Rust สำหรับ remote access แบบ peer-to-peer ผ่าน WebRTC โดยไม่ต้องสมัครบัญชี ไม่ต้องตั้งค่า Port Forwarding และมีความปลอดภัยสูงด้วย RSA-2048 identity และ Short Authentication String (SAS)
+P2P remote access over WebRTC — no accounts, no port forwarding. RSA-2048 identity, 6-digit SAS pairing, constant-time PIN auth.
 
 ![blnk Demo](docs/assets/blnk-demo.gif)
 
-## ไฮไลต์ความสามารถ (Features)
+## Features
 
-- **Peer-to-Peer Shell & File Transfer:** ควบคุมรีโมตเชลล์และรับส่งไฟล์ความเร็วสูงผ่าน WebRTC Data Channel ด้วยโปรโตคอล SWSP
-- **Local LAN Discovery (mDNS):** ค้นหาอุปกรณ์ในวงเครือข่ายเดียวกันอัตโนมัติด้วยคำสั่ง `blnk devices --local`
-- **Instant Terminal QR Code:** สร้าง ASCII/ANSI QR Code บน Terminal เพื่อสแกนจับคู่อุปกรณ์ได้อย่างรวดเร็ว (`blnk serve --qr`)
-- **NAT Traversal:** รองรับ STUN/TURN ICE Servers สำหรับเชื่อมต่อข้ามไฟร์วอลล์
-- **Zero Configuration Loopback Fixture:** ทดสอบฟังก์ชันทั้งหมดได้ทันทีในเครื่องเดียวด้วย `--local-fixture`
+- **Shell & File Transfer** — remote shell + high-speed file transfer via SWSP over WebRTC Data Channel
+- **mDNS Discovery** — find LAN peers automatically (`blnk devices --local`)
+- **QR Pairing** — terminal QR code for instant device pairing (`blnk serve --qr`)
+- **NAT Traversal** — STUN/TURN ICE servers for cross-firewall connections
+- **Local Fixture** — full in-process test mode (`--local-fixture`) — no external secrets needed
+- **HTTP Proxy, TCP Forwarding, WebSocket Bridging** — via SWSP stream multiplexer
 
----
+## Installation
 
-## ภาพตัวอย่างการใช้งาน (Previews)
-
-| การเปิดบริการและแสดง QR Code (`blnk serve --qr`) | การค้นหาอุปกรณ์ LAN และเชื่อมต่อ (`blnk devices` & `connect`) |
-|---|---|
-| ![blnk Serve QR](docs/assets/blnk-serve-qr.png) | ![blnk Connect & Transfer](docs/assets/blnk-connect-transfer.png) |
-
----
-
-## วัตถุประสงค์
-
-- พอร์ตฟีเจอร์จาก `bitbang-cli` ให้ครบถ้วน
-- ใช้ Rust เพื่อเพิ่ม memory safety และความคุมได้ของระบบ
-- ออกแบบสถาปัตยกรรมใหม่ให้ modular และ testable
-- กำหนด support scope สำหรับ Linux, Windows และ Android โดยแยกระดับหลักฐานของแต่ละแพลตฟอร์ม
-- เตรียมโครงสร้างสำหรับการพัฒนาต่อในอนาคตอย่างเป็นระบบ
-
-## ภาพรวมระบบ
-
-blnk เป็น CLI tool สำหรับ remote access แบบ peer-to-peer ผ่าน WebRTC โดยไม่ต้องพึ่ง account และไม่ต้องเปิด port forwarding เอง
-ความสามารถหลัก:
-- remote shell
-- file transfer
-- HTTP web proxy
-- TCP forwarding
-- WebSocket bridging
-- pairing code
-- PIN authentication
-- mDNS discovery
-- STUN/TURN NAT traversal
-- QR code generation
-> หมายเหตุ: service worker เป็นฝั่ง browser/frontend อยู่แล้ว ไม่ต้อง implement ใน Rust CLI
-
-## ขอบเขตโปรเจค
-
->โปรเจคนี้จะพัฒนา Rust implementation ให้ทำงานแทนต้นฉบับ Go โดยต้องรักษา protocol compatibility ให้เทียบเท่าเดิม โดยเฉพาะ:
-
-- signaling protocol
-- pairing flow
-- SWSP protocol
-- identity format
-- control messages
-- stream handling
-
-## เป้าหมายคุณภาพ
-
-- single static binary
-- async-first architecture
-- error handling ชัดเจน
-- cross-platform support ตาม evidence matrix ไม่ใช่คำกล่าวอ้าง release โดยอัตโนมัติ
-- test coverage สูง
-- release automation พร้อม
-
-## สถานะการพัฒนา
-
-**สถานะปัจจุบัน: local MVP / ยังไม่พร้อมใช้งานจริง** โครงการมี runnable foundation, identity, signaling/WebRTC local harness, authenticated session, file-transfer/shell MVP, deterministic remote relay orchestration, CLI fixture workflow และ loopback-only browser control session/status surface แล้ว แต่ external interoperability, browser WebRTC, production proxy/TLS integration, dependency advisory evidence และ release artifacts ยังไม่เสร็จ การมีคำสั่ง CLI หรือ protobuf schema เพียงอย่างเดียวไม่ถือว่า acceptance criteria ผ่านจนกว่าจะมี implementation และ integration tests รองรับ
-
-ผลตรวจสอบล่าสุดและรายการงานที่ต้องทำอยู่ใน [`docs/implementation-status.md`](docs/implementation-status.md) ส่วนลำดับความสำคัญและกติกาแก้ความขัดแย้งของเอกสารอยู่ใน [`docs/plans/core-foundation.md`](docs/plans/core-foundation.md)
-
-## Support Matrix
-
-Issue #45 กำหนดคำว่า **รองรับ** ให้แยกจากการ compile ผ่านและการมี release artifact ดังนี้:
-
-| แพลตฟอร์ม | หลักฐานปัจจุบัน | ขอบเขตที่ยืนยันได้ |
-|---|---|---|
-| Linux (`x86_64-unknown-linux-gnu`) | full local/CI gate: format, check, test และ clippy | `runner-tested` และ local fixture smoke |
-| Windows (`x86_64-pc-windows-msvc`) | GitHub Actions build/test job | `compile-verified` และ `runner-tested` เมื่อ job ผ่าน; ยังไม่มี release claim |
-| Android (`aarch64-linux-android`) | GitHub Actions compile-only job | `compile-verified` เท่านั้น; ยังไม่มี device/emulator หรือ APK/AAB evidence |
-| macOS | ไม่มี jobและอยู่นอก scope | `not-tested` / ไม่รองรับตาม decision ปัจจุบัน |
-
-การผ่าน Linux ไม่ใช่หลักฐานแทน Windows หรือ Android และการมี target ใน `rust-toolchain.toml` ไม่ใช่หลักฐานของ linker, packaging, device smoke หรือ external interoperability
-
-## Release Gate
-
-ก่อนตัดสินใจ release ให้รัน gate ที่บันทึกไว้ใน [`docs/releases/issue-48-release-gate.md`](docs/releases/issue-48-release-gate.md):
-
-```bash
-scripts/release_gate.sh
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.ps1 | iex
 ```
 
-คำสั่งนี้ใช้ `Cargo.lock` แบบ locked, รัน Linux validation, สร้าง tarball/checksum/provenance และตรวจ `blnk --version` หลัง extract artifact โดยไม่ publish tag หรือ GitHub Release อัตโนมัติ Workflow [`release-gate.yml`](.github/workflows/release-gate.yml) เพิ่ม Windows build/test/package evidence, Android `aarch64-linux-android` compile-only evidence และ RustSec advisory audit บน runner จริง การมี Linux artifact หรือ compile evidence ไม่ใช่หลักฐานของ browser/external interoperability, production TLS, device runtime, signed installer หรือ macOS support
+**Linux (Bash):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash
+```
 
-## การติดตั้งและอัปเดต (Installation & Updates)
-
-### ติดตั้งคำสั่งเดียว (One-line Install)
-
-* **Windows (PowerShell):**
-  ```powershell
-  irm https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.ps1 | iex
-  ```
-  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า User `PATH` ให้อัตโนมัติ)*
-
-* **Linux (Bash):**
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash
-  ```
-  *(ดาวน์โหลดเวอร์ชันล่าสุด, วางไฟล์ที่ `~/.blnk/bin` และเพิ่มเข้า `PATH` ใน `.bashrc`/`.zshrc` ให้อัตโนมัติ)*
-
-### การอัปเดต (Updates)
-
-โดยดีฟอลต์ ระบบจะตั้งค่าเป็น **Manual Update**
-
-* **อัปเดตแบบ Manual (เช็คและอัปเกรดเป็นเวอร์ชันล่าสุด):**
-  - Windows: `.\scripts\update.ps1`
-  - Linux: `curl -fsSL https://raw.githubusercontent.com/bl1nk-bot/blnk/main/scripts/install.sh | bash`
-* **เปิดใช้งาน Auto Update:**
-  - Windows: `.\scripts\update.ps1 -SetAuto`
-  - Linux: `./scripts/install.sh --auto-update`
-* **สลับกลับเป็น Manual Update:**
-  - Windows: `.\scripts\update.ps1 -SetManual`
-  - Linux: `./scripts/install.sh --manual-update`
-
----
+Both install to `~/.blnk/bin` and add to PATH. Auto-update available via `--auto-update` flag.
 
 ## Quick Start
 
-> **หมายเหตุ:** คำสั่งด้านล่างแยกเป็น local-MVP workflow กับ remote workflow อย่างชัดเจน การใช้ `--local-fixture` ทำ authenticated in-process test โดยไม่ต้องใช้ external secret; remote signaling/WebRTC orchestration และ browser control surface ใช้หลักฐาน deterministic/local เท่านั้น ยังไม่อ้าง external interoperability หรือ production deployment
-
-
-### สร้างโปรเจค
-
 ```bash
-cargo init blnk
-cd blnk
-```
-
-### build
-
-```bash
-cargo build
-```
-
-สำหรับการตรวจสอบก่อนเปิด Pull Request ให้รันคำสั่ง foundation verification ต่อไปนี้:
-
-```bash
-cargo fmt --all -- --check
-cargo check --all-targets
-cargo test --all
-cargo clippy --all --all-targets -- -D warnings
-```
-
-บน Linux คำสั่งทั้งสี่ผ่านสำหรับ runnable foundation ในปัจจุบัน ส่วน Windows และ Android ใช้ gates ตาม Support Matrix ข้างต้น ส่วนการผ่าน acceptance ของ protocol และการใช้งานจริงยังต้องมี compatibility, integration, packaging และ external interoperability evidence ตาม [`docs/implementation-status.md`](docs/implementation-status.md)
-
-### run
-
-```bash
-# สร้าง/โหลด identity และเริ่ม local fixture แบบ one-shot
+# Local fixture — in-process authenticated test
 cargo run -- serve --local-fixture --once
-
-# authenticated shell transcript ผ่าน local WebRTC fixture
 cargo run -- connect --local-fixture
-cargo run -- connect --local-fixture --command printf "%s\\n" hello
-
-# authenticated file-transfer transcript
 cargo run -- cp --local-fixture ./local.txt remote.txt
 
-# ดู metadata ของ devices ที่รู้จัก โดยไม่เปิดเผย credential
+# Device discovery
 cargo run -- devices --list
 
-# เริ่ม browser control surface แบบ loopback; token เป็น local development credential
-export BLNK_WEB_TOKEN=local-development-token
+# Browser control surface (loopback only)
 cargo run -- web --host 127.0.0.1 --port 0 --origin http://127.0.0.1:3000
 ```
 
-## CLI Commands
+## Platform Support
 
-- `serve` - โหลด/สร้าง identity และเริ่ม service; `--local-fixture` ใช้ local one-shot/running fixture
-- `connect` - ใช้ `--local-fixture` เพื่อ authenticated shell transcript; remote target ตรวจ registry และรายงานข้อจำกัดอย่างชัดเจน
-- `cp` - ใช้ `--local-fixture` เพื่อ authenticated sandboxed file transfer
-- `devices` - อ่าน persistent metadata-only device registry โดยไม่แสดง private key หรือ access code
-- `web` - เปิด loopback-only browser control session/status surface ด้วย exact Origin, bearer bootstrap, CSRF และ bounded limits; ไม่เปิด remote capability หรืออ้าง browser WebRTC
-- `version` - แสดงเวอร์ชัน
+| Platform | Evidence | Scope |
+|---|---|---|
+| Linux (`x86_64-unknown-linux-gnu`) | CI: format, check, test, clippy | `runner-tested` |
+| Windows (`x86_64-pc-windows-msvc`) | CI build/test | `compile-verified` |
+| Android (`aarch64-linux-android`) | CI compile-only | `compile-verified` |
+| macOS | No CI job | `not-tested` |
 
-## Dependencies หลัก
+## Architecture
 
-- `tokio` - async runtime
-- `webrtc` - WebRTC implementation
-- `axum` - HTTP server
-- `clap` - CLI parsing
-- `tracing` - logging
-- `thiserror` - error handling
-- `serde` - serialization
-- `prost` - protobuf support
-- `qrcode` - QR code generation
-- `mdns` - local discovery
-- `nix` / `winapi` - PTY support
+```
+Browser (loopback) ←HTTP/WS→ Web Control (Axum)
+     ↕
+WebRTC Data Channel ← SWSP Frames → Remote Peer
+     ↕
+Stream Multiplexer (shell | file | proxy | tcp | websocket)
+```
 
-## การใช้งานโปรเจคนี้
+See `CONTEXT.md` for domain glossary, `docs/architecture.md` for full design, `STYLE.md` for coding conventions.
 
-โปรเจคนี้ถูกออกแบบมาเพื่อ:
-- ใช้งานเป็น CLI tool
-- เป็นฐานสำหรับพัฒนาแบบ modular
-- รองรับการต่อยอดเป็น library ได้ด้วย
+## Development
 
-## เอกสารเพิ่มเติม
+```bash
+just ci               # fmt + clippy + check + test
+cargo test <name>     # single test
+just build-release    # release build (lto, strip, abort)
+```
 
-- `specs/spec.md`
-- `docs/architecture.md`
-- `docs/api.md`
-- `docs/blueprint.md`
-- `STYLE.md`
-- `TODO.md`
+See `CLAUDE.md` for agent guidance, `CONTRIBUTING.md` for contribution workflow.
 
 ## License
 
