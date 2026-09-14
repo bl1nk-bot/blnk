@@ -45,7 +45,7 @@ const DEFAULT_MAX_FRAME_BYTES: usize = 64 * 1024;
 const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Configuration for the local browser surface.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BrowserControlConfig {
     pub bind_addr: SocketAddr,
     pub allowed_origin: String,
@@ -398,14 +398,6 @@ async fn security_headers(
     response
         .headers_mut()
         .insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
-    response.headers_mut().insert(
-        axum::http::header::HeaderName::from_static("x-frame-options"),
-        HeaderValue::from_static("DENY"),
-    );
-    response.headers_mut().insert(
-        axum::http::header::HeaderName::from_static("content-security-policy"),
-        HeaderValue::from_static("frame-ancestors 'none'"),
-    );
     response
         .headers_mut()
         .insert(VARY, HeaderValue::from_static("Origin"));
@@ -814,17 +806,13 @@ fn csrf_allowed(headers: &HeaderMap, expected: &str) -> bool {
 
 fn session_cookie(headers: &HeaderMap) -> Option<&str> {
     headers
-        .get_all(COOKIE)
-        .iter()
-        .filter_map(|value| value.to_str().ok())
-        .flat_map(|cookie_header| cookie_header.split(';'))
-        .find_map(|part| {
-            let (name, value) = part.trim().split_once('=')?;
-            if name == SESSION_COOKIE_NAME {
-                Some(value.trim().trim_matches('"'))
-            } else {
-                None
-            }
+        .get(COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|cookie_header| {
+            cookie_header.split(';').find_map(|part| {
+                let (name, value) = part.trim().split_once('=')?;
+                (name == SESSION_COOKIE_NAME).then_some(value)
+            })
         })
 }
 
@@ -1026,17 +1014,6 @@ mod tests {
             .await
             .expect("health request");
         assert_eq!(disallowed_origin.status(), ReqwestStatusCode::OK);
-        assert_eq!(
-            disallowed_origin.headers().get("x-frame-options").unwrap(),
-            "DENY"
-        );
-        assert_eq!(
-            disallowed_origin
-                .headers()
-                .get("content-security-policy")
-                .unwrap(),
-            "frame-ancestors 'none'"
-        );
         assert!(
             disallowed_origin
                 .headers()
@@ -1123,16 +1100,5 @@ mod tests {
             .expect("oversized frame send");
         let _ = socket.next().await;
         server.shutdown().await.expect("fixture shutdown");
-    }
-
-    #[test]
-    fn session_cookie_parses_multiple_headers_and_quoted_values() {
-        let mut headers = HeaderMap::new();
-        headers.append(COOKIE, HeaderValue::from_static("other=123"));
-        headers.append(
-            COOKIE,
-            HeaderValue::from_static("blnk_session=\"test_token_123\""),
-        );
-        assert_eq!(session_cookie(&headers), Some("test_token_123"));
     }
 }

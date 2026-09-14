@@ -226,12 +226,7 @@ mod tests {
             encoded["nonce_d"],
             STANDARD_NO_PAD.encode([0x01; NONCE_LEN])
         );
-        assert!(
-            !encoded["nonce_d"]
-                .as_str()
-                .expect("nonce_d should be a string")
-                .contains('=')
-        );
+        assert!(!encoded["nonce_d"].as_str().unwrap().contains('='));
         assert!(encoded.get("message_type").is_none());
 
         let decoded: PairChallenge =

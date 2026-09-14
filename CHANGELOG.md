@@ -2,17 +2,8 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
-## [0.2.13] — PR #108, #122, #123, #124, #125, #126, #127
-- chore(security): prevent bootstrap token leak in debug logs
-- chore(security): prevent session PIN leak in debug logs
-- fix(proxy): redact sensitive CSRF and access tokens in proxy headers
-- chore(security): redact PIN secrets in SessionRuntimeConfig Debug formatting
-- fix(security): prevent null byte injection in file paths
-- chore(config): redact sensitive pin in Config Debug output
-- chore(security): redact TURN credential in IceServer Debug formatting
-
-## [0.2.12] — PR #111
-- fix(web): support multiple cookie headers and quoted session tokens
+## [0.2.10]
+- fix(discovery): validate peer id input from udp discovery packets
 
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop
