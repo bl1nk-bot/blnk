@@ -94,6 +94,17 @@ impl PairCredentials {
     }
 }
 
+impl std::fmt::Debug for PairCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairCredentials")
+            .field("message_type", &self.message_type)
+            .field("uid", &self.uid)
+            .field("public_key", &self.public_key)
+            .field("access_code", &"[REDACTED]")
+            .finish()
+    }
+}
+
 pub fn generate_nonce() -> Result<Vec<u8>, BlnkError> {
     let mut nonce = vec![0_u8; NONCE_LEN];
     getrandom::fill(&mut nonce)
@@ -249,6 +260,18 @@ mod tests {
 
         assert_eq!(credentials.message_type, "pair_credentials");
         assert_eq!(credentials.access_code, "access-code");
+    }
+
+    #[test]
+    fn pair_credentials_debug_redacts_access_code() {
+        let credentials = PairCredentials::new(
+            "uid-123".to_owned(),
+            "public-key".to_owned(),
+            "secret-access-code".to_owned(),
+        );
+        let debug_output = format!("{credentials:?}");
+        assert!(!debug_output.contains("secret-access-code"));
+        assert!(debug_output.contains("[REDACTED]"));
     }
 }
 
