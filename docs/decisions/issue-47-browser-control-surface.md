@@ -8,7 +8,7 @@
 
 Issue #47 ต้องตัดสินใจก่อนว่าจะเพิ่ม browser/web control surface หรือ defer งานนี้ โดย dependency ที่เกี่ยวข้องกับ CLI E2E และ compatibility baseline (#43 และ #44) ปิดแล้ว แต่ repository ยังไม่มีหลักฐาน browser interoperability, external signaling/provider, production TLS, STUN/TURN, NAT traversal หรือ deployment จริง การ implement จึงต้องไม่สร้าง API ที่ดูเหมือนพิสูจน์ความสามารถเหล่านั้นแล้ว
 
-ความเสี่ยงหลักของ HTTP ที่รับจาก browser คือ origin ที่ไม่ถูกต้อง, cross-site request, credential/session leakage, oversized body/frame, resource exhaustion และการเผลอเปิด capability ที่เดิมต้องอยู่หลัง authenticated `SessionRuntime`/capability policy การใช้ HTTP endpoint เป็นทางลัดไปยัง shell, file, proxy หรือ signaling จะละเมิด boundary ของ Issue #41/#42 และยังไม่มี browser-compatible E2E evidence รองรับ
+ความเสี่ยงหลักของ HTTP ที่รับจาก browser คือ origin ที่ไม่ถูกต้อง, cross-site request, credential/session leakage, oversized body/frame, resource exhaustion และการเผลอเปิด capability ที่เดิมต้องอยู่หลัง authenticated `SessionRuntime`/capability policy การใช้ HTTP endpoint เป็นทางลัดไปยัง shell, file, proxy หรือ signaling จะข้าม security boundary และยังไม่มี browser-compatible E2E evidence รองรับ
 
 ## การตัดสินใจ
 

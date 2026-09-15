@@ -16,26 +16,7 @@
 - WebRTC data-channel test with reference bitbang client cross-machine
 - Baseline fixtures: `tests/compatibility_baseline.rs`, `tests/live_interop.rs`
 
-## Resolved
-
-- [x] RUSTSEC-2023-0071: OAEP usage not vulnerable, risk accepted in `.cargo/audit.toml`
-- [x] `net2` / `async-std` unmaintained: removed from lockfile
-- [x] Security advisories: all resolved or accepted
-- [x] PR merge backlog: #111, #112, #121-#127 merged, #115-#120 closed (superseded)
-
-## Milestones (Completed)
-
-| # | Module | Verification |
-|---|---|---|
-| M0 | CI/CD & Hygiene | CI Pass |
-| M1 | Foundation (Cargo.toml, build.rs, proto) | `cargo build` |
-| M2 | Error & Logging (BlnkError) | `cargo test utils` |
-| M3 | Config & Args | `cargo test config` |
-| M4 | Identity & Pairing (RSA-2048, SAS) | `cargo test identity` |
-| M5 | SWSP Codec (8-byte LE header) | `cargo test protocol::swsp` |
-| M6 | Signaling Client | `cargo test signaling` |
-| M7 | WebRTC Peer | `cargo test peer` |
-| M8 | Session Runtime (constant-time PIN) | `cargo test session` |
-| M9 | Stream Handlers (shell, file, proxy) | `cargo test stream` |
-| M10 | Web Control (Axum loopback) | `cargo test web` |
-| M11 | Integration Tests (134+ tests) | `cargo test --all` |
+- TODO: Wire TCP/WebSocket/HTTP proxy dispatch into `SessionRuntime` after the
+  proxy service contract and integration tests are ready.
+- TODO: Publish the `v0.2.13` tag/release and bump `Cargo.toml` from `0.2.12`
+  when the release gate is approved.

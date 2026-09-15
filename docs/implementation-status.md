@@ -1,4 +1,4 @@
-# Implementation Status and Architecture Readiness (v0.2.6)
+# Implementation Status and Architecture Readiness (v0.2.13)
 
 **Verified Base:** Codebase ณ ปัจจุบันมี implementation ครบทั้ง Core Protocol, Handlers และ CLI (PRs #1 – #101 รวมอยู่ใน `main`) โดยชุดทดสอบ `cargo test --all` ผ่านทั้งหมด 134 tests
 
@@ -30,13 +30,10 @@
 
 ## 3. Pending Release Gaps (Issue #48 & Security)
 
-1. **Security Vulnerability Blockers:**
-   - `rsa 0.9.10` มี advisory `RUSTSEC-2023-0071` (Marvin timing side-channel)
-   - Transitive unmaintained dependencies: `net2`, `async-std` (ผ่าน `mdns 3.0.0`)
-2. **Platform & Artifact Matrix:**
+1. **Platform & Artifact Matrix:**
    - Linux: `proven` (tarball + sha256 checksums ผ่าน `scripts/release_gate.sh`)
    - Windows: `runner-tested` (CI zip artifacts)
    - Android: `compile-only` (`cargo check --target aarch64-linux-android --lib`)
    - macOS: `unsupported` (ADR-045)
-3. **Reproducible Release Gate:**
+2. **Reproducible Release Gate:**
    - รัน `.github/workflows/release-gate.yml` เพื่อยืนยัน build provenance และ hash ของ `Cargo.lock` ก่อน tag release

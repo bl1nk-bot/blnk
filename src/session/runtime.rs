@@ -356,6 +356,9 @@ impl SessionRuntime {
         kind: StreamKind,
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
+        // TODO: Tcp, WebSocket และ Http ลงทะเบียนใน registry ได้ แต่ runtime
+        // ยังไม่ dispatch frame ที่ authenticated ไปยัง ProxyStreamService
+        // จึงยังไม่ควรเปิดเผยสามชนิดนี้เป็นความสามารถที่เชื่อมต่อได้จริง
         self.session.open_stream(kind, connect_path)
     }
 
