@@ -75,7 +75,7 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - proxy security policy (`src/stream/proxy.rs`)
 - concrete proxy service (`src/stream/proxy_handler.rs`) — TCP/WebSocket/HTTP
 
-ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป (Issue #42)
+ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป
 
 ### 2.7 Protocol Layer
 เก็บ definition ของ message และ frame format
