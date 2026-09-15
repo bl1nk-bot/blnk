@@ -356,7 +356,10 @@ impl SessionRuntime {
         kind: StreamKind,
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
-        if matches!(kind, StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http) {
+        if matches!(
+            kind,
+            StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http
+        ) {
             return Err(BlnkError::Stream(
                 "proxy stream dispatch is not implemented".into(),
             ));
@@ -997,9 +1000,11 @@ mod tests {
             let error = server
                 .open_stream(kind, "/proxy")
                 .expect_err("unserviced proxy stream must be rejected");
-            assert!(error
-                .to_string()
-                .contains("proxy stream dispatch is not implemented"));
+            assert!(
+                error
+                    .to_string()
+                    .contains("proxy stream dispatch is not implemented")
+            );
         }
 
         let stream = server
