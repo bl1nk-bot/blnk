@@ -49,53 +49,53 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - exchange offer/answer/candidate
 - handle pairing and error messages
 
-### 2.3.1 mDNS Discovery
+โมดูลจริงใน source แบ่งเป็น `src/signaling/transport.rs` (WebSocket client + local fixture) และ `src/signaling/orchestration.rs` (ผูก signaling เข้ากับ `PeerHandle` และ `SessionRuntime`)
+
+### 2.3.1 Discovery Layer (mDNS)
 ทำ local discovery แบบ LAN โดยไม่พึ่ง signaling server เสมอไป
-- announce service ผ่าน mDNS
-- discover peer/device ในเครือข่ายเดียวกัน
-- fallback ไป signaling server เมื่อ mDNS ไม่พอใช้
+- ใช้ UDP multicast บน service type `_blnk._tcp.local` ผ่าน `src/discovery/mod.rs`
+- `MdnsResponder` ประกาศ service ของตัวเอง และ `discover_local_peers` ค้นหา peer ภายใน timeout ที่กำหนด
+- ใช้ `CancellationToken` ควบคุม lifecycle ของ background task
+- ใช้ร่วมกับ `blnk devices --local` ใน CLI
 
 ### 2.4 Peer Layer
-สร้างและจัดการ WebRTC peer connection
-- ICE
-- SDP
-- DTLS/SCTP
-- data channel
-- connection state
+- ใช้ `webrtc` crate (v0.20) บน `tokio` runtime
+- lifecycle: ICE, SDP, DTLS/SCTP, data channel
+- โมดูล `src/peer/mod.rs` มีเพียง `PeerHandle` (public type) และ `TwoPeerHarness` (test/integration helper) ไม่มี `connection.rs` หรือ `ice.rs` แยก
 
 ### 2.5 Session Layer
-ดูแล lifecycle ของ session
-- auth
-- ready state
-- stream registry
-- session statistics
-- cleanup
+- โมดูล `src/session/` แบ่งเป็น `mod.rs` (typed messages และ state) และ `runtime.rs` (`SessionRuntime`, `SessionRuntimeConfig`, `SessionRuntimeSnapshot`)
+- ไม่มี `session.rs` หรือ `auth.rs` แยกเป็นไฟล์
 
 ### 2.6 Stream Layer
 จัดการ stream protocol และ dispatch ไปยัง handler
-- control stream
-- shell stream
-- file stream
-- tcp stream
-- websocket stream
-- http stream
+- control stream (stream id 0)
+- shell stream (`src/stream/shell.rs`)
+- file stream (`src/stream/file.rs`)
+- proxy security policy (`src/stream/proxy.rs`)
+- concrete proxy service (`src/stream/proxy_handler.rs`) — TCP/WebSocket/HTTP
+
+ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป (Issue #42)
 
 ### 2.7 Protocol Layer
 เก็บ definition ของ message และ frame format
-- signaling schema
-- SWSP frame
-- pairing messages
-- identity messages
-- control messages
+- `src/protocol/mod.rs` — module root
+- `src/protocol/swsp.rs` — SWSP frame codec
+- `src/protocol/pairing.rs` — pairing messages
+- `src/proto_generated.rs` — generated protobuf จาก `proto/*.proto` (ใช้สำหรับ control/stream messages เท่านั้น signaling ใช้ typed JSON)
 
 ### 2.8 Identity Layer
-ดูแล key pair และ identity persistence
-- generate key
-- load/save identity
-- sign/decrypt
-- uid/code management
+- `src/identity/mod.rs` — `Identity` struct, derived values (`uid`, `pairing_code`, `access_code`)
+- `src/identity/key.rs` — RSA-2048 key pair, sign/decrypt (RSA-OAEP)
+- รองรับทั้ง JSON และ PEM persistence
 
-### 2.9 Web/HTTP Layer
+### 2.9 Storage Layer
+- `src/storage/mod.rs` — `SqliteStore`, `SCHEMA_VERSION = 1`
+- `src/storage/schema.rs` — schema constants
+- `src/storage/store.rs` — concrete implementation
+- ใช้สำหรับ device registry และ metadata persistence
+
+### 2.10 Web/HTTP Layer
 ให้บริการ **loopback-only browser control surface** สำหรับ lifecycle/status ของ local browser session
 - bind เฉพาะ loopback address
 - ตรวจ exact configured Origin และ CORS แบบไม่ใช้ wildcard
@@ -106,69 +106,72 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 
 งานนี้ยังไม่ serve frontend assets และไม่ expose remote shell/file/proxy/signaling/WebRTC capability จาก browser; สิ่งเหล่านั้นต้องผ่าน authenticated session/capability boundary และมี evidence เฉพาะก่อนเพิ่ม surface
 
-### 2.10 Utility Layer
-- QR code
-- logging
-- error types
-- helpers
+### 2.11 Vault (Encrypted Storage)
+- `src/vault.rs` — `EncryptedVault` ใช้ XChaCha20-Poly1305 สำหรับ secret persistence
+- เป็น boundary แยกจาก `Storage` (ที่เก็บ metadata แบบ plain)
+
+### 2.12 Utility Layer
+- QR code (`src/utils/qr.rs`)
+- error types (`src/utils/error.rs` — `BlnkError`)
+- helpers (`src/utils/mod.rs`)
 
 ---
 
 ## 3. Proposed Module Structure
 
+> โครงสร้างนี้สะท้อน source จริงใน `/workspace/src/` ณ ปัจจุบัน ส่วนที่เป็น `proto/`, `tests/`, `benchmarks/` ถูกตัดออกจากตัวอย่างนี้เพื่อให้กระชับ
+
 ```
-blnk-rust/
-├── Cargo.toml                 # Main manifest
-├── Cargo.lock
-├── README.md
-├── TODO.md
-├── STYLE.md
+blnk/
+├── Cargo.toml                 # package manifest (edition = "2024")
 ├── src/
-│   ├── main.rs                # Entry point
-│   ├── lib.rs                 # Library root
+│   ├── main.rs                # CLI entry
+│   ├── lib.rs                 # library root ประกาศ module ทั้งหมด
 │   ├── config/                # Configuration
 │   │   ├── mod.rs
-│   │   └── args.rs            # CLI argument parsing
-│   ├── signaling/             # Signaling client
-│   │   ├── mod.rs
-│   │   ├── client.rs
-│   │   └── messages.rs        # Signaling messages
+│   │   └── args.rs            # CLI argument parsing (clap derive)
+│   ├── discovery/             # mDNS discovery (LAN)
+│   │   └── mod.rs             # MdnsResponder, discover_local_peers
+│   ├── identity/              # Identity & key persistence
+│   │   ├── mod.rs             # Identity + derived values (uid, pairing_code, access_code)
+│   │   └── key.rs             # RSA-2048, RSA-OAEP sign/decrypt
 │   ├── peer/                  # WebRTC peer connection
+│   │   └── mod.rs             # PeerHandle, TwoPeerHarness
+│   ├── protocol/              # Protocol
 │   │   ├── mod.rs
-│   │   ├── connection.rs
-│   │   └── ice.rs
-│   ├── session/               # Session management
-│   │   ├── mod.rs
-│   │   ├── session.rs
-│   │   └── auth.rs            # PIN authentication
+│   │   ├── swsp.rs            # SWSP frame codec
+│   │   └── pairing.rs         # Pairing messages
+│   ├── session/               # Session lifecycle & auth policy
+│   │   ├── mod.rs             # Typed messages
+│   │   └── runtime.rs         # SessionRuntime, SessionRuntimeConfig
+│   ├── signaling/             # Signaling client + orchestration
+│   │   ├── mod.rs             # SignalingMessage, ProtocolVersion, Sign
+│   │   ├── transport.rs       # SignalingClient, LocalFixtureServer, EndpointPolicy
+│   │   └── orchestration.rs   # ผูก signaling ↔ PeerHandle ↔ SessionRuntime
+│   ├── storage/               # Persistent metadata store (sqlite)
+│   │   ├── mod.rs             # SqliteStore, SCHEMA_VERSION
+│   │   ├── schema.rs
+│   │   └── store.rs
 │   ├── stream/                # Stream handlers
-│   │   ├── mod.rs
-│   │   ├── handler.rs         # Base handler trait
-│   │   ├── shell.rs           # Shell stream handler
-│   │   ├── file.rs            # File transfer handler
-│   │   ├── proxy.rs           # Shared proxy security policy
-│   │   └── proxy_handler.rs   # TCP/WebSocket/HTTP concrete service
-│   ├── protocol/              # Protocol definitions
-│   │   ├── mod.rs
-│   │   ├── swsp.rs            # SWSP protocol
-│   │   └── pairing.rs          # Pairing protocol
-│   ├── identity/              # Identity management
-│   │   ├── mod.rs
-│   │   └── key.rs
+│   │   ├── mod.rs             # StreamRegistry, FrameFlags codec
+│   │   ├── shell.rs           # ShellStreamHandler
+│   │   ├── file.rs            # FileTransferService
+│   │   ├── proxy.rs           # ProxyPolicy (deny-by-default)
+│   │   └── proxy_handler.rs   # ProxyStreamService (TCP/WS/HTTP)
 │   ├── utils/                 # Utilities
 │   │   ├── mod.rs
-│   │   ├── qr.rs              # QR code generation
-│   │   ├── logging.rs         # Logging setup
-│   │   └── error.rs           # Error types
+│   │   ├── qr.rs              # QR code generation + PairingQrPayload
+│   │   └── error.rs           # BlnkError (thiserror)
+│   ├── vault.rs               # EncryptedVault (XChaCha20-Poly1305)
 │   ├── web/                   # Loopback browser control surface
-│   │   └── mod.rs             # HTTP/WebSocket auth/session policy and fixtures
-
+│   │   └── mod.rs             # BrowserControlServer, BrowserControlConfig
+│   └── proto_generated.rs     # Generated protobuf types
 ├── tests/                     # Integration tests
-├── benchmarks/                # Performance benchmarks
-├── proto/                     
 └── docs/                      # Documentation
-    ├── architecture.md
-	└── api.md
+    ├── architecture.md        # (เอกสารนี้)
+    ├── api.md
+    ├── blueprint.md
+    └── implementation-status.md
 ```
 
 ---
@@ -308,11 +311,12 @@ logic หลักของ protocol, signaling, session, stream ควรเป
 ---
 
 ## 10. Security Considerations
-- key material ต้องเก็บอย่างปลอดภัย
-- auth flow ต้องป้องกัน replay พื้นฐาน
-- sensitive payload ต้องไม่ log
-- input validation ต้องเข้ม
-- protocol decoding ต้อง fail safe
+- key material ต้องเก็บอย่างปลอดภัย — `EncryptedVault` ใช้ XChaCha20-Poly1305 สำหรับ secret ที่ต้องการ confidentiality-at-rest
+- auth flow ต้องป้องกัน replay พื้นฐาน — PIN verified แบบ constant-time (`subtle::ConstantTimeEq`) พร้อม retry limit และ delay
+- sensitive payload ต้องไม่ log — `tracing` redact secret เสมอ; `ProxyPolicy::redact_target_for_log` ซ่อน credential-bearing header
+- input validation ต้องเข้ม — `ProxyPolicy::deny_by_default` ปฏิเสธ credentials/fragment/unsupported scheme และตรวจ private/loopback/link-local/multicast/reserved/documentation/IPv4-mapped IPv6
+- protocol decoding ต้อง fail safe — `Frame::decode` ตรวจ consumed length ตรง payload; SWSP error map ไปยัง `BlnkError::Protocol` โดยไม่ทำให้ process crash
+- web layer บังคับใช้ exact Origin check, HttpOnly/SameSite=Strict cookie, CSRF token และ bounded body/session/rate/frame/TTL
 
 ---
 
@@ -338,8 +342,9 @@ logic หลักของ protocol, signaling, session, stream ควรเป
 ---
 
 ## 12. Release Architecture
-
 - build release binary ด้วย `cargo build --release`
-- strip symbols สำหรับ production
-- ใช้ CI สำหรับทุก platform
-- publish artifacts สำหรับ Linux, Windows
+- strip symbols สำหรับ production (ใช้ `strip = "symbols"` ใน `[profile.release]`)
+- ใช้ CI สำหรับทุก platform (Linux เป็น primary target ปัจจุบัน; Windows/Android อยู่ใน roadmap)
+- release evidence และ gate state ปัจจุบันอยู่ใน `docs/implementation-status.md` และ `docs/releases/`
+- versioning ตาม semver ใน `Cargo.toml` (`version = "0.2.x"`); ดู release note ใน `CHANGELOG.md`
+- compatibility boundary สำหรับ original-client interoperability อยู่ใน `tests/fixtures/compatibility/v1/` และ `tests/compatibility_baseline.rs` (Issue #44)
