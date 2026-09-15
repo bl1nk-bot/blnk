@@ -2,7 +2,10 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
-## [0.2.13] — PR #108, #122, #123, #124, #125, #126, #127
+## [0.2.13] — PR #131
+- chore(security): redact access_code in PairCredentials Debug formatting
+
+## [0.2.13-prev] — PR #108, #122, #123, #124, #125, #126, #127
 - chore(security): prevent bootstrap token leak in debug logs
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers
