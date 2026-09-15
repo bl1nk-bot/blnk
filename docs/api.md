@@ -17,6 +17,8 @@ API ในเอกสารนี้แบ่งเป็น:
 
 เอกสารนี้เป็น **API contract ที่แยกสถานะ implementation กับ target integration** อย่างชัดเจน ฟังก์ชันหรือ type ใดจะถือว่าใช้งานได้ก็ต่อเมื่อมี Rust implementation, error handling และ tests รองรับ ส่วน interoperability หรือ remote deployment ต้องมี evidence เพิ่มเติม สถานะล่าสุดให้ดู [`docs/implementation-status.md`](implementation-status.md)
 
+> หลักการอ่าน: ฟังก์ชันหรือ type ที่อธิบายในเอกสารนี้ ไม่ได้หมายความว่าผ่านการ implement เสมอไป ต้องตรวจสถานะจริงใน `docs/implementation-status.md` เพื่อยืนยันก่อนอ้างถึงใน PR หรือ issue
+
 ---
 
 ## 2. CLI API
@@ -168,23 +170,48 @@ pub struct TwoPeerHarness {
 ## 5.1 `Session`
 
 ```rust
-pub struct Session { /* ... */ }
+pub struct Session {
+    state: SessionState,
+    config: SessionConfig,
+    expected_pin: Option<String>,
+    auth_attempts: u32,
+    registry: StreamRegistry,
+    stats: SessionStats,
+    next_auth_allowed_at: Option<Instant>,
+}
 ```
 
-### Methods
-- `new(config: SessionConfig) -> Result<Self>`
-- `start(&mut self) -> Result<()>`
-- `authenticate(&mut self, pin: Option<String>) -> Result<()>`
-- `mark_ready(&mut self) -> Result<()>`
-- `register_stream(&mut self, stream: StreamDescriptor) -> Result<()>`
-- `close(&mut self) -> Result<()>`
+### Methods ที่มีจริง
+- `new(config: SessionConfig, expected_pin: Option<String>) -> Result<Self>` — ตรวจ `pin_required` และความยาว `expected_pin` (6 ตัวอักษร)
+- `state() -> SessionState` — อ่านสถานะปัจจุบัน
+- `auth_attempts() -> u32` — จำนวนครั้งที่ลอง auth
+- `stats() -> SessionStats` — อ่าน `bytes_received`, `bytes_sent`, `frames_received`, `frames_sent`
+- `mark_authenticated(&mut self) -> Result<()>` — เปลี่ยนสถานะเป็น `Authenticated`
+- `mark_ready(&mut self) -> Result<()>` — เปลี่ยนเป็น `Ready`
+- `register_stream(&mut self, kind: StreamKind, connect_path: ...) -> Result<StreamEntry>` — ลงทะเบียน stream ใหม่
+- `close_stream(&mut self, stream_id: u32) -> Result<StreamEntry>` — ปิด stream
+- `verify_pin(&mut self, pin: &str) -> SessionResult<()>` — ตรวจ PIN แบบ constant-time พร้อม retry limit และ delay
+- `active_streams(&self) -> usize` — จำนวน stream ที่เปิดอยู่
+- `closed_streams(&self) -> u64` — จำนวน stream ที่ปิดสะสม
 
 ### Responsibilities
-- auth flow
-- session state
-- stream registry
+- state machine ของ session (`Connecting` → `Authenticating` → `Ready` → `Closed`)
+- auth flow พร้อม constant-time PIN check
+- stream registry (เก็บ `StreamKind`, `connect_path`)
 - stats tracking
 - teardown/cleanup
+
+### `SessionConfig` (จริงใน source)
+- `pin_required: bool` (default `true`)
+- `max_auth_fails: u32` (default `3`)
+- `pin_fail_delay: Duration` (default `2_000ms`)
+- `validate() -> SessionResult<()>` — ตรวจ `max_auth_fails > 0` เมื่อ `pin_required`
+
+### `SessionState` (enum)
+`Connecting`, `Authenticating`, `Ready`, `Closed`
+
+### `AuthOutcome` (enum)
+`Ready`, `Rejected { attempts_remaining: u32 }`, `Closed`
 
 ## 5.2 `SessionRuntime`
 
@@ -223,18 +250,18 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 
 ## 6. Stream API
 
-## 6.1 `StreamHandler`
+## 6.1 Stream abstraction
 
-```rust
-#[async_trait::async_trait]
-pub trait StreamHandler {
-    fn stream_type(&self) -> StreamType;
-    async fn handle(&mut self, ctx: StreamContext, frame: Frame) -> Result<StreamResponse>;
-}
-```
+> โปรดทราบ: ปัจจุบัน `src/stream/` **ไม่มี** public trait `StreamHandler` หรือ type `StreamContext`/`StreamResponse` ใน codebase โมดูลนี้เป็น concrete handler (`ShellStreamHandler`, `FileTransferService`, `ProxyStreamService`) พร้อม `StreamKind`, `StreamEntry` และ `StreamRegistry` เป็น boundary สำหรับลงทะเบียน stream
 
-### Purpose
-เป็น abstraction กลางสำหรับ stream type ต่าง ๆ
+### `StreamKind` (จริงใน `src/stream/mod.rs`)
+- variants: `Http`, `File`, `Tcp`, `WebSocket`, `Shell`
+- `as_str() -> &'static str` คืน string label สำหรับ log/proto
+
+### `StreamRegistry` (จริงใน `src/stream/mod.rs`)
+- `new()`, `len()`, `is_empty()`, `contains(stream_id)`, `get(stream_id)`, `closed_count()`
+- `open(kind, connect_path) -> Result<StreamEntry>` ลงทะเบียน stream ใหม่ (stream id เริ่มที่ 1)
+- `close(stream_id) -> Result<StreamEntry>` ปิด stream และนับ closed_count
 
 ---
 
@@ -267,14 +294,15 @@ pub trait StreamHandler {
 - ทุก operation รองรับ bounded timeout และ cooperative cancellation
 - file stream ใช้ non-zero stream ID ผ่าน `SessionRuntime`; request ใช้ `SYN|DAT`, data ใช้ `DAT|MORE`/`DAT|FIN`, และ close ใช้ `FIN`
 
-### Related Types
-- `FileTransferRequest`
-- `FileTransferResponse`
-- `FileTransferConfig`
-- `FileTransferCancellation`
-- `FileOp`
-- `FileInfo`
-- `FileList`
+### Related Types (จริงใน source)
+- `FileOperation` (enum: `Get`, `Put`, `List`, `Stat`, `Delete`) — ไม่ใช่ `FileOp` ที่เป็น proto type ใน `proto_generated::stream::FileOpType`
+- `FileTransferRequest` — มี `operation: FileOperation`, `path`, `size`, `overwrite`, `range: Option<(u64, u64)>`
+- `FileTransferResponse` — concrete response
+- `FileTransferConfig` — config (root path, max file size, max list entries, operation timeout)
+- `FileTransferCancellation` — `CancellationToken` wrapper
+- `DEFAULT_MAX_FILE_SIZE = 64 * 1024 * 1024` (64 MiB)
+- `DEFAULT_MAX_LIST_ENTRIES = 10_000`
+- `DEFAULT_OPERATION_TIMEOUT = 10s`
 
 หลักฐานปัจจุบันเป็น local unit/integration tests เท่านั้น ยังไม่ใช่หลักฐาน interoperability กับ client ภายนอกหรือ production filesystem deployment
 ---
@@ -303,10 +331,12 @@ impl TcpProxyStream {
 }
 ```
 
+> หมายเหตุ: ชื่อ proto type ตาม convention ของ `prost-build` คือ `TcpOpen` และ `TcpData` (proto ใช้ `TCPOpen`/`TCPData`)
+
 `open_tcp` ตรวจ target ด้วย `ProxyPolicy`, pin DNS answer set ก่อน dial/retry, ใช้ connect/idle/resource limits และคืน stable policy/transport errors เมื่อปฏิเสธหรือ timeout
 
 ### Related Types
-- `TcpOpen`, `TcpData`
+- `TcpOpen`, `TcpData` (proto-generated)
 - `TcpProxyStream`
 - `ProxyStreamService`
 
@@ -329,12 +359,13 @@ impl WebSocketProxyStream {
     pub async fn recv(&mut self) -> Result<Option<Vec<u8>>>;
     pub async fn close(&mut self) -> Result<()>;
 }
-```
 
 `ws` ใช้ policy-approved pinned TCP socket และ bridge text/binary payload เป็น bytes; `wss` ถูกปฏิเสธอย่าง explicit จนกว่าจะมี TLS connector ที่มี DNS pinning และ cross-platform certificate evidence ไม่ใช่การ fallback เป็น plain TCP
 
+> หมายเหตุ: proto type คือ `WebSocketOpen` และ `WebSocketMessage` (`prost-build` CamelCase)
+
 ### Related Types
-- `WebSocketOpen`, `WebSocketData`
+- `WebSocketOpen`, `WebSocketMessage` (proto-generated)
 - `WebSocketProxyStream`
 - `ProxyStreamService`
 
@@ -362,8 +393,10 @@ pub struct HttpProxyResponse {
 
 HTTP ใช้ one-request transcript ใน Issue #42 ไม่ใช่ full-duplex body stream ปิด automatic redirects และ validate ทุก redirect ด้วย `ProxyPolicy`; hop-by-hop headers และ caller-supplied `content-length` ถูกตัดออก และ response body/headers อยู่ภายใต้ limits/redaction boundary
 
+> หมายเหตุ: proto type คือ `HttpRequest`, `HttpResponse`, `HttpData` (proto ใช้ `HTTPRequest`/`HTTPResponse`/`HTTPData`)
+
 ### Related Types
-- `HttpRequest`, `HttpResponse`, `HttpData`
+- `HttpRequest`, `HttpResponse`, `HttpData` (proto-generated)
 - `HttpProxyResponse`
 - `ProxyStreamService`
 
@@ -372,70 +405,6 @@ HTTP ใช้ one-request transcript ใน Issue #42 ไม่ใช่ full-d
 ## 6.7 Proxy Security Policy
 
 `src/stream/proxy.rs` เป็น policy boundary กลางที่ `ProxyStreamService` ใน `src/stream/proxy_handler.rs` เรียกใช้สำหรับ TCP, WebSocket และ HTTP โมดูล policy **ไม่เปิด socket เอง** แต่ถูกบังคับใช้ก่อน connect, retry และ redirect ทุกครั้ง ส่วนการ dispatch จาก authenticated `SessionRuntime` ยังเป็นงานถัดไป
-
-### Core types and methods
-
-```rust
-pub enum ProxyAuthorization {
-    None,
-    Allowlisted,
-    UserConfirmed,
-}
-
-pub struct ProxyPolicy { /* deny-by-default configuration */ }
-
-impl ProxyPolicy {
-    pub fn deny_by_default() -> Self;
-    pub fn validate_target(
-        &self,
-        target: &url::Url,
-        authorization: ProxyAuthorization,
-    ) -> Result<ValidatedProxyTarget, ProxyPolicyError>;
-    pub async fn resolve_and_validate(
-        &self,
-        target: &url::Url,
-        authorization: ProxyAuthorization,
-    ) -> Result<ResolvedProxyTarget, ProxyPolicyError>;
-    pub fn validate_retry(
-        &self,
-        resolved: &ResolvedProxyTarget,
-        retry_address: std::net::SocketAddr,
-    ) -> Result<(), ProxyPolicyError>;
-    pub fn validate_redirect(
-        &self,
-        original: &ValidatedProxyTarget,
-        next: &url::Url,
-        authorization: ProxyAuthorization,
-        redirect_count: u8,
-    ) -> Result<ValidatedProxyTarget, ProxyPolicyError>;
-}
-```
-
-`ProxyPolicy::deny_by_default()` ไม่ยอมรับ target ที่ไม่มี authorization, ปฏิเสธ credentials/fragment/unsupported scheme และตรวจ private, loopback, link-local, multicast, reserved, documentation และ IPv4-mapped IPv6 ตาม ADR-041 การเปิด local target หรือ user confirmation ต้องตั้งค่าอย่าง explicit และยังต้องผ่าน authorization ทุกครั้ง
-
-`resolve_and_validate` ตรวจ DNS answers ทั้งหมดแล้วคืน address set ที่ pin ไว้ใน `ResolvedProxyTarget`; handler ห้าม resolve ใหม่ระหว่าง retry โดยไม่เรียก `validate_retry` การ follow redirect ต้องส่ง URL ใหม่กลับเข้า `validate_redirect` เพื่อบังคับ same-origin, scheme downgrade และ redirect-count policy อีกครั้ง
-
-### Resource and redaction boundary
-
-`ProxyResourceLimits` กำหนด request/response size, active concurrency, buffered bytes, connect/idle timeout และ redirect ceiling ส่วน `check_request_size`, `check_response_size`, `check_concurrent_streams` และ `check_buffered_bytes` คืน `ProxyPolicyError` แบบ deterministic เมื่อเกิน limit เมื่อ timeout หรือ cancellation เกิดขึ้น handler ต้องยกเลิก pending I/O และปิด stream โดยไม่ bypass policy
-
-`redact_target_for_log` แสดงเพียง `scheme://host:port` และ `redact_header_value` ซ่อน credential-bearing headers เป็น `<redacted>` ห้าม log raw URL ที่มี query token, userinfo, fragment หรือ request/response body `ProxyPolicyError::code()` เป็น stable code สำหรับ metrics และ mapping ไปยัง `BlnkError::Stream`; ไม่ควรส่งข้อความ low-level resolver กลับ remote
-
-### Related types
-
-- `ProxyScheme`
-- `ProxyTargetKey`
-- `ValidatedProxyTarget`
-- `ResolvedProxyTarget`
-- `ProxyAuthorization`
-- `ProxyResourceLimits`
-- `ProxyPolicyError`
-
----
-
-## 6.7 Proxy Security Policy
-
-`src/stream/proxy.rs` เป็น policy boundary กลางสำหรับ TCP, WebSocket และ HTTP handlers ที่จะพัฒนาใน Issue #42 เป็นต้นไป โมดูลนี้ **ไม่เปิด socket และไม่ implement stream handler** แต่ต้องถูกเรียกก่อน connect, retry และ redirect ทุกครั้ง
 
 ### Core types and methods
 
@@ -553,19 +522,20 @@ pub struct Identity { /* ... */ }
 
 ## 8.4 Control
 
-- `ConnectMessage`
-- `AuthRequiredMessage`
-- `AuthMessage`
-- `AuthResultMessage`
-- `ReadyMessage`
-- `ErrorMessage`
-- `SessionConfig`
-- `SessionStats`
+- `ConnectMessage` (path, version)
+- `AuthRequiredMessage` (ส่งโดย server เพื่อขอ PIN)
+- `AuthMessage` (pin)
+- `AuthResultMessage` (success: bool)
+- `ReadyMessage` (server_version, capabilities, routing: `"target-prefix"|"direct"`)
+- `ControlErrorMessage` (message) — message_type เป็น `"error"`
+- `SessionConfig`, `SessionStats`, `SessionState`, `AuthOutcome`
 
 ## 8.5 Stream Types
-- `StreamType`
-- `StreamContext`
-- `StreamHandlerInfo`
+- `StreamKind` (enum) — variants: `Http`, `File`, `Tcp`, `WebSocket`, `Shell` พร้อม `as_str() -> &'static str`
+- `StreamEntry` — `stream_id`, `kind: StreamKind`, `connect_path` พร้อม getter `id()`, `kind()`, `connect_path()`
+- `StreamRegistry` — `new()`, `len()`, `is_empty()`, `contains(stream_id)`, `get(stream_id)`, `closed_count()`, `open(kind, path)`, `close(stream_id)`
+
+> หมายเหตุ: ไม่มี public type ชื่อ `StreamType`, `StreamContext`, `StreamHandlerInfo` หรือ `StreamResponse` ใน source code ปัจจุบัน
 
 ## 8.6 Compatibility Baseline
 
@@ -589,27 +559,49 @@ Issue #44 กำหนด compatibility evidence boundary ผ่านไฟล�
 ## 9.1 QR
 
 ```rust
-
-pub fn generate_qr(data: &str) -> Result<String>;
-
+pub fn render_qr_terminal(content: &str) -> Result<String, qrcode::types::QrError>;
+pub fn render_qr_ascii(content: &str) -> Result<String, qrcode::types::QrError>;
 ```
 ### Purpose
-สร้าง QR code สำหรับ URL หรือ pairing link
----
+สร้าง QR code สำหรับ URL หรือ pairing link ใช้ใน `blnk serve --qr` (พิมพ์ QR สำหรับ `PairingQrPayload { uid, pairing_code, endpoint }`)
 
+### `PairingQrPayload`
+- `uid: String`
+- `pairing_code: String`
+- `endpoint: String`
+- `to_payload_string(&self) -> String` — serialize เป็นข้อความที่นำไป render เป็น QR ได้
+
+> หมายเหตุ: ไม่มี public function ชื่อ `generate_qr` ใน source ใช้ `render_qr_terminal` หรือ `render_qr_ascii` แทน
+---
 ## 9.2 Logging Setup
 
+ในปัจจุบัน binary ใช้ `tracing_subscriber::fmt()` กับ `EnvFilter::from_default_env()` โดยตรงใน `src/main.rs` ไม่มีฟังก์ชัน `init_logging` แยก
+
 ```rust
-pub fn init_logging(level: &str) -> Result<()>;
+tracing_subscriber::fmt()
+    .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+    .try_init();
 ```
-### Purpose
-ตั้งค่า tracing subscriber
+
+ผู้ใช้ปรับ log level ผ่าน env var `RUST_LOG` (เช่น `RUST_LOG=blnk=debug`)
+
 ---
 ## 9.3 Error Types
 ```rust
-#[derive(thiserror::Error, Debug)]
-pub enum BlnkError { /* ... */ }
+#[derive(Debug, thiserror::Error)]
+pub enum BlnkError {
+    Config(String),
+    Identity(String),
+    Signaling(String),
+    Peer(String),
+    Session(String),
+    Stream(String),
+    Protocol(String),
+    Io(std::io::Error),
+}
 ```
+
+มี 8 variants ตามที่ระบุใน `src/utils/error.rs`
 ---
 
 ## 10. API Behavior Rules
@@ -624,10 +616,42 @@ pub enum BlnkError { /* ... */ }
 
 ## 11. Example Usage
 
+ตัวอย่างต่อไปนี้แสดงการใช้ API หลักระดับ public ในสถานการณ์ local fixture (ใช้ `TwoPeerHarness`) ส่วน remote flow แบบ signaling/WebRTC เต็มรูปแบบให้ดูที่ `signaling/orchestration.rs` และ `main.rs`
+
 ```rust
-let identity = Identity::generate()?;
-let mut signaling = SignalingClient::new("wss://bitba.ng")?;
-signaling.connect()?;
-let mut peer = PeerConnection::new(identity, signaling)?;
-peer.connect()?;
+use blnk::peer::TwoPeerHarness;
+use blnk::session::{SessionRuntime, SessionRuntimeConfig};
+
+// สร้าง identity (หรือโหลดจากไฟล์)
+let identity = blnk::identity::Identity::generate()?;
+
+// สร้าง local harness แบบ in-process
+let harness = TwoPeerHarness::new("control").await?;
+let mut client = SessionRuntime::new(
+    harness.offerer,
+    SessionRuntimeConfig::client(pin),
+)?;
+let mut server = SessionRuntime::new(
+    harness.answerer,
+    SessionRuntimeConfig::server(pin),
+)?;
+
+// รัน authenticated handshake เป็น Ready
+let (c, s) = tokio::join!(client.handshake(), server.handshake());
+c?; s?;
+
+// ส่ง SWSP frame ระหว่าง peer
+let frame = blnk::protocol::swsp::Frame::new(
+    1,
+    blnk::protocol::swsp::FrameFlags::SYN | blnk::protocol::swsp::FrameFlags::DAT,
+    b"hello".to_vec(),
+);
+harness.offerer.send_frame(&frame).await?;
+let received = harness.answerer.recv_frame().await?;
 ```
+
+### หมายเหตุสำคัญ
+
+- ไม่มี public type ชื่อ `PeerConnection` ใน `blnk::peer` โมดูลนี้ export เพียง `PeerHandle` และ `TwoPeerHarness`
+- ตัวอย่าง remote signaling flow (เช่น `connect_target`, `accept_server_session`, `run_shell_client`) อยู่ใน `blnk::signaling::orchestration` และถูกเรียกจาก `main.rs` ไม่ใช่ public API ที่ผู้ใช้เรียกเอง
+- ฟังก์ชันที่อธิบายในเอกสารนี้บางส่วนอยู่ในชั้น internal/test harness เท่านั้น โปรดตรวจ `pub` visibility ใน source ก่อนเรียกใช้จาก crate ภายนอก
