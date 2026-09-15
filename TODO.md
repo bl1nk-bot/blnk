@@ -16,7 +16,5 @@
 - WebRTC data-channel test with reference bitbang client cross-machine
 - Baseline fixtures: `tests/compatibility_baseline.rs`, `tests/live_interop.rs`
 
-- TODO: Wire TCP/WebSocket/HTTP proxy dispatch into `SessionRuntime` after the
-  proxy service contract and integration tests are ready.
 - TODO: Publish the `v0.2.13` tag/release and bump `Cargo.toml` from `0.2.12`
   when the release gate is approved.
