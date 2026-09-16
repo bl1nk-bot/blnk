@@ -359,6 +359,108 @@ impl Default for OperationScope {
     }
 }
 
+/// Outcome of a per-operation audit receipt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AuditResult {
+    Success,
+    Failure,
+    Denied,
+}
+
+/// Per-operation audit receipt recorded at the orchestration boundary.
+///
+/// Mirrors RustDesk's connection/file audit separation: session-level events
+/// (connect, auth) and per-stream operations (shell, file) each produce a
+/// receipt with the client identity, operation name, outcome, and optional
+/// metadata (error message or denial reason).
+#[derive(Debug, Clone)]
+pub struct AuditReceipt {
+    client_id: String,
+    operation: String,
+    result: AuditResult,
+    metadata: Option<String>,
+}
+
+impl AuditReceipt {
+    /// Creates a receipt with `Success` outcome and no metadata.
+    pub fn new(client_id: impl Into<String>, operation: impl Into<String>) -> Self {
+        Self {
+            client_id: client_id.into(),
+            operation: operation.into(),
+            result: AuditResult::Success,
+            metadata: None,
+        }
+    }
+
+    pub fn client_id(&self) -> &str {
+        &self.client_id
+    }
+
+    pub fn operation(&self) -> &str {
+        &self.operation
+    }
+
+    pub fn result(&self) -> AuditResult {
+        self.result
+    }
+
+    pub fn metadata(&self) -> Option<&str> {
+        self.metadata.as_deref()
+    }
+}
+
+/// In-memory audit log for a single session.
+///
+/// Collects receipts produced by the orchestration boundary. The log is not
+/// persisted here — a future integration can drain receipts into the
+/// `audit_events` table at the storage layer.
+#[derive(Debug, Clone)]
+pub struct AuditLog {
+    client_id: String,
+    receipts: Vec<AuditReceipt>,
+}
+
+impl AuditLog {
+    pub fn new(client_id: impl Into<String>) -> Self {
+        Self {
+            client_id: client_id.into(),
+            receipts: Vec::new(),
+        }
+    }
+
+    /// Records the initial session start event.
+    pub fn record_session_start(&mut self) {
+        let receipt = AuditReceipt {
+            client_id: self.client_id.clone(),
+            operation: "session_start".into(),
+            result: AuditResult::Success,
+            metadata: None,
+        };
+        self.receipts.push(receipt);
+    }
+
+    /// Records a per-operation outcome.
+    pub fn record_operation(
+        &mut self,
+        operation: &str,
+        result: AuditResult,
+        metadata: Option<&str>,
+    ) {
+        let receipt = AuditReceipt {
+            client_id: self.client_id.clone(),
+            operation: operation.to_owned(),
+            result,
+            metadata: metadata.map(str::to_owned),
+        };
+        self.receipts.push(receipt);
+    }
+
+    /// Returns all recorded receipts.
+    pub fn receipts(&self) -> &[AuditReceipt] {
+        &self.receipts
+    }
+}
+
 /// Owns one authenticated server session and guarantees that its dispatcher
 /// receives frames through one reader until cancellation, peer close, or error.
 pub struct ConnectionSupervisor {
@@ -366,6 +468,7 @@ pub struct ConnectionSupervisor {
     root: PathBuf,
     shutdown: CancellationToken,
     scope: OperationScope,
+    audit_log: AuditLog,
 }
 
 impl ConnectionSupervisor {
@@ -374,11 +477,13 @@ impl ConnectionSupervisor {
         root: impl AsRef<Path>,
         shutdown: CancellationToken,
     ) -> Self {
+        let audit_log = AuditLog::new(&session.client_id);
         Self {
             session,
             root: root.as_ref().to_path_buf(),
             shutdown,
             scope: OperationScope::default(),
+            audit_log,
         }
     }
 
@@ -389,8 +494,14 @@ impl ConnectionSupervisor {
         self
     }
 
-    pub async fn run(self) -> SignalingResult<()> {
-        serve_session_with_shutdown(self.session, self.root, self.shutdown, self.scope).await
+    /// Returns the audit log after the supervisor completes.
+    pub fn audit_log(&self) -> &AuditLog {
+        &self.audit_log
+    }
+
+    pub async fn run(mut self) -> SignalingResult<()> {
+        self.audit_log.record_session_start();
+        serve_session_with_shutdown(self.session, self.root, self.shutdown, self.scope, self.audit_log).await
     }
 }
 
@@ -409,6 +520,7 @@ pub async fn serve_session_with_shutdown(
     root: impl AsRef<Path>,
     shutdown: CancellationToken,
     scope: OperationScope,
+    mut audit_log: AuditLog,
 ) -> SignalingResult<()> {
     let root = root.as_ref().to_path_buf();
     let result = async {
@@ -448,22 +560,30 @@ pub async fn serve_session_with_shutdown(
 
         if let Ok(command) = decode_open_frame(&frame) {
             if !scope.allows(StreamKind::Shell) {
-                break Err(BlnkError::Session(format!(
-                    "operation denied: shell not in scope (v{})",
-                    scope.version()
-                )));
+                let reason = format!("operation denied: shell not in scope (v{})", scope.version());
+                audit_log.record_operation("shell", AuditResult::Denied, Some(&reason));
+                break Err(BlnkError::Session(reason));
             }
-            dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await?;
+            match dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await {
+                Ok(()) => audit_log.record_operation("shell", AuditResult::Success, None),
+                Err(ref error) => {
+                    audit_log.record_operation("shell", AuditResult::Failure, Some(&error.to_string()));
+                }
+            }
             continue;
         }
         if let Ok(request) = decode_request_frame(&frame) {
             if !scope.allows(StreamKind::File) {
-                break Err(BlnkError::Session(format!(
-                    "operation denied: file not in scope (v{})",
-                    scope.version()
-                )));
+                let reason = format!("operation denied: file not in scope (v{})", scope.version());
+                audit_log.record_operation("file", AuditResult::Denied, Some(&reason));
+                break Err(BlnkError::Session(reason));
             }
-            dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await?;
+            match dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await {
+                Ok(()) => audit_log.record_operation("file", AuditResult::Success, None),
+                Err(ref error) => {
+                    audit_log.record_operation("file", AuditResult::Failure, Some(&error.to_string()));
+                }
+            }
             continue;
         }
             break Err(BlnkError::Protocol(format!(
@@ -926,6 +1046,52 @@ mod tests {
     }
 
     // --- end OperationScope tests ---
+
+    // --- AuditReceipt tests (TODO #2) ---
+
+    #[test]
+    fn audit_receipt_records_operation_outcome() {
+        let receipt = AuditReceipt::new("client-1", "shell");
+        assert_eq!(receipt.client_id(), "client-1");
+        assert_eq!(receipt.operation(), "shell");
+        assert_eq!(receipt.result(), AuditResult::Success);
+    }
+
+    #[test]
+    fn audit_log_records_session_start_and_operation() {
+        let mut log = AuditLog::new("client-1");
+        log.record_session_start();
+        log.record_operation("shell", AuditResult::Success, None);
+        let receipts = log.receipts();
+        assert_eq!(receipts.len(), 2);
+        assert_eq!(receipts[0].operation(), "session_start");
+        assert_eq!(receipts[1].operation(), "shell");
+        assert_eq!(receipts[1].result(), AuditResult::Success);
+    }
+
+    #[test]
+    fn audit_log_denied_outcome() {
+        let mut log = AuditLog::new("client-1");
+        log.record_operation("file", AuditResult::Denied, Some("not in scope"));
+        let receipts = log.receipts();
+        assert_eq!(receipts.len(), 1);
+        assert_eq!(receipts[0].result(), AuditResult::Denied);
+        assert_eq!(
+            receipts[0].metadata(),
+            Some("not in scope")
+        );
+    }
+
+    #[test]
+    fn audit_log_failure_records_error() {
+        let mut log = AuditLog::new("client-2");
+        log.record_operation("shell", AuditResult::Failure, Some("process exited"));
+        let receipts = log.receipts();
+        assert_eq!(receipts[0].result(), AuditResult::Failure);
+        assert_eq!(receipts[0].metadata(), Some("process exited"));
+    }
+
+    // --- end AuditReceipt tests ---
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn relay_completes_register_offer_answer_and_authenticated_session() {
