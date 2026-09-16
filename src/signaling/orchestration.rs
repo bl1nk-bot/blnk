@@ -498,7 +498,14 @@ impl ConnectionSupervisor {
 
     pub async fn run(mut self) -> SignalingResult<()> {
         self.audit_log.record_session_start();
-        serve_session_with_shutdown(self.session, self.root, self.shutdown, self.scope, self.audit_log).await
+        serve_session_with_shutdown(
+            self.session,
+            self.root,
+            self.shutdown,
+            self.scope,
+            self.audit_log,
+        )
+        .await
     }
 }
 
@@ -1034,11 +1041,7 @@ mod tests {
     fn operation_scope_allows_all_configured_kinds() {
         let scope = OperationScope::new(
             1,
-            vec![
-                StreamKind::Shell,
-                StreamKind::File,
-                StreamKind::Adapter,
-            ],
+            vec![StreamKind::Shell, StreamKind::File, StreamKind::Adapter],
         );
         assert!(scope.allows(StreamKind::Shell));
         assert!(scope.allows(StreamKind::File));
@@ -1077,10 +1080,7 @@ mod tests {
         let receipts = log.receipts();
         assert_eq!(receipts.len(), 1);
         assert_eq!(receipts[0].result(), AuditResult::Denied);
-        assert_eq!(
-            receipts[0].metadata(),
-            Some("not in scope")
-        );
+        assert_eq!(receipts[0].metadata(), Some("not in scope"));
     }
 
     #[test]
