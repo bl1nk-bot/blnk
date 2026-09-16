@@ -9,10 +9,12 @@
 | Subsystem | Source Path | State & Behavior | Evidence / Test File |
 |---|---|---|---|
 | **CLI & Commands** | `src/main.rs`, `src/config/args.rs` | รองรับ subcommands: `serve`, `connect`, `cp`, `devices`, `web`, `version` | `src/main.rs:tests` |
-| **Protobuf Codegen** | `build.rs`, `proto/`, `src/proto_generated.rs` | คอมไพล์ schema สำหรับ signaling, control, identity, stream | `proto_generated::tests` |
+| **Protobuf Codegen** | `build.rs`, `proto/`, `src/proto_generated.rs` | คอมไพล์ schema สำหรับ signaling, control, identity, stream; fall back ไปใช้ system protoc เมื่อ vendored ไม่รองรับ platform | `proto_generated::tests` |
 | **Identity Management** | `src/identity/key.rs` | รองรับ RSA-2048 คีย์คู่, OAEP encryption, SHA256 signing, โหลด/เซฟทั้ง JSON และ PEM | `src/identity/key.rs:tests` |
 | **Pairing & SAS** | `src/protocol/pairing.rs` | 6-digit numeric SAS, commit-reveal verification, unpadded base64 nonces | `protocol::pairing::tests` |
 | **SWSP Frame Codec** | `src/protocol/swsp.rs` | Raw 8-byte LE header (`stream_id` 4B, `flags` 2B, `length` 2B), multi-frame buffer parsing | `protocol::swsp::tests` |
+| **Stream Message Envelope** | `src/protocol/stream.rs`, `proto/stream.proto` | Unified envelope สำหรับ dispatch metadata (stream_type, kind, sequence, payload); opt-in over raw SWSP | `protocol::stream::tests` |
+| **Build System** | `build.rs` | Protoc resolution: vendored → PROTOC env → which protoc → panic; Android cross-compile support | `cargo check --target aarch64-linux-android` |
 | **Signaling Transport** | `src/signaling/` | WebSocket transport, message validation, discriminator checks, replay prevention | `signaling::tests` |
 | **WebRTC & DataChannel** | `src/peer/` | DataChannel event handling, ICE gathering, STUN/TURN configuration | `peer::tests` |
 | **Session State Machine** | `src/session/` | PIN authentication (constant-time check), session timeouts, active stream lifecycle | `session::tests` |
