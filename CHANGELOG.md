@@ -2,6 +2,16 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.14] — Source Trust Analysis + RustDesk/Codex Adaptation Prep
+- feat(signaling): add versioned `OperationScope` policy for session dispatch (TODO #1)
+- feat(signaling): add per-session `AuditLog` with per-operation receipts (TODO #2)
+- feat(stream): add `Adapter` variant to `StreamKind` for future adapter streams
+- feat(protocol): unified stream message envelope (`StreamEnvelope`, `StreamTypeTag`)
+- docs: add `source-trust-analysis.md` — extracted patterns from Codex + RustDesk
+- docs: update `TODO.md` with 8 Codex-inspired + 15 RustDesk backlog items
+- chore: add FIXME comments for proxy dispatch bottleneck (blocks spec 4.3, 4.4, 4.10)
+- chore: add TODO comments for cancellation propagation and file-transfer validation
+
 ## [0.2.13] — PR #130
 - chore(security): redact PIN in AuthMessage Debug formatting
 

@@ -317,9 +317,6 @@ pub async fn connect_target(
     })
 }
 
-// TODO: Add a latched operation scope and per-stream audit record here before
-// exposing additional RustDesk-inspired operations beyond shell and file.
-
 /// Versioned operation-scope policy latched at session authentication time.
 ///
 /// Mirrors RustDesk's login-scope latching: once the session reaches `Ready`,
@@ -705,6 +702,10 @@ pub async fn run_file_client(
     runtime.close_file_stream(stream_id).await.map(|_| ())
 }
 
+// TODO: Propagate CancellationToken from session shutdown into shell, file,
+// proxy, adapter, and vault tasks. Currently each dispatch creates its own
+// CancellationToken::new() which never gets cancelled from session shutdown.
+// See TODO.md "RustDesk Reuse" backlog item for cancellation propagation.
 async fn dispatch_shell(
     runtime: &mut SessionRuntime,
     stream_id: u32,
