@@ -18,3 +18,22 @@
 
 - TODO: Publish the `v0.2.13` tag/release and bump `Cargo.toml` from `0.2.12`
   when the release gate is approved.
+
+## RustDesk Reuse and Adaptation Backlog
+
+- [ ] Extract RustDesk `src/rendezvous_mediator.rs` direct-connect, relay-fallback, punch retry, timeout, and duplicate-route handling into `src/signaling/transport.rs` without changing blnk's non-trickle ICE contract.
+- [ ] Add a bounded `ConnectionSupervisor` around `serve_session_with_shutdown` using RustDesk's single-reader plus cancellation/select lifecycle for every authenticated blnk session.
+- [ ] Map RustDesk `src/server/connection.rs` login-scope latching and permission checks into a versioned blnk operation-scope policy for shell, file, proxy, share, and adapter streams.
+- [ ] Add per-session and per-operation audit receipts at the orchestration boundary using RustDesk's connection/file audit separation and the existing `audit_events` schema.
+- [ ] Reuse RustDesk's file-transfer request validation pattern to add explicit size, range, path, overwrite, cancellation, timeout, and list-entry profiles to `src/stream/file.rs`.
+- [ ] Add atomic temporary-file write, checksum verification, and rename-on-commit to blnk file PUT using the RustDesk file-transfer lifecycle as the implementation reference.
+- [ ] Add stale job/session rejection for file and stream responses by tracking request IDs like RustDesk's cancelled/unknown read-job filtering.
+- [ ] Add a reconnecting local IPC/session channel abstraction based on RustDesk's `next_timeout` plus reconnect-and-replace behavior for future desktop UI, adapter, and vault workers.
+- [ ] Define a `TransportRoute` state model for direct, relay, and forced-relay connections by adapting RustDesk's route selection without allowing silent downgrade or policy bypass.
+- [ ] Add bounded relay/punch retry metrics and route deduplication tests based on RustDesk's resend queue and punch retry tests.
+- [ ] Add a permission-scoped proxy dispatcher by combining RustDesk's connection permission matrix with blnk `src/stream/proxy.rs` private-address, redirect, and resource-limit policies.
+- [ ] Add operation cancellation propagation from session shutdown into shell, file, proxy, adapter, and vault tasks using the existing `CancellationToken` boundary.
+- [ ] Add clipboard-as-object/share channel mapping using RustDesk text/binary/file clipboard separation and blnk `share.proto` channel/trust policies.
+- [ ] Add a platform `KeyProvider` trait for Windows Credential Manager and Linux Secret Service, replacing direct root-key injection in `EncryptedVault` while preserving `vault.proto` key versions.
+- [ ] Add persistent connection capability negotiation so RustDesk-style reusable connections can serve multiple approved blnk streams without widening the authenticated operation scope.
+- [ ] Add cross-platform transport and file-transfer fixtures for Windows/Linux direct, relay, cancellation, timeout, and recovery cases before reusing RustDesk code patterns in production.

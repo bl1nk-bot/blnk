@@ -316,6 +316,8 @@ pub async fn connect_target(
     })
 }
 
+// TODO: Add a latched operation scope and per-stream audit record here before
+// exposing additional RustDesk-inspired operations beyond shell and file.
 /// Runs a server-side authenticated session with a single-reader stream
 /// dispatcher. Shell and file streams are handled using the existing bounded
 /// services; unrecognized or out-of-order frames are errors, not success.

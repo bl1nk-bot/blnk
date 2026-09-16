@@ -360,6 +360,8 @@ impl SessionRuntime {
             kind,
             StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http
         ) {
+            // TODO: Map RustDesk's permission-scoped connection/port-forward dispatcher
+            // into the blnk proxy handler before enabling these stream kinds.
             return Err(BlnkError::Stream(
                 "proxy stream dispatch is not implemented".into(),
             ));
