@@ -12,7 +12,7 @@ P2P remote access ผ่าน WebRTC — ไม่ต้องสมัคร�
 - **NAT Traversal** — รองรับ STUN/TURN ICE servers ผ่าน `PeerHandle::with_ice_servers`
 - **Local Fixture** — in-process test mode เต็มรูปแบบ (`--local-fixture`) ไม่ต้องใช้ secret ภายนอก
 - **Loopback Browser Control** — `blnk web` สำหรับควบคุม lifecycle/status ผ่าน HTTP/WS บน loopback เท่านั้น
-- **Proxy Streams** — TCP/WebSocket/HTTP ผ่าน `ProxyStreamService` ที่บังคับใช้ `ProxyPolicy` แบบ deny-by-default (dispatch เข้า session อยู่ใน Issue #42)
+- **Proxy Streams** — TCP/WebSocket/HTTP ผ่าน `ProxyStreamService` ที่บังคับใช้ `ProxyPolicy` แบบ deny-by-default; ยังไม่ผูก dispatch เข้า `SessionRuntime`
 - **Encrypted Vault** — secret ที่ต้องการ confidentiality-at-rest เก็บใน `EncryptedVault` (XChaCha20-Poly1305)
 
 ## การติดตั้ง
