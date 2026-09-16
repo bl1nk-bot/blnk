@@ -21,8 +21,8 @@
 
 ## RustDesk Reuse and Adaptation Backlog
 
-- [ ] Extract RustDesk `src/rendezvous_mediator.rs` direct-connect, relay-fallback, punch retry, timeout, and duplicate-route handling into `src/signaling/transport.rs` without changing blnk's non-trickle ICE contract.
-- [ ] Add a bounded `ConnectionSupervisor` around `serve_session_with_shutdown` using RustDesk's single-reader plus cancellation/select lifecycle for every authenticated blnk session.
+- [x] Extract RustDesk `src/rendezvous_mediator.rs` direct-connect, relay-fallback, punch retry, timeout, and duplicate-route handling into `src/signaling/transport.rs` without changing blnk's non-trickle ICE contract.
+- [x] Add a bounded `ConnectionSupervisor` around `serve_session_with_shutdown` using RustDesk's single-reader plus cancellation/select lifecycle for every authenticated blnk session.
 - [ ] Map RustDesk `src/server/connection.rs` login-scope latching and permission checks into a versioned blnk operation-scope policy for shell, file, proxy, share, and adapter streams.
 - [ ] Add per-session and per-operation audit receipts at the orchestration boundary using RustDesk's connection/file audit separation and the existing `audit_events` schema.
 - [ ] Reuse RustDesk's file-transfer request validation pattern to add explicit size, range, path, overwrite, cancellation, timeout, and list-entry profiles to `src/stream/file.rs`.

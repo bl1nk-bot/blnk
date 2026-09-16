@@ -14,7 +14,7 @@ pub mod transport;
 pub use transport::{
     DEFAULT_MAX_MESSAGE_SIZE, EndpointPolicy, FixtureConfig, FixtureSnapshot, LocalFixtureServer,
     ReconnectPolicy, SignalingClient, SignalingConnection, SignalingMessage, TransportResult,
-    decode_message, encode_message,
+    TransportRoute, decode_message, encode_message,
 };
 
 pub const PROTOCOL_VERSION: i32 = 3;

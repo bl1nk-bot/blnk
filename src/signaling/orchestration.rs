@@ -318,11 +318,39 @@ pub async fn connect_target(
 
 // TODO: Add a latched operation scope and per-stream audit record here before
 // exposing additional RustDesk-inspired operations beyond shell and file.
+/// Owns one authenticated server session and guarantees that its dispatcher
+/// receives frames through one reader until cancellation, peer close, or error.
+pub struct ConnectionSupervisor {
+    session: ServerSession,
+    root: PathBuf,
+    shutdown: CancellationToken,
+}
+
+impl ConnectionSupervisor {
+    pub fn new(
+        session: ServerSession,
+        root: impl AsRef<Path>,
+        shutdown: CancellationToken,
+    ) -> Self {
+        Self {
+            session,
+            root: root.as_ref().to_path_buf(),
+            shutdown,
+        }
+    }
+
+    pub async fn run(self) -> SignalingResult<()> {
+        serve_session_with_shutdown(self.session, self.root, self.shutdown).await
+    }
+}
+
 /// Runs a server-side authenticated session with a single-reader stream
 /// dispatcher. Shell and file streams are handled using the existing bounded
 /// services; unrecognized or out-of-order frames are errors, not success.
 pub async fn serve_session(session: ServerSession, root: impl AsRef<Path>) -> SignalingResult<()> {
-    serve_session_with_shutdown(session, root, CancellationToken::new()).await
+    ConnectionSupervisor::new(session, root, CancellationToken::new())
+        .run()
+        .await
 }
 
 /// Runs the dispatcher until a terminal frame, disconnect, or cancellation.
@@ -820,6 +848,41 @@ mod tests {
         assert_eq!(client.runtime.state(), SessionState::Ready);
         assert_eq!(server.client_id, client.client_id);
         server.runtime.close().await.expect("server closes");
+        client.runtime.close().await.expect("client closes");
+        fixture.shutdown().await.expect("fixture shuts down");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn connection_supervisor_closes_cleanly_when_cancelled() {
+        let fixture = RelayFixture::start().await;
+        let server_identity = Identity::generate().expect("server identity");
+        let client_identity = Identity::generate().expect("client identity");
+        let endpoint = fixture.url();
+        let (server_result, client_result) = tokio::join!(
+            accept_server_session(
+                &endpoint,
+                &server_identity,
+                "123456".into(),
+                EndpointPolicy::AllowLocal,
+                Duration::from_secs(10),
+            ),
+            connect_target(
+                &endpoint,
+                &client_identity,
+                "device-1",
+                "123456".into(),
+                EndpointPolicy::AllowLocal,
+                Duration::from_secs(10),
+            )
+        );
+        let server = server_result.expect("server session should be ready");
+        let mut client = client_result.expect("client session should be ready");
+        let shutdown = CancellationToken::new();
+        shutdown.cancel();
+        ConnectionSupervisor::new(server, ".", shutdown)
+            .run()
+            .await
+            .expect("cancelled supervisor should close cleanly");
         client.runtime.close().await.expect("client closes");
         fixture.shutdown().await.expect("fixture shuts down");
     }
