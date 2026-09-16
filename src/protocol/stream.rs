@@ -57,13 +57,16 @@ impl StreamTypeTag {
         }
     }
 
-    pub fn from_kind(kind: StreamKind) -> Self {
+    pub fn from_kind(kind: StreamKind) -> StreamResult<Self> {
         match kind {
-            StreamKind::Http => Self::Http,
-            StreamKind::File => Self::File,
-            StreamKind::Tcp => Self::Tcp,
-            StreamKind::WebSocket => Self::WebSocket,
-            StreamKind::Shell => Self::Shell,
+            StreamKind::Http => Ok(Self::Http),
+            StreamKind::File => Ok(Self::File),
+            StreamKind::Tcp => Ok(Self::Tcp),
+            StreamKind::WebSocket => Ok(Self::WebSocket),
+            StreamKind::Shell => Ok(Self::Shell),
+            StreamKind::Adapter => Err(BlnkError::Protocol(
+                "adapter stream has no wire envelope yet".into(),
+            )),
         }
     }
 }
@@ -261,7 +264,7 @@ mod tests {
             StreamKind::WebSocket,
             StreamKind::Shell,
         ] {
-            let tag = StreamTypeTag::from_kind(kind);
+            let tag = StreamTypeTag::from_kind(kind).expect("supported kind");
             let wire_val = tag.as_wire() as i32;
             let round_tripped = StreamTypeTag::from_wire(wire_val).expect("round trip");
             assert_eq!(round_tripped, tag);

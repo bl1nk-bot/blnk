@@ -23,6 +23,7 @@ pub enum StreamKind {
     Tcp,
     WebSocket,
     Shell,
+    Adapter,
 }
 
 impl StreamKind {
@@ -33,6 +34,7 @@ impl StreamKind {
             Self::Tcp => "tcp",
             Self::WebSocket => "websocket",
             Self::Shell => "shell",
+            Self::Adapter => "adapter",
         }
     }
 }

@@ -29,6 +29,7 @@ use crate::{
         SignalingMessage, SignalingResult, transport::ReconnectPolicy,
     },
     stream::{
+        StreamKind,
         file::{
             FileOperation, FileTransferCancellation, FileTransferConfig, FileTransferRequest,
             FileTransferResponse, FileTransferService, collect_data_frames, decode_request_frame,
@@ -318,12 +319,53 @@ pub async fn connect_target(
 
 // TODO: Add a latched operation scope and per-stream audit record here before
 // exposing additional RustDesk-inspired operations beyond shell and file.
+
+/// Versioned operation-scope policy latched at session authentication time.
+///
+/// Mirrors RustDesk's login-scope latching: once the session reaches `Ready`,
+/// the set of permitted stream kinds is frozen and cannot be widened. Each
+/// dispatch site must check `allows()` before accepting a stream open request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OperationScope {
+    version: u32,
+    allowed: Vec<StreamKind>,
+}
+
+impl OperationScope {
+    /// Creates a scope with an explicit version and allowed stream kinds.
+    pub fn new(version: u32, allowed: Vec<StreamKind>) -> Self {
+        Self { version, allowed }
+    }
+
+    /// Returns the scope version (for future policy evolution).
+    pub fn version(&self) -> u32 {
+        self.version
+    }
+
+    /// Returns `true` if the given stream kind is permitted by this scope.
+    pub fn allows(&self, kind: StreamKind) -> bool {
+        self.allowed.contains(&kind)
+    }
+}
+
+impl Default for OperationScope {
+    /// Default scope allows shell and file operations — the two currently
+    /// implemented stream kinds in the dispatcher.
+    fn default() -> Self {
+        Self {
+            version: 1,
+            allowed: vec![StreamKind::Shell, StreamKind::File],
+        }
+    }
+}
+
 /// Owns one authenticated server session and guarantees that its dispatcher
 /// receives frames through one reader until cancellation, peer close, or error.
 pub struct ConnectionSupervisor {
     session: ServerSession,
     root: PathBuf,
     shutdown: CancellationToken,
+    scope: OperationScope,
 }
 
 impl ConnectionSupervisor {
@@ -336,11 +378,19 @@ impl ConnectionSupervisor {
             session,
             root: root.as_ref().to_path_buf(),
             shutdown,
+            scope: OperationScope::default(),
         }
     }
 
+    /// Sets the operation-scope policy for this supervisor. The scope is
+    /// latched at construction and cannot be changed after `run()` starts.
+    pub fn with_scope(mut self, scope: OperationScope) -> Self {
+        self.scope = scope;
+        self
+    }
+
     pub async fn run(self) -> SignalingResult<()> {
-        serve_session_with_shutdown(self.session, self.root, self.shutdown).await
+        serve_session_with_shutdown(self.session, self.root, self.shutdown, self.scope).await
     }
 }
 
@@ -358,6 +408,7 @@ pub async fn serve_session_with_shutdown(
     mut session: ServerSession,
     root: impl AsRef<Path>,
     shutdown: CancellationToken,
+    scope: OperationScope,
 ) -> SignalingResult<()> {
     let root = root.as_ref().to_path_buf();
     let result = async {
@@ -396,10 +447,22 @@ pub async fn serve_session_with_shutdown(
         }
 
         if let Ok(command) = decode_open_frame(&frame) {
+            if !scope.allows(StreamKind::Shell) {
+                break Err(BlnkError::Session(format!(
+                    "operation denied: shell not in scope (v{})",
+                    scope.version()
+                )));
+            }
             dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await?;
             continue;
         }
         if let Ok(request) = decode_request_frame(&frame) {
+            if !scope.allows(StreamKind::File) {
+                break Err(BlnkError::Session(format!(
+                    "operation denied: file not in scope (v{})",
+                    scope.version()
+                )));
+            }
             dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await?;
             continue;
         }
@@ -813,11 +876,56 @@ fn write_stdout(data: &[u8]) -> SignalingResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stream::StreamKind;
     use crate::{session::SessionState, signaling::RegisterResponse};
     use futures::{SinkExt, StreamExt};
     use std::{collections::HashMap, sync::Arc};
     use tokio::sync::{Mutex, mpsc, oneshot};
     use tokio_tungstenite::{accept_async, tungstenite::Message};
+
+    // --- OperationScope tests (TODO #1) ---
+
+    #[test]
+    fn operation_scope_default_allows_shell_and_file() {
+        let scope = OperationScope::default();
+        assert!(scope.allows(StreamKind::Shell));
+        assert!(scope.allows(StreamKind::File));
+    }
+
+    #[test]
+    fn operation_scope_rejects_disallowed_operations() {
+        let scope = OperationScope::new(1, vec![StreamKind::Shell]);
+        assert!(scope.allows(StreamKind::Shell));
+        assert!(!scope.allows(StreamKind::File));
+        assert!(!scope.allows(StreamKind::Tcp));
+        assert!(!scope.allows(StreamKind::WebSocket));
+        assert!(!scope.allows(StreamKind::Http));
+        assert!(!scope.allows(StreamKind::Adapter));
+    }
+
+    #[test]
+    fn operation_scope_version_is_latched() {
+        let scope = OperationScope::new(2, vec![StreamKind::File, StreamKind::Shell]);
+        assert_eq!(scope.version(), 2);
+    }
+
+    #[test]
+    fn operation_scope_allows_all_configured_kinds() {
+        let scope = OperationScope::new(
+            1,
+            vec![
+                StreamKind::Shell,
+                StreamKind::File,
+                StreamKind::Adapter,
+            ],
+        );
+        assert!(scope.allows(StreamKind::Shell));
+        assert!(scope.allows(StreamKind::File));
+        assert!(scope.allows(StreamKind::Adapter));
+        assert!(!scope.allows(StreamKind::Tcp));
+    }
+
+    // --- end OperationScope tests ---
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn relay_completes_register_offer_answer_and_authenticated_session() {
