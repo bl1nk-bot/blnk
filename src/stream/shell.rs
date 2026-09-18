@@ -423,7 +423,7 @@ mod tests {
         }
         #[cfg(not(windows))]
         {
-            "sleep 1"
+            "while :; do :; done"
         }
     }
 
