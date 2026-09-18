@@ -383,6 +383,13 @@ mod tests {
         }
         #[cfg(not(windows))]
         {
+            // Termux/Android uses /data/data/com.termux/files/usr/bin/sh
+            if let Ok(home) = std::env::var("HOME") {
+                let termux_sh = format!("{}/../usr/bin/sh", home);
+                if std::path::Path::new(&termux_sh).exists() {
+                    return termux_sh;
+                }
+            }
             "/bin/sh".to_owned()
         }
     }
