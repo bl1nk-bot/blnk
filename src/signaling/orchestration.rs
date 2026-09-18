@@ -134,10 +134,9 @@ pub async fn accept_server_session(
     offer_message
         .streams
         .insert(DEVICE_PUBLIC_KEY_STREAM.to_owned(), public_key_der);
-    offer_message.streams.insert(
-        REQUEST_NONCE_STREAM.to_owned(),
-        challenge.nonce().as_bytes().to_vec(),
-    );
+    offer_message
+        .streams
+        .insert(REQUEST_NONCE_STREAM.to_owned(), challenge.nonce().as_bytes().to_vec());
     let offer_message = SignalingMessage::Offer(offer_message);
     if let Err(error) = signaling.send(&offer_message).await {
         let _ = peer.close().await;
@@ -640,18 +639,10 @@ pub async fn run_file_client(
 ) -> SignalingResult<()> {
     let download_path = source.strip_prefix("remote:");
     let (request, upload, local_destination) = if let Some(remote_path) = download_path {
-        (
-            FileTransferRequest::get(remote_path, None)?,
-            Vec::new(),
-            Some(PathBuf::from(destination)),
-        )
+        (FileTransferRequest::get(remote_path, None)?, Vec::new(), Some(PathBuf::from(destination)))
     } else {
         let data = std::fs::read(source).map_err(BlnkError::Io)?;
-        (
-            FileTransferRequest::put(destination, data.len() as u64, overwrite),
-            data,
-            None,
-        )
+        (FileTransferRequest::put(destination, data.len() as u64, overwrite), data, None)
     };
 
     let stream = runtime.open_file_stream("/")?;
@@ -806,9 +797,9 @@ async fn recv_with_timeout(
             "signaling connection closed before the expected message".into(),
         )),
         Ok(Err(error)) => Err(error),
-        Err(_) => Err(BlnkError::Signaling(
-            "timed out waiting for the expected signaling message".into(),
-        )),
+        Err(_) => {
+            Err(BlnkError::Signaling("timed out waiting for the expected signaling message".into()))
+        }
     }
 }
 
@@ -879,11 +870,7 @@ fn encrypted_session_request(
         nonce: &'a str,
         code: &'a str,
     }
-    let envelope = RequestEnvelope {
-        fingerprint,
-        nonce,
-        code,
-    };
+    let envelope = RequestEnvelope { fingerprint, nonce, code };
     let plaintext = serde_json::to_vec(&envelope)
         .map_err(|error| BlnkError::Protocol(format!("encode encrypted request: {error}")))?;
     let ciphertext = Identity::encrypt_for_peer(target_public_key, &plaintext)?;
@@ -928,9 +915,7 @@ fn validate_encrypted_request(
         ));
     }
     if !constant_time_pin_eq(expected_pin, &request.code) {
-        return Err(BlnkError::Signaling(
-            "encrypted request PIN rejected".into(),
-        ));
+        return Err(BlnkError::Signaling("encrypted request PIN rejected".into()));
     }
     Ok(())
 }
@@ -960,9 +945,7 @@ fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
 
 fn validate_timeout(timeout: Duration) -> SignalingResult<()> {
     if timeout.is_zero() {
-        return Err(BlnkError::Signaling(
-            "orchestration timeout must be greater than zero".into(),
-        ));
+        return Err(BlnkError::Signaling("orchestration timeout must be greater than zero".into()));
     }
     Ok(())
 }
@@ -984,10 +967,7 @@ fn validate_client_id(expected: &str, actual: &str) -> SignalingResult<()> {
 }
 
 fn unexpected_message(expected: &str, actual: &SignalingMessage) -> BlnkError {
-    BlnkError::Signaling(format!(
-        "expected {expected}, received {}",
-        actual.message_type()
-    ))
+    BlnkError::Signaling(format!("expected {expected}, received {}", actual.message_type()))
 }
 
 fn orchestration_error(operation: &str, error: BlnkError) -> BlnkError {
@@ -1039,10 +1019,8 @@ mod tests {
 
     #[test]
     fn operation_scope_allows_all_configured_kinds() {
-        let scope = OperationScope::new(
-            1,
-            vec![StreamKind::Shell, StreamKind::File, StreamKind::Adapter],
-        );
+        let scope =
+            OperationScope::new(1, vec![StreamKind::Shell, StreamKind::File, StreamKind::Adapter]);
         assert!(scope.allows(StreamKind::Shell));
         assert!(scope.allows(StreamKind::File));
         assert!(scope.allows(StreamKind::Adapter));
@@ -1267,10 +1245,7 @@ mod tests {
             std::fs::read(root.join("uploaded.txt")).expect("uploaded file"),
             b"remote file body"
         );
-        assert_eq!(
-            std::fs::read(&download).expect("downloaded file"),
-            b"remote file body"
-        );
+        assert_eq!(std::fs::read(&download).expect("downloaded file"), b"remote file body");
         let _ = std::fs::remove_file(source);
         let _ = std::fs::remove_file(download);
         let _ = std::fs::remove_dir_all(root);

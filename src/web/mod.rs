@@ -120,9 +120,7 @@ impl BrowserControlConfig {
             || self.max_frame_bytes == 0
             || self.handshake_timeout.is_zero()
         {
-            return Err(BlnkError::Config(
-                "browser control limits must be non-zero".into(),
-            ));
+            return Err(BlnkError::Config("browser control limits must be non-zero".into()));
         }
         HeaderValue::from_str(&self.allowed_origin).map_err(|_| {
             BlnkError::Config("browser allowed origin is not a valid HTTP header value".into())
@@ -328,10 +326,9 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let mut response = (self.status, Json(ErrorResponse { error: self.code })).into_response();
         if self.status == StatusCode::UNAUTHORIZED {
-            response.headers_mut().insert(
-                WWW_AUTHENTICATE,
-                HeaderValue::from_static("Bearer realm=blnk-browser"),
-            );
+            response
+                .headers_mut()
+                .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Bearer realm=blnk-browser"));
         }
         response
     }
@@ -391,10 +388,9 @@ async fn security_headers(
         .map(str::to_owned);
     let is_allowed_origin = request_origin.as_deref() == Some(state.config.allowed_origin.as_str());
     let mut response = next.run(request).await;
-    response.headers_mut().insert(
-        CACHE_CONTROL,
-        HeaderValue::from_static("no-store, max-age=0"),
-    );
+    response
+        .headers_mut()
+        .insert(CACHE_CONTROL, HeaderValue::from_static("no-store, max-age=0"));
     response
         .headers_mut()
         .insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
@@ -415,18 +411,16 @@ async fn security_headers(
                 .headers_mut()
                 .insert(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
         }
-        response.headers_mut().insert(
-            ACCESS_CONTROL_ALLOW_CREDENTIALS,
-            HeaderValue::from_static("true"),
-        );
+        response
+            .headers_mut()
+            .insert(ACCESS_CONTROL_ALLOW_CREDENTIALS, HeaderValue::from_static("true"));
         response.headers_mut().insert(
             ACCESS_CONTROL_ALLOW_HEADERS,
             HeaderValue::from_static("authorization, content-type, x-csrf-token"),
         );
-        response.headers_mut().insert(
-            ACCESS_CONTROL_ALLOW_METHODS,
-            HeaderValue::from_static("GET, POST, OPTIONS"),
-        );
+        response
+            .headers_mut()
+            .insert(ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("GET, POST, OPTIONS"));
     }
     response
 }
@@ -553,11 +547,7 @@ async fn get_session(
         Ok(session) => session,
         Err(error) => return error.into_response(),
     };
-    (
-        StatusCode::OK,
-        Json(session_response(&session, Instant::now())),
-    )
-        .into_response()
+    (StatusCode::OK, Json(session_response(&session, Instant::now()))).into_response()
 }
 
 async fn close_session(
@@ -580,14 +570,7 @@ async fn close_session(
         return ApiError::not_found().into_response();
     };
     session.state = SessionState::Closed;
-    (
-        StatusCode::OK,
-        Json(CloseResponse {
-            session_id,
-            state: "closed",
-        }),
-    )
-        .into_response()
+    (StatusCode::OK, Json(CloseResponse { session_id, state: "closed" })).into_response()
 }
 
 async fn websocket(
@@ -617,13 +600,7 @@ async fn websocket(
         .max_frame_size(frame_limit)
         .max_write_buffer_size(write_limit)
         .on_upgrade(move |socket| {
-            run_websocket(
-                socket,
-                state,
-                session_id,
-                session.csrf_token,
-                handshake_timeout,
-            )
+            run_websocket(socket, state, session_id, session.csrf_token, handshake_timeout)
         })
 }
 
@@ -832,18 +809,12 @@ fn add_cors_headers(headers: &mut HeaderMap, config: &BrowserControlConfig) {
     if let Ok(origin) = HeaderValue::from_str(&config.allowed_origin) {
         headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
     }
-    headers.insert(
-        ACCESS_CONTROL_ALLOW_CREDENTIALS,
-        HeaderValue::from_static("true"),
-    );
+    headers.insert(ACCESS_CONTROL_ALLOW_CREDENTIALS, HeaderValue::from_static("true"));
     headers.insert(
         ACCESS_CONTROL_ALLOW_HEADERS,
         HeaderValue::from_static("authorization, content-type, x-csrf-token"),
     );
-    headers.insert(
-        ACCESS_CONTROL_ALLOW_METHODS,
-        HeaderValue::from_static("GET, POST, OPTIONS"),
-    );
+    headers.insert(ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("GET, POST, OPTIONS"));
 }
 
 fn secure_eq(left: &str, right: &str) -> bool {
@@ -1008,10 +979,7 @@ mod tests {
             .await
             .expect("closed status request");
         assert_eq!(after_close.status(), ReqwestStatusCode::OK);
-        assert_eq!(
-            after_close.json::<Value>().await.expect("closed json")["state"],
-            "closed"
-        );
+        assert_eq!(after_close.json::<Value>().await.expect("closed json")["state"], "closed");
         server.shutdown().await.expect("fixture shutdown");
     }
 
@@ -1026,10 +994,7 @@ mod tests {
             .await
             .expect("health request");
         assert_eq!(disallowed_origin.status(), ReqwestStatusCode::OK);
-        assert_eq!(
-            disallowed_origin.headers().get("x-frame-options").unwrap(),
-            "DENY"
-        );
+        assert_eq!(disallowed_origin.headers().get("x-frame-options").unwrap(), "DENY");
         assert_eq!(
             disallowed_origin
                 .headers()
@@ -1076,10 +1041,9 @@ mod tests {
         let ws_url = format!("ws://{}/api/session/{session_id}/ws", server.address());
         let mut request = ws_url.into_client_request().expect("websocket request");
         request.headers_mut().insert(ORIGIN, origin());
-        request.headers_mut().insert(
-            COOKIE,
-            HeaderValue::from_str(&cookie).expect("websocket cookie"),
-        );
+        request
+            .headers_mut()
+            .insert(COOKIE, HeaderValue::from_str(&cookie).expect("websocket cookie"));
         let (mut socket, _) = tokio_tungstenite::connect_async(request)
             .await
             .expect("websocket connect");
@@ -1118,9 +1082,7 @@ mod tests {
         );
 
         socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(
-                "x".repeat(512).into(),
-            ))
+            .send(tokio_tungstenite::tungstenite::Message::Text("x".repeat(512).into()))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;
@@ -1131,10 +1093,7 @@ mod tests {
     fn session_cookie_parses_multiple_headers_and_quoted_values() {
         let mut headers = HeaderMap::new();
         headers.append(COOKIE, HeaderValue::from_static("other=123"));
-        headers.append(
-            COOKIE,
-            HeaderValue::from_static("blnk_session=\"test_token_123\""),
-        );
+        headers.append(COOKIE, HeaderValue::from_static("blnk_session=\"test_token_123\""));
         assert_eq!(session_cookie(&headers), Some("test_token_123"));
     }
 }

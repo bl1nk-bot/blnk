@@ -107,11 +107,7 @@ impl StreamRegistry {
         }
 
         let stream_id = self.allocate_id()?;
-        let entry = StreamEntry {
-            stream_id,
-            kind,
-            connect_path,
-        };
+        let entry = StreamEntry { stream_id, kind, connect_path };
         self.active.insert(stream_id, entry.clone());
         Ok(entry)
     }
@@ -130,18 +126,12 @@ impl StreamRegistry {
             return Err(BlnkError::Stream("connect_path must not be empty".into()));
         }
         if self.active.contains_key(&stream_id) {
-            return Err(BlnkError::Stream(format!(
-                "stream id already active: {stream_id}"
-            )));
+            return Err(BlnkError::Stream(format!("stream id already active: {stream_id}")));
         }
         if stream_id >= self.next_id {
             self.next_id = stream_id.wrapping_add(1).max(1);
         }
-        let entry = StreamEntry {
-            stream_id,
-            kind,
-            connect_path,
-        };
+        let entry = StreamEntry { stream_id, kind, connect_path };
         self.active.insert(stream_id, entry.clone());
         Ok(entry)
     }
