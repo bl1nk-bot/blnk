@@ -83,10 +83,7 @@ async fn test_interop_negative_auth_failure() {
     .expect("client runtime should build");
 
     let (server_res, client_res) = tokio::join!(server.handshake(), client.handshake());
-    assert!(
-        server_res.is_err() || client_res.is_err(),
-        "Mismatched PINs must fail authentication"
-    );
+    assert!(server_res.is_err() || client_res.is_err(), "Mismatched PINs must fail authentication");
 }
 
 #[test]

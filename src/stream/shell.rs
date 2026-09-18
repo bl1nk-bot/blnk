@@ -106,9 +106,7 @@ impl ShellPolicy {
     pub fn new(root_dir: impl Into<PathBuf>) -> StreamResult<Self> {
         let root_dir = root_dir.into();
         if !root_dir.is_absolute() {
-            return Err(BlnkError::Stream(
-                "shell policy root must be an absolute path".into(),
-            ));
+            return Err(BlnkError::Stream("shell policy root must be an absolute path".into()));
         }
         Ok(Self {
             root_dir,
@@ -133,9 +131,7 @@ impl ShellPolicy {
 
     pub fn with_max_output_bytes(mut self, limit: usize) -> StreamResult<Self> {
         if limit == 0 {
-            return Err(BlnkError::Stream(
-                "shell output limit must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Stream("shell output limit must be greater than zero".into()));
         }
         self.max_output_bytes = limit;
         Ok(self)
@@ -143,9 +139,7 @@ impl ShellPolicy {
 
     pub fn with_max_arguments(mut self, limit: usize) -> StreamResult<Self> {
         if limit == 0 {
-            return Err(BlnkError::Stream(
-                "shell argument limit must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Stream("shell argument limit must be greater than zero".into()));
         }
         self.max_arguments = limit;
         Ok(self)
@@ -153,9 +147,7 @@ impl ShellPolicy {
 
     pub fn with_timeout(mut self, duration: Duration) -> StreamResult<Self> {
         if duration.is_zero() {
-            return Err(BlnkError::Stream(
-                "shell timeout must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Stream("shell timeout must be greater than zero".into()));
         }
         self.timeout = duration;
         Ok(self)
@@ -184,9 +176,7 @@ impl ShellPolicy {
             )));
         }
         if command.args.len() > self.max_arguments {
-            return Err(BlnkError::Stream(
-                "shell argument count exceeds policy".into(),
-            ));
+            return Err(BlnkError::Stream("shell argument count exceeds policy".into()));
         }
         if command
             .args
@@ -217,9 +207,7 @@ impl ShellPolicy {
         let canonical_root = std::fs::canonicalize(&self.root_dir).map_err(BlnkError::Io)?;
         let canonical_cwd = std::fs::canonicalize(&cwd).map_err(BlnkError::Io)?;
         if !canonical_cwd.starts_with(&canonical_root) || !canonical_cwd.is_dir() {
-            return Err(BlnkError::Stream(
-                "shell working directory escapes policy root".into(),
-            ));
+            return Err(BlnkError::Stream("shell working directory escapes policy root".into()));
         }
         Ok(canonical_cwd)
     }
@@ -276,11 +264,8 @@ impl ShellStreamHandler {
             .take()
             .ok_or_else(|| BlnkError::Stream("shell stderr pipe unavailable".into()))?;
         let total = Arc::new(AtomicUsize::new(0));
-        let stdout_task = tokio::spawn(read_limited(
-            stdout,
-            total.clone(),
-            self.policy.max_output_bytes,
-        ));
+        let stdout_task =
+            tokio::spawn(read_limited(stdout, total.clone(), self.policy.max_output_bytes));
         let stderr_task = tokio::spawn(read_limited(stderr, total, self.policy.max_output_bytes));
 
         let status = tokio::select! {
@@ -349,9 +334,7 @@ fn reserve_output(total: &AtomicUsize, amount: usize, limit: usize) -> StreamRes
             .checked_add(amount)
             .ok_or_else(|| BlnkError::Stream("shell output accounting overflow".into()))?;
         if next > limit {
-            return Err(BlnkError::Stream(
-                "shell output exceeds configured limit".into(),
-            ));
+            return Err(BlnkError::Stream("shell output exceeds configured limit".into()));
         }
         match total.compare_exchange_weak(current, next, Ordering::Relaxed, Ordering::Relaxed) {
             Ok(_) => return Ok(()),
@@ -577,32 +560,20 @@ mod tests {
 
         let input = encode_input_frame(7, b"stdin".to_vec(), false).expect("input frame");
         assert!(input.flags.is_more());
-        assert_eq!(
-            decode_input_frame(&input).expect("input decode").data,
-            b"stdin"
-        );
+        assert_eq!(decode_input_frame(&input).expect("input decode").data, b"stdin");
 
         let output = encode_output_frame(7, b"stdout".to_vec(), false).expect("output frame");
-        assert_eq!(
-            decode_output_frame(&output).expect("output decode").data,
-            b"stdout"
-        );
+        assert_eq!(decode_output_frame(&output).expect("output decode").data, b"stdout");
 
         let resize = encode_resize_frame(7, 120, 40).expect("resize frame");
-        assert_eq!(
-            decode_resize_frame(&resize).expect("resize decode").cols,
-            120
-        );
+        assert_eq!(decode_resize_frame(&resize).expect("resize decode").cols, 120);
 
         let exit = encode_exit_frame(7, 3, false).expect("exit frame");
         assert!(exit.flags.is_fin());
         assert_eq!(decode_exit_frame(&exit).expect("exit decode").code, 3);
 
         let error = encode_error_frame(7, "denied").expect("error frame");
-        assert_eq!(
-            decode_error_frame(&error).expect("error decode").message,
-            "denied"
-        );
+        assert_eq!(decode_error_frame(&error).expect("error decode").message, "denied");
 
         let cancel = encode_cancel_frame(7).expect("cancel frame");
         assert!(
@@ -611,11 +582,8 @@ mod tests {
                 .requested
         );
 
-        let invalid_open = Frame::new(
-            7,
-            FrameFlags::SYN | FrameFlags::DAT | FrameFlags::FIN,
-            open.payload,
-        );
+        let invalid_open =
+            Frame::new(7, FrameFlags::SYN | FrameFlags::DAT | FrameFlags::FIN, open.payload);
         assert!(decode_open_frame(&invalid_open).is_err());
         let invalid_resize = encode_resize_frame(7, 80, 24).expect("resize frame");
         let invalid_resize =
@@ -649,11 +617,7 @@ pub fn encode_open_frame(stream_id: u32, command: &ShellCommand) -> StreamResult
         args: command.args.clone(),
         cwd: command.cwd.to_string_lossy().into_owned(),
     };
-    Ok(Frame::new(
-        stream_id,
-        FrameFlags::SYN | FrameFlags::DAT,
-        message.encode_to_vec(),
-    ))
+    Ok(Frame::new(stream_id, FrameFlags::SYN | FrameFlags::DAT, message.encode_to_vec()))
 }
 
 /// Decodes a shell open SYN frame.
@@ -682,9 +646,7 @@ pub fn decode_input_frame(frame: &Frame) -> StreamResult<wire::ShellInput> {
 /// Builds a terminal resize frame.
 pub fn encode_resize_frame(stream_id: u32, cols: i32, rows: i32) -> StreamResult<Frame> {
     if cols <= 0 || rows <= 0 {
-        return Err(BlnkError::Stream(
-            "terminal dimensions must be positive".into(),
-        ));
+        return Err(BlnkError::Stream("terminal dimensions must be positive".into()));
     }
     encode_data_message(stream_id, wire::TerminalResize { cols, rows }, false)
 }
@@ -693,9 +655,7 @@ pub fn encode_resize_frame(stream_id: u32, cols: i32, rows: i32) -> StreamResult
 pub fn decode_resize_frame(frame: &Frame) -> StreamResult<wire::TerminalResize> {
     let resize: wire::TerminalResize = decode_data_message(frame, "terminal resize")?;
     if resize.cols <= 0 || resize.rows <= 0 {
-        return Err(BlnkError::Protocol(
-            "terminal dimensions must be positive".into(),
-        ));
+        return Err(BlnkError::Protocol("terminal dimensions must be positive".into()));
     }
     Ok(resize)
 }
@@ -728,9 +688,7 @@ pub fn decode_exit_frame(frame: &Frame) -> StreamResult<wire::ShellExit> {
 pub fn encode_error_frame(stream_id: u32, message: impl Into<String>) -> StreamResult<Frame> {
     let message = message.into();
     if message.trim().is_empty() {
-        return Err(BlnkError::Stream(
-            "shell error message must not be empty".into(),
-        ));
+        return Err(BlnkError::Stream("shell error message must not be empty".into()));
     }
     encode_terminal_message(stream_id, wire::ShellError { message })
 }
@@ -749,9 +707,7 @@ pub fn encode_cancel_frame(stream_id: u32) -> StreamResult<Frame> {
 pub fn decode_cancel_frame(frame: &Frame) -> StreamResult<wire::ShellCancel> {
     let cancel: wire::ShellCancel = decode_terminal_message(frame, "shell cancellation")?;
     if !cancel.requested {
-        return Err(BlnkError::Protocol(
-            "shell cancellation must set requested=true".into(),
-        ));
+        return Err(BlnkError::Protocol("shell cancellation must set requested=true".into()));
     }
     Ok(cancel)
 }
@@ -776,11 +732,7 @@ fn encode_terminal_message<M: Message>(stream_id: u32, message: M) -> StreamResu
     if stream_id == 0 {
         return Err(BlnkError::Stream("shell stream id must be non-zero".into()));
     }
-    Ok(Frame::new(
-        stream_id,
-        FrameFlags::DAT | FrameFlags::FIN,
-        message.encode_to_vec(),
-    ))
+    Ok(Frame::new(stream_id, FrameFlags::DAT | FrameFlags::FIN, message.encode_to_vec()))
 }
 
 fn decode_data_message<M: Message + Default>(frame: &Frame, label: &str) -> StreamResult<M> {
@@ -802,9 +754,7 @@ fn require_shell_frame(frame: &Frame, syn: bool, fin: bool) -> StreamResult<()> 
         ));
     }
     if frame.flags.is_fin() != fin {
-        return Err(BlnkError::Protocol(
-            "shell frame has an invalid FIN flag".into(),
-        ));
+        return Err(BlnkError::Protocol("shell frame has an invalid FIN flag".into()));
     }
     Ok(())
 }
