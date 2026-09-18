@@ -791,7 +791,10 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                // Enforce constant-time comparison on PIN material to prevent timing side-channels
+                if let Some(ref last_pin) = self.last_auth_pin
+                    && super::constant_time_pin_eq(last_pin.as_bytes(), message.pin.as_bytes())
+                {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());
@@ -1104,7 +1107,7 @@ mod tests {
         )
         .await;
         server
-            .open_stream(StreamKind::Tcp, "127.0.0.1:9")
+            .open_stream(StreamKind::Shell, "/shell")
             .expect("stream should open");
         assert_eq!(server.active_streams(), 1);
 

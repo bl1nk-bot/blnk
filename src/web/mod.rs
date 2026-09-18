@@ -1084,7 +1084,7 @@ mod tests {
             .await
             .expect("websocket connect");
         socket
-            .send(tungstenite::Message::Text(
+            .send(tokio_tungstenite::tungstenite::Message::Text(
                 serde_json::json!({"type": "hello", "csrf_token": csrf})
                     .to_string()
                     .into(),
@@ -1100,7 +1100,7 @@ mod tests {
         assert!(ready_text.contains("\"type\":\"ready\""));
 
         socket
-            .send(tungstenite::Message::Text(
+            .send(tokio_tungstenite::tungstenite::Message::Text(
                 serde_json::json!({"type": "status"}).to_string().into(),
             ))
             .await
@@ -1118,7 +1118,9 @@ mod tests {
         );
 
         socket
-            .send(tungstenite::Message::Text("x".repeat(512).into()))
+            .send(tokio_tungstenite::tungstenite::Message::Text(
+                "x".repeat(512).into(),
+            ))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;
