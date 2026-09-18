@@ -4,20 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when writing code in
 
 ## Session Lifecycle (MANDATORY)
 
-### On session start — you MUST:
-1. Read the hook orientation output (git state, TODO.md, build status)
-2. Present a 3-line brief: current branch, in-progress task, what's next
-3. Propose the first concrete action you'll take (don't wait for instructions)
-4. If build is broken, fix it before anything else
+### Session Start — SELF-STARTING
+Plugin hook injects FULL PREPARATION on first turn: git state, TODO, build, blocking.
+You receive this context. Do NOT wait for user instructions.
 
-### Before session end — you MUST:
-1. Verify build passes (`cargo check`)
-2. Update `TODO.md` — mark done tasks `[-]`, note in-progress with context
-3. Commit all changes with conventional message
-4. Write a 200-char session summary to memory: what was done, what's next, any blockers
+1. Read injected context (branch, dirty, TODO, build, blocking)
+2. Decide what to work on based on TODO state
+3. Present plan: what, why, expected outcome
+4. If build FAIL or BLOCKING → fix first
+5. If clean → propose next TODO item
+6. Begin work after user confirms
 
-### You are bound to this workflow.
-Do not skip steps. Do not wait to be asked. Act with urgency at start, be thorough at close.
+### Session End — EXECUTE CLOSEOUT
+Do NOT wait. Execute immediately when session ending.
+
+1. `cargo check` — verify build
+2. Update `TODO.md` — mark done [-], note in-progress
+3. Git commit with conventional message
+4. Memory — 200 chars: done, next, blockers
+
+### You are self-starting.
+Think, decide, propose — then work. Don't wait to be told.
 
 ## Quick Start
 
