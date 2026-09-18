@@ -10,11 +10,46 @@ pub mod shell;
 pub mod proxy;
 pub mod proxy_handler;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::utils::error::BlnkError;
 
 pub type StreamResult<T> = Result<T, BlnkError>;
+
+/// Tracks request IDs for the single-reader stream dispatcher. A response for
+/// a cancelled, completed, or unknown request is stale and must not be routed
+/// to a later request that happens to reuse the stream.
+#[derive(Debug, Default, Clone)]
+pub struct StreamRequestTracker {
+    active: BTreeSet<u64>,
+}
+
+impl StreamRequestTracker {
+    pub fn register(&mut self, request_id: u64) -> StreamResult<()> {
+        if request_id == 0 || !self.active.insert(request_id) {
+            return Err(BlnkError::Stream("duplicate or invalid request id".into()));
+        }
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, request_id: u64) {
+        self.active.remove(&request_id);
+    }
+    pub fn complete(&mut self, request_id: u64) {
+        self.active.remove(&request_id);
+    }
+    pub fn is_active(&self, request_id: u64) -> bool {
+        request_id != 0 && self.active.contains(&request_id)
+    }
+
+    pub fn accept(&self, request_id: u64) -> StreamResult<()> {
+        if self.is_active(request_id) {
+            Ok(())
+        } else {
+            Err(BlnkError::Stream("stale or unknown stream response".into()))
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StreamKind {
@@ -107,11 +142,7 @@ impl StreamRegistry {
         }
 
         let stream_id = self.allocate_id()?;
-        let entry = StreamEntry {
-            stream_id,
-            kind,
-            connect_path,
-        };
+        let entry = StreamEntry { stream_id, kind, connect_path };
         self.active.insert(stream_id, entry.clone());
         Ok(entry)
     }
@@ -130,18 +161,12 @@ impl StreamRegistry {
             return Err(BlnkError::Stream("connect_path must not be empty".into()));
         }
         if self.active.contains_key(&stream_id) {
-            return Err(BlnkError::Stream(format!(
-                "stream id already active: {stream_id}"
-            )));
+            return Err(BlnkError::Stream(format!("stream id already active: {stream_id}")));
         }
         if stream_id >= self.next_id {
             self.next_id = stream_id.wrapping_add(1).max(1);
         }
-        let entry = StreamEntry {
-            stream_id,
-            kind,
-            connect_path,
-        };
+        let entry = StreamEntry { stream_id, kind, connect_path };
         self.active.insert(stream_id, entry.clone());
         Ok(entry)
     }
@@ -211,5 +236,15 @@ mod tests {
         registry.clear();
         assert!(registry.is_empty());
         assert_eq!(registry.closed_count(), 2);
+    }
+
+    #[test]
+    fn request_tracker_rejects_cancelled_and_unknown_responses() {
+        let mut tracker = StreamRequestTracker::default();
+        tracker.register(7).expect("request should register");
+        assert!(tracker.accept(7).is_ok());
+        tracker.cancel(7);
+        assert!(tracker.accept(7).is_err());
+        assert!(tracker.accept(99).is_err());
     }
 }
