@@ -265,6 +265,19 @@ Target adapters ระยะแรก: Claude Code, Codex, Gemini CLI, OpenCode
 
 `WorkspaceSnapshot` ใช้สำหรับ preview, backup, sync และ audit โดยมี `snapshot_hash`
 
+### 10.1 Workspace Messages
+
+`WorkspaceMessage` เป็น generic message type สำหรับ workspace-level notifications:
+
+- `WorkspaceMessageType` enum: `HEADLINE`, `ANNOUNCEMENT`, `SYSTEM`
+- `GetWorkspaceMessagesRequest/Response` — fetch messages for a workspace
+- `feature_enabled` flag ใน response สำหรับ gradual rollout
+
+ใช้สำหรับ:
+- Headline display ใน TUI header
+- System announcements
+- Peer activity notifications
+
 ## 11. Schema ownership และ implementation order
 
 | Order | Team | Schema |

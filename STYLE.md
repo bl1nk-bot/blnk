@@ -62,3 +62,31 @@ If you can't tell from reading the code:
 - What a protocol message does
 
 → it's not done.
+
+## TUI Style Guide
+
+### Colors (enforced via clippy.toml)
+
+| Context | Color | ANSI |
+|---|---|---|
+| Headers | bold | `Modifier::BOLD` |
+| Secondary text | dim | `Modifier::DIM` |
+| User input, selection, status | cyan | `Color::Cyan` |
+| Success, additions | green | `Color::Green` |
+| Errors, failures, deletions | red | `Color::Red` |
+| "blnk" branding | magenta | `Color::Magenta` |
+| Default foreground | reset | `Color::Reset` |
+
+### Banned Colors (clippy disallowed_methods)
+
+- `Color::Black`, `Color::White` as foreground → use `Color::Reset` or terminal default
+- `Color::Blue`, `Color::Yellow` → not in style guide
+- `Color::Rgb` → only allowed in shimmer (explicit `#[allow]`)
+- `Color::Indexed` → use named ANSI colors
+
+### Rules
+
+- Most text: use default foreground (no explicit color)
+- Custom RGB: only when blending terminal default colors at calculated levels
+- Shimmer effect: `#[allow(clippy::disallowed_methods)]` with comment explaining why
+- Contrast: let terminal theme handle it; don't force colors

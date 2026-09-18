@@ -42,6 +42,73 @@
 
 ---
 
+## TUI Implementation (blnk-tui)
+
+### Phase 1: Core Rendering (current)
+- [x] Workspace setup with shared dependencies
+- [x] URL-aware word wrapping (`wrapping.rs`)
+- [x] Streaming markdown rendering (`render/markdown.rs`)
+- [x] Vertical table rendering (`render/records.rs`)
+- [x] Terminal hyperlink support (OSC 8)
+- [x] Terminal color detection
+- [x] Shimmer animation
+- [x] TUI lifecycle (init/restore/draw)
+- [x] Color math utilities
+- [x] Display width with sound marks
+- [x] Workspace message headlines
+
+### Phase 2: Platform Integration
+- [ ] Implement kitty keyboard protocol detection
+- [ ] Implement Windows console state management
+- [ ] Implement desktop notifications (peer connect/disconnect)
+- [ ] Implement Sixel/Kitty image rendering (ambient display)
+- [ ] Replace proto stubs with prost-generated types
+- [ ] Wire blnk-tui as dependency on blnk core
+
+### Phase 3: blnk Remote Access TUI (must be complete — incomplete = broken)
+
+**Core principle: blnk is a security/remote-access app. An incomplete feature is a broken feature. Ship nothing that doesn't work end-to-end.**
+
+Minimum viable completeness:
+- [ ] `blnk serve` → TUI mode
+  - [ ] Display QR code in TUI (inline)
+  - [ ] Serve QR + PIN บน browser ผ่าน web control surface
+  - [ ] Show pairing code + PIN status
+  - [ ] Accept incoming connections
+  - [ ] Complete pairing flow (commit → reveal → SAS verify)
+  - [ ] Session lifecycle (connect → auth → ready → closed)
+- [ ] `blnk connect` → TUI mode
+  - [ ] Device discovery (mDNS LAN scan)
+  - [ ] Select peer → connect
+  - [ ] PIN entry → authenticate
+  - [ ] Shell stream (PTY) with resize
+  - [ ] File transfer (`blnk cp`)
+  - [ ] Disconnect / reconnect
+- [ ] Session management
+  - [ ] Active session display (peer info, latency, streams)
+  - [ ] Session history
+  - [ ] Graceful shutdown (Ctrl+C)
+- [ ] Connection status bar
+- [ ] Keyboard shortcuts (Ctrl+C disconnect, Ctrl+Z suspend)
+- [ ] Split pane: shell output + status sidebar
+- [ ] Remote editing via `$EDITOR` (vim/nano over shell stream)
+- [ ] Error handling: every failure path has user-visible message
+- [ ] Security: no secrets in logs, constant-time PIN comparison
+- [ ] Add `app_event.rs` — TuiEvent enum with blnk-specific events (PeerConnected, StreamOpened, etc.)
+- [ ] Add `event_stream.rs` — TuiEventStream combining crossterm events + broadcast channel
+- [ ] Add `status/` — status bar (peer info, latency, streams, session state)
+- [ ] Add `history_cell/` — shell session history with expand/collapse
+- [ ] Add `bottom_pane/` — composable bottom panel (shell input, file transfer progress)
+- [ ] Add `streaming.rs` — streaming output rendering for shell/file output
+
+### Phase 4: Desktop App (Tauri 2 + Vite)
+- [ ] Rich markdown editing (syntax highlighting, preview)
+- [ ] JSON/YAML editing (schema-aware, validation)
+- [ ] Object management UI
+- [ ] Workspace management
+
+---
+
 ## Codex-Inspired Adaptation Backlog
 
 - [ ] Add layered config loader (defaults → global → project → env → CLI overrides) modeled after Codex's `ConfigLayerStack` pattern in `src/config/`.

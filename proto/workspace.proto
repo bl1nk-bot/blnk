@@ -56,3 +56,30 @@ message WorkspaceSnapshot {
   repeated Projection projections = 3;
   string snapshot_hash = 4;
 }
+
+// ── Workspace Messages ──────────────────────────────────────────────────
+
+enum WorkspaceMessageType {
+  WORKSPACE_MESSAGE_TYPE_UNSPECIFIED = 0;
+  WORKSPACE_MESSAGE_TYPE_HEADLINE = 1;
+  WORKSPACE_MESSAGE_TYPE_ANNOUNCEMENT = 2;
+  WORKSPACE_MESSAGE_TYPE_SYSTEM = 3;
+}
+
+message WorkspaceMessage {
+  string message_id = 1;
+  WorkspaceMessageType message_type = 2;
+  string message_body = 3;
+  int64 created_at = 4;
+  string created_by_device_id = 5;
+}
+
+message GetWorkspaceMessagesRequest {
+  string workspace_id = 1;
+  uint32 limit = 2;
+}
+
+message GetWorkspaceMessagesResponse {
+  bool feature_enabled = 1;
+  repeated WorkspaceMessage messages = 2;
+}
