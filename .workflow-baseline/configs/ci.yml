@@ -1,0 +1,133 @@
+# Universal CI workflow — detects project type and runs appropriate checks.
+# This is a template; copy to .github/workflows/ci.yml and customize.
+# Currently supports: Rust (Cargo.toml)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "proto/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "tests/**"
+      - "benches/**"
+      - ".github/workflows/**"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - "src/**"
+      - "proto/**"
+      - "build.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "tests/**"
+      - "benches/**"
+      - ".github/workflows/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Auto-detect project type and run appropriate checks
+  detect:
+    name: Detect project type
+    runs-on: ubuntu-latest
+    outputs:
+      type: ${{ steps.detect.outputs.type }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: detect
+        run: |
+          if [[ -f Cargo.toml ]]; then echo "type=rust" >> $GITHUB_OUTPUT
+          elif [[ -f pyproject.toml ]]; then echo "type=python" >> $GITHUB_OUTPUT
+          elif [[ -f package.json ]]; then echo "type=node" >> $GITHUB_OUTPUT
+          else echo "type=unknown" >> $GITHUB_OUTPUT; fi
+
+  fmt:
+    name: Format
+    needs: detect
+    if: needs.detect.outputs.type == 'rust' && (github.event_name == 'push' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    needs: detect
+    if: needs.detect.outputs.type == 'rust' && (github.event_name == 'push' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: clippy-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: clippy-${{ runner.os }}-
+      - run: cargo clippy --all --all-targets -- -D warnings
+
+  test:
+    name: Test (Linux)
+    needs: detect
+    if: needs.detect.outputs.type == 'rust' && (github.event_name == 'push' || github.event.pull_request.draft == false)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: test-${{ runner.os }}-
+      - run: cargo test --all --verbose
+
+  # Add platform-specific jobs as needed
+  # windows:
+  #   name: Check and test (Windows)
+  #   needs: detect
+  #   if: needs.detect.outputs.type == 'rust' && (github.event_name == 'push' || github.event.pull_request.draft == false)
+  #   runs-on: windows-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         targets: x86_64-pc-windows-msvc
+  #     - uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: windows-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+  #         restore-keys: windows-${{ runner.os }}-
+  #     - run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc --locked
+  #     - run: cargo test --workspace --all-targets --target x86_64-pc-windows-msvc --locked --verbose
+
+  security:
+    name: Security Audit
+    needs: detect
+    if: needs.detect.outputs.type == 'rust' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ignore: RUSTSEC-2023-0071
