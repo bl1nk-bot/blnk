@@ -2,10 +2,47 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
-## [0.2.13] — PR #131
-- chore(security): redact access_code in PairCredentials Debug formatting
+## [0.2.15] — TUI Crate + Workspace Setup
+- feat(workspace): convert to Cargo workspace with `blnk` + `blnk-tui` members
+- feat(workspace): add `[workspace.dependencies]` for 55+ shared packages
+- feat(workspace): add `[workspace.package]` for version/edition/license inheritance
+- feat(tui): scaffold `crates/blnk-tui/` with 15 modules (ratatui-based terminal UI)
+- feat(tui): add URL-aware word wrapping with sound mark projection (`wrapping.rs`)
+- feat(tui): add streaming markdown rendering with block tracking (`render/markdown.rs`)
+- feat(tui): add vertical table rendering with grid→key/value fallback (`render/records.rs`)
+- feat(tui): add terminal hyperlink support (OSC 8) (`terminal_hyperlinks.rs`)
+- feat(tui): add terminal default fg/bg color detection (`terminal_palette.rs`)
+- feat(tui): add shimmer animation effect (`shimmer.rs`)
+- feat(tui): add RGB color math: blend, luma, perceptual distance (`color.rs`)
+- feat(tui): add display width calculation with sound mark support (`width.rs`)
+- feat(tui): add terminal lifecycle: init, restore, draw, alt-screen (`tui.rs`)
+- feat(tui): stub keyboard modes (kitty protocol), Windows console, notifications, pets
+- feat(tui): add workspace message headline extraction (`workspace_messages.rs`)
+- feat(core): add terminal detection module (`utils/terminal_detection.rs`)
+- feat(core): add hyperlink display policy (`utils/hyperlinks.rs`)
+- feat(proto): add workspace message types to `workspace.proto`
+- style: add TUI color rules to `clippy.toml` (ban black/white/blue/yellow fg)
+- docs: add `specs/spec-tui.md` — full TUI module architecture specification
+- docs: update CLAUDE.md with workspace structure and TUI modules
+- docs: update architecture.md with TUI layer
+- docs: update implementation-status.md with TUI subsystem
+- chore: fix axum `json` feature missing in workspace deps
+- chore: fix unused imports and dead_code warnings across workspace
 
-## [0.2.13-prev] — PR #108, #122, #123, #124, #125, #126, #127
+## [0.2.14] — Source Trust Analysis + RustDesk/Codex Adaptation Prep
+- feat(signaling): add versioned `OperationScope` policy for session dispatch (TODO #1)
+- feat(signaling): add per-session `AuditLog` with per-operation receipts (TODO #2)
+- feat(stream): add `Adapter` variant to `StreamKind` for future adapter streams
+- feat(protocol): unified stream message envelope (`StreamEnvelope`, `StreamTypeTag`)
+- docs: add `source-trust-analysis.md` — extracted patterns from Codex + RustDesk
+- docs: update `TODO.md` with 8 Codex-inspired + 15 RustDesk backlog items
+- chore: add FIXME comments for proxy dispatch bottleneck (blocks spec 4.3, 4.4, 4.10)
+- chore: add TODO comments for cancellation propagation and file-transfer validation
+
+## [0.2.13] — PR #130
+- chore(security): redact PIN in AuthMessage Debug formatting
+
+## [0.2.13] — PR #108, #122, #123, #124, #125, #126, #127
 - chore(security): prevent bootstrap token leak in debug logs
 - chore(security): prevent session PIN leak in debug logs
 - fix(proxy): redact sensitive CSRF and access tokens in proxy headers

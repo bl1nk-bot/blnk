@@ -75,7 +75,7 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - proxy security policy (`src/stream/proxy.rs`)
 - concrete proxy service (`src/stream/proxy_handler.rs`) — TCP/WebSocket/HTTP
 
-ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป (Issue #42)
+ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป
 
 ### 2.7 Protocol Layer
 เก็บ definition ของ message และ frame format
@@ -348,3 +348,41 @@ logic หลักของ protocol, signaling, session, stream ควรเป
 - release evidence และ gate state ปัจจุบันอยู่ใน `docs/implementation-status.md` และ `docs/releases/`
 - versioning ตาม semver ใน `Cargo.toml` (`version = "0.2.x"`); ดู release note ใน `CHANGELOG.md`
 - compatibility boundary สำหรับ original-client interoperability อยู่ใน `tests/fixtures/compatibility/v1/` และ `tests/compatibility_baseline.rs` (Issue #44)
+
+---
+
+## 10. TUI Architecture (blnk-tui)
+
+### 10.1 Overview
+
+blnk-tui เป็น ratatui-based terminal user interface สำหรับ blnk. แยกเป็น crate ต่างหาก (`crates/blnk-tui/`) เพื่อความยืดหยุ่นในการ develop และ test
+
+### 10.2 Layer Model
+
+| Layer | Modules | Role |
+|---|---|---|
+| **Foundation** | `width`, `color`, `terminal_palette` | Pure math, no I/O |
+| **Terminal** | `terminal_hyperlinks`, `wrapping`, `shimmer` | Text rendering primitives |
+| **Render** | `render/line_utils`, `render/markdown`, `render/records` | Layout and content rendering |
+| **Platform** | `tui`, `keyboard_modes`, `windows_console` | OS interaction, lifecycle |
+| **Feature** | `notifications`, `pets`, `workspace_messages` | Domain-specific features |
+| **Protocol** | `proto` | Type definitions |
+
+### 10.3 Key Design Decisions
+
+1. **URL-aware wrapping** — standard `textwrap` splits URLs at `/` and `-`. `wrapping.rs` detects URL-like tokens and keeps them intact. Mixed URL/prose lines wrap prose at word boundaries while preserving URLs.
+
+2. **Sound mark projection** — halfwidth katakana sound marks (FF9E, FF9F) are projected to equal-width placeholders before wrapping, then mapped back to source byte offsets.
+
+3. **Terminal detection** — `utils/terminal_detection.rs` in blnk core detects terminal emulator + multiplexer via `TERM_PROGRAM`, `VTE_VERSION`, `WT_SESSION`, `TMUX`, `STY` env vars.
+
+4. **Hyperlink display policy** — `utils/hyperlinks.rs` decides whether to show URL as label-only (terminal supports OSC 8) or full text (terminal doesn't).
+
+5. **Style guide enforcement** — `clippy.toml` bans black/white/blue/yellow as foreground colors. Shimmer effect gets explicit `#[allow]` for RGB blending.
+
+### 10.4 Integration with Core
+
+blnk-tui ปัจจุบันเป็น standalone crate. เมื่อ Phase 2 เสร็จ:
+- blnk-tui จะ depend on blnk core สำหรับ proto types
+- blnk core จะ re-export `utils::terminal_detection` และ `utils::hyperlinks`
+- Event loop จะเชื่อมต่อกับ signaling + peer modules ของ blnk core

@@ -35,6 +35,64 @@ pub type TransportResult<T> = Result<T, BlnkError>;
 
 pub const DEFAULT_MAX_MESSAGE_SIZE: usize = 64 * 1024;
 
+/// The route selected for a session after direct and relay capabilities are known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransportRoute {
+    Direct,
+    Relay,
+    ForcedRelay,
+}
+
+impl TransportRoute {
+    /// Selects direct transport first, unless relay is explicitly forced.
+    ///
+    /// The method fails closed when the requested route cannot be established;
+    /// it never silently downgrades a forced-relay request to a direct route.
+    pub fn select(
+        force_relay: bool,
+        direct_available: bool,
+        relay_available: bool,
+    ) -> TransportResult<Self> {
+        if force_relay {
+            return relay_available
+                .then_some(Self::ForcedRelay)
+                .ok_or_else(|| BlnkError::Peer("forced relay route is unavailable".into()));
+        }
+        if direct_available {
+            return Ok(Self::Direct);
+        }
+        relay_available
+            .then_some(Self::Relay)
+            .ok_or_else(|| BlnkError::Peer("no direct or relay route is available".into()))
+    }
+
+    /// Returns the deterministic fallback order without duplicate routes.
+    pub fn fallback_order(
+        force_relay: bool,
+        direct_available: bool,
+        relay_available: bool,
+    ) -> TransportResult<Vec<Self>> {
+        if force_relay {
+            return relay_available
+                .then_some(vec![Self::ForcedRelay])
+                .ok_or_else(|| BlnkError::Peer("forced relay route is unavailable".into()));
+        }
+        let mut routes = Vec::with_capacity(2);
+        if direct_available {
+            routes.push(Self::Direct);
+        }
+        if relay_available {
+            routes.push(Self::Relay);
+        }
+        if routes.is_empty() {
+            return Err(BlnkError::Peer(
+                "no direct or relay route is available".into(),
+            ));
+        }
+        Ok(routes)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SignalingMessage {
     Register(RegisterRequest),
@@ -884,6 +942,39 @@ async fn fixture_connection_loop(
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[test]
+    fn route_selection_prefers_direct_then_relay() {
+        assert_eq!(
+            TransportRoute::select(false, true, true).unwrap(),
+            TransportRoute::Direct
+        );
+        assert_eq!(
+            TransportRoute::select(false, false, true).unwrap(),
+            TransportRoute::Relay
+        );
+    }
+
+    #[test]
+    fn forced_relay_never_downgrades_to_direct() {
+        assert_eq!(
+            TransportRoute::select(true, true, true).unwrap(),
+            TransportRoute::ForcedRelay
+        );
+        assert!(TransportRoute::select(true, true, false).is_err());
+    }
+
+    #[test]
+    fn fallback_order_is_deterministic_and_deduplicated() {
+        assert_eq!(
+            TransportRoute::fallback_order(false, true, true).unwrap(),
+            vec![TransportRoute::Direct, TransportRoute::Relay]
+        );
+        assert_eq!(
+            TransportRoute::fallback_order(true, true, true).unwrap(),
+            vec![TransportRoute::ForcedRelay]
+        );
+    }
 
     #[test]
     fn codec_adapts_internal_names_to_wire_schema() {
