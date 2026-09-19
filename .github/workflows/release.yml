@@ -88,54 +88,6 @@ jobs:
           if-no-files-found: error
           path: blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}.tar.gz
 
-  android:
-    name: Android ${{ matrix.target }}
-    needs: metadata
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [armv7-linux-androideabi, aarch64-linux-android]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.metadata.outputs.tag }}
-          persist-credentials: false
-      - uses: android-actions/setup-android@v3
-      - name: Install Android NDK
-        shell: bash
-        run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
-      - uses: dtolnay/rust-toolchain@1.97.0
-        with:
-          targets: ${{ matrix.target }}
-      - name: Build release binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
-          if [ "${{ matrix.target }}" = "armv7-linux-androideabi" ]; then
-            export CC_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi35-clang"
-            export AR_armv7_linux_androideabi="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          else
-            export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
-            export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          fi
-          cargo build --locked --release --target "${{ matrix.target }}" --bin blnk
-      - name: Package binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          package="blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}"
-          mkdir -p "$package"
-          install -m 755 "target/${{ matrix.target }}/release/blnk" "$package/blnk"
-          cp README.md "$package/README.md"
-          tar -czf "$package.tar.gz" "$package"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.target }}
-          if-no-files-found: error
-          path: blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}.tar.gz
-
   windows:
     name: Windows x86_64-pc-windows-msvc
     needs: metadata
@@ -167,7 +119,7 @@ jobs:
 
   publish:
     name: Attach release assets
-    needs: [metadata, linux, android, windows]
+    needs: [metadata, linux, windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

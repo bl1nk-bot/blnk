@@ -60,33 +60,6 @@ jobs:
             dist/*.tar.gz
             dist/*.tar.gz.sha256
 
-  android-compile:
-    name: Android compile-only evidence
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out source
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Install Android SDK and NDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install pinned Android NDK
-        run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
-
-      - name: Install pinned Rust target
-        uses: dtolnay/rust-toolchain@1.97.0
-        with:
-          targets: aarch64-linux-android
-
-      - name: Compile Android target only
-        run: |
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
-          export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
-          export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          cargo check --target aarch64-linux-android --lib --locked
-
   dependency-audit:
     name: Rust dependency advisory audit
     runs-on: ubuntu-latest

@@ -98,42 +98,6 @@ jobs:
       - name: Test on Windows
         run: cargo test --workspace --all-targets --target x86_64-pc-windows-msvc --locked --verbose
 
-  android:
-    name: Compile (Android)
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: android-actions/setup-android@v3.2.2
-        with:
-          # setup-android defaults to the obsolete SDK package "tools".
-          packages: ''
-      - name: Install Android NDK and clang toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdkmanager --sdk_root="$ANDROID_HOME" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "ndk;27.2.12479018"
-      - uses: dtolnay/rust-toolchain@1.97.0
-        with:
-          targets: aarch64-linux-android
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: android-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: android-${{ runner.os }}-
-      - name: Compile for Android
-        run: |
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
-          export CC_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
-          export AR_aarch64_linux_android="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
-          cargo check --target aarch64-linux-android --all-targets
-
   security:
     name: Security Audit
     if: github.event_name == 'push'
