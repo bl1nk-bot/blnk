@@ -117,9 +117,52 @@ jobs:
           if-no-files-found: error
           path: blnk-v${{ needs.metadata.outputs.version }}-x86_64-pc-windows-msvc.zip
 
+  android:
+    name: Android ${{ matrix.target }}
+    needs: metadata
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [aarch64-linux-android]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.metadata.outputs.tag }}
+          persist-credentials: false
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Build release binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="${ANDROID_NDK_ROOT}"
+          export CC_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+          export AR_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
+          cargo build --locked --release --target "${{ matrix.target }}" --bin blnk
+      - name: Package binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "$package"
+          install -m 755 "target/${{ matrix.target }}/release/blnk" "$package/blnk"
+          cp README.md "$package/README.md"
+          tar -czf "$package.tar.gz" "$package"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          if-no-files-found: error
+          path: blnk-v${{ needs.metadata.outputs.version }}-${{ matrix.target }}.tar.gz
+
   publish:
     name: Attach release assets
-    needs: [metadata, linux, windows]
+    needs: [metadata, linux, windows, android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -136,7 +179,7 @@ jobs:
         run: |
           set -euo pipefail
           cd release-assets
-          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 3
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 4
           sha256sum ./* > SHA256SUMS
           sha256sum --check SHA256SUMS
           if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then

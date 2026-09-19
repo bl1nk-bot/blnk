@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
+    branches: [main]
     paths:
       - "src/**"
       - "crates/**"
@@ -106,6 +106,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
@@ -120,6 +124,9 @@ jobs:
       - name: Compile for Android
         run: |
           set -euo pipefail
+          export ANDROID_NDK_HOME="${ANDROID_NDK_ROOT}"
+          export CC_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+          export AR_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           cargo check --target aarch64-linux-android --lib --locked
 
   security:
