@@ -53,14 +53,14 @@ fn main() {
 /// Resolve a usable protoc binary when vendored is unavailable.
 fn resolve_system_protoc(vendored_err: impl std::fmt::Display) -> PathBuf {
     // Respect PROTOC env var if already set to a non-empty value.
-    if let Ok(existing) = env::var("PROTOC") {
-        if !existing.is_empty() {
-            println!(
-                "cargo:warning=protoc-bin-vendored unavailable ({vendored_err}); \
-                 using PROTOC={existing}"
-            );
-            return PathBuf::from(existing);
-        }
+    if let Ok(existing) = env::var("PROTOC")
+        && !existing.is_empty()
+    {
+        println!(
+            "cargo:warning=protoc-bin-vendored unavailable ({vendored_err}); \
+             using PROTOC={existing}"
+        );
+        return PathBuf::from(existing);
     }
 
     // Try `which protoc` to find a system binary.
