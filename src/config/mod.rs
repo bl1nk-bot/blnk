@@ -32,10 +32,7 @@ impl std::fmt::Debug for Config {
 }
 
 fn default_ice_servers() -> Vec<String> {
-    vec![
-        "stun:stun.l.google.com:19302".to_owned(),
-        "stun:stun1.l.google.com:19302".to_owned(),
-    ]
+    vec!["stun:stun.l.google.com:19302".to_owned(), "stun:stun1.l.google.com:19302".to_owned()]
 }
 
 fn default_signaling_url() -> String {
@@ -137,11 +134,8 @@ impl DeviceRegistry {
             device.endpoint = endpoint;
             device.last_seen_unix = last_seen_unix;
         } else {
-            self.devices.push(DeviceRecord {
-                id,
-                endpoint,
-                last_seen_unix,
-            });
+            self.devices
+                .push(DeviceRecord { id, endpoint, last_seen_unix });
         }
         self.devices.sort_by(|left, right| left.id.cmp(&right.id));
     }
