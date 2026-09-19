@@ -5,8 +5,9 @@
 //! replacement for platform ACLs. Wire requests use `stream.proto::FileOp`;
 //! file bytes remain SWSP DAT payloads and stream completion uses FIN.
 //!
-//! Validation is split into explicit size, range, path, overwrite,
-//! cancellation, timeout, and list-entry profiles.
+//! TODO: Add explicit size, range, path, overwrite, cancellation, timeout,
+//! and list-entry validation profiles (modeled after RustDesk's file-transfer
+//! request validation pattern). See TODO.md "RustDesk Reuse" backlog item.
 
 use std::fs::{self, Metadata};
 use std::io;
@@ -18,7 +19,6 @@ use std::sync::{
 use std::time::{Duration, UNIX_EPOCH};
 
 use prost::Message;
-use sha2::{Digest, Sha256};
 
 use crate::proto_generated::stream as wire;
 use crate::protocol::swsp::{DEFAULT_MAX_PAYLOAD_LEN, Frame, FrameFlags};
@@ -31,15 +31,6 @@ const DEFAULT_MAX_LIST_ENTRIES: usize = 10_000;
 const DEFAULT_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const FILE_TYPE: &str = "file";
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileValidationProfile {
-    Get,
-    Put,
-    List,
-    Stat,
-    Delete,
-}
 
 /// File-transfer operation requested by a peer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,8 +76,6 @@ pub struct FileTransferRequest {
     pub overwrite: bool,
     /// Inclusive byte range `[start, end]` for GET; empty means the full file.
     pub range: Option<(u64, u64)>,
-    pub request_id: u64,
-    pub checksum: String,
 }
 
 impl FileTransferRequest {
@@ -98,8 +87,6 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range,
-            request_id: 0,
-            checksum: String::new(),
         })
     }
 
@@ -110,18 +97,7 @@ impl FileTransferRequest {
             size,
             overwrite,
             range: None,
-            request_id: 0,
-            checksum: String::new(),
         }
-    }
-
-    pub fn with_request_id(mut self, request_id: u64) -> Self {
-        self.request_id = request_id;
-        self
-    }
-    pub fn with_checksum(mut self, checksum: impl Into<String>) -> Self {
-        self.checksum = checksum.into();
-        self
     }
 
     pub fn list(path: impl Into<String>) -> Self {
@@ -131,8 +107,6 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
-            request_id: 0,
-            checksum: String::new(),
         }
     }
 
@@ -143,8 +117,6 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
-            request_id: 0,
-            checksum: String::new(),
         }
     }
 
@@ -155,8 +127,6 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
-            request_id: 0,
-            checksum: String::new(),
         }
     }
 
@@ -193,8 +163,6 @@ impl FileTransferRequest {
             })?,
             overwrite: message.overwrite,
             range,
-            request_id: message.request_id,
-            checksum: message.checksum,
         };
         request.validate_shape()?;
         Ok(request)
@@ -212,8 +180,6 @@ impl FileTransferRequest {
             size: i64::try_from(self.size).unwrap_or(i64::MAX),
             overwrite: self.overwrite,
             range,
-            request_id: self.request_id,
-            checksum: self.checksum.clone(),
         }
     }
 
@@ -231,32 +197,7 @@ impl FileTransferRequest {
         if self.operation != FileOperation::Get && self.range.is_some() {
             return Err(BlnkError::Protocol("file request range is only valid for GET".into()));
         }
-        if self.operation != FileOperation::Put && !self.checksum.is_empty() {
-            return Err(BlnkError::Protocol("file checksum is only valid for PUT".into()));
-        }
-        if !self.checksum.is_empty()
-            && (self.checksum.len() != 64
-                || !self.checksum.bytes().all(|byte| byte.is_ascii_hexdigit()))
-        {
-            return Err(BlnkError::Protocol(
-                "file checksum must be 64 hexadecimal characters".into(),
-            ));
-        }
         Ok(())
-    }
-
-    pub fn validate_profile(&self, profile: FileValidationProfile) -> StreamResult<()> {
-        let expected = match profile {
-            FileValidationProfile::Get => FileOperation::Get,
-            FileValidationProfile::Put => FileOperation::Put,
-            FileValidationProfile::List => FileOperation::List,
-            FileValidationProfile::Stat => FileOperation::Stat,
-            FileValidationProfile::Delete => FileOperation::Delete,
-        };
-        if self.operation != expected {
-            return Err(BlnkError::Protocol("file validation profile does not match operation".into()));
-        }
-        self.validate_shape()
     }
 }
 
@@ -448,7 +389,7 @@ impl FileTransferService {
             data[start as usize..=end as usize].to_vec()
         };
         Ok(FileTransferResponse::Download {
-            info: with_request_id(file_info(&request.path, &metadata), request.request_id),
+            info: file_info(&request.path, &metadata),
             data: selected,
         })
     }
@@ -489,20 +430,12 @@ impl FileTransferService {
             tokio::io::AsyncWriteExt::flush(&mut file)
                 .await
                 .map_err(|error| io_error("flush temporary upload", error))?;
-            file.sync_all()
-                .await
-                .map_err(|error| io_error("sync temporary upload", error))?;
-            tokio::io::AsyncWriteExt::shutdown(&mut file)
-                .await
-                .map_err(|error| io_error("close temporary upload", error))?;
-            if !request.checksum.is_empty() {
-                let digest = Sha256::digest(upload);
-                let actual = format!("{digest:x}");
-                if !actual.eq_ignore_ascii_case(&request.checksum) {
-                    return Err(BlnkError::Stream("upload checksum verification failed".into()));
-                }
-            }
             drop(file);
+            if request.overwrite && tokio::fs::try_exists(&path).await.unwrap_or(false) {
+                tokio::fs::remove_file(&path)
+                    .await
+                    .map_err(|error| io_error("replace existing upload", error))?;
+            }
             tokio::fs::rename(&temp_path, &path)
                 .await
                 .map_err(|error| io_error("commit upload", error))?;
@@ -510,7 +443,7 @@ impl FileTransferService {
                 .await
                 .map_err(|error| io_error("stat uploaded file", error))?;
             Ok::<_, BlnkError>(FileTransferResponse::Upload {
-                info: with_request_id(file_info(&request.path, &metadata), request.request_id),
+                info: file_info(&request.path, &metadata),
             })
         }
         .await;
@@ -555,7 +488,6 @@ impl FileTransferService {
         Ok(FileTransferResponse::List(wire::FileList {
             path: request.path.clone(),
             files,
-            request_id: request.request_id,
         }))
     }
 
@@ -569,10 +501,7 @@ impl FileTransferService {
         let metadata = tokio::fs::metadata(&path)
             .await
             .map_err(|error| io_error("stat file", error))?;
-        Ok(FileTransferResponse::Stat(with_request_id(
-            file_info(&request.path, &metadata),
-            request.request_id,
-        )))
+        Ok(FileTransferResponse::Stat(file_info(&request.path, &metadata)))
     }
 
     async fn delete(
@@ -777,7 +706,6 @@ pub fn encode_response_frames(
                 is_dir: false,
                 modified: String::new(),
                 mode: String::new(),
-                request_id: 0,
             }
             .encode_to_vec(),
         )]),
@@ -812,28 +740,6 @@ pub fn decode_response_metadata(
                 })
         }
     }
-}
-
-pub fn decode_response_metadata_checked(
-    request: &FileTransferRequest,
-    frame: &Frame,
-    tracker: &super::StreamRequestTracker,
-) -> StreamResult<FileTransferResponse> {
-    if request.request_id != 0 {
-        tracker.accept(request.request_id)?;
-    }
-    let response = decode_response_metadata(request, frame)?;
-    let response_id = match &response {
-        FileTransferResponse::Download { info, .. }
-        | FileTransferResponse::Upload { info }
-        | FileTransferResponse::Stat(info) => info.request_id,
-        FileTransferResponse::List(list) => list.request_id,
-        FileTransferResponse::Delete { .. } => request.request_id,
-    };
-    if request.request_id != 0 && response_id != request.request_id {
-        return Err(BlnkError::Stream("response request id does not match active request".into()));
-    }
-    Ok(response)
 }
 
 fn safe_relative_path(request_path: &str) -> StreamResult<PathBuf> {
@@ -886,13 +792,7 @@ fn file_info(name: &str, metadata: &Metadata) -> wire::FileInfo {
         is_dir: metadata.is_dir(),
         modified: modified_string(metadata),
         mode: mode_string(metadata),
-        request_id: 0,
     }
-}
-
-fn with_request_id(mut info: wire::FileInfo, request_id: u64) -> wire::FileInfo {
-    info.request_id = request_id;
-    info
 }
 
 fn modified_string(metadata: &Metadata) -> String {

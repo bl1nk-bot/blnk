@@ -62,8 +62,6 @@ message FileOp {
   int64 size = 4;            // For PUT: total bytes to send
   bool overwrite = 5;        // For PUT: allow overwrite
   repeated int64 range = 6;  // For GET: byte range [start, end]
-  uint64 request_id = 7;      // Correlates a response with its active request
-  string checksum = 8;        // For PUT: expected SHA-256 in lowercase hex
 }
 
 // File metadata
@@ -73,14 +71,12 @@ message FileInfo {
   bool is_dir = 3;           // Is directory
   string modified = 4;       // Last modified timestamp
   string mode = 5;          // File permissions
-  uint64 request_id = 6;     // Request that produced this metadata
 }
 
 // File list response
 message FileList {
   string path = 1;           // Directory path
   repeated FileInfo files = 2;  // Files in directory
-  uint64 request_id = 3;        // Request that produced this listing
 }
 
 // ============================================================================
