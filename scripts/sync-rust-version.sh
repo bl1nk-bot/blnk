@@ -35,7 +35,7 @@ update_file() {
             echo "Pattern not found in $file, skipping"
         fi
     else
-        if sed -i -E "s/$pattern/$replacement/" "$file"; then
+        if grep -E -q -- "$pattern" "$file" && sed -i -E "s/$pattern/$replacement/" "$file"; then
             echo "Updated $file"
         else
             echo "Error updating $file" >&2
