@@ -58,6 +58,13 @@ if [[ -z "$target" ]]; then
     exit 1
 fi
 
+# Detect host target for smoke test eligibility
+host_target=$(rustc -vV | sed -n 's/^host: //p')
+is_cross_compile=false
+if [[ "$target" != "$host_target" ]]; then
+    is_cross_compile=true
+fi
+
 # Run checks unless skipped
 if [[ "$skip_build" != true ]]; then
     cargo fmt --all -- --check
@@ -67,10 +74,17 @@ if [[ "$skip_build" != true ]]; then
     cargo build --locked --release --target "$target"
 fi
 
+# Determine binary path (handle Windows .exe)
 binary="target/${target}/release/blnk"
+if [[ "$target" == *"windows"* ]]; then
+    binary="${binary}.exe"
+fi
 if [[ ! -x "$binary" ]]; then
     # Try without target subdir for host builds
     binary="target/release/blnk"
+    if [[ "$target" == *"windows"* ]]; then
+        binary="${binary}.exe"
+    fi
     if [[ ! -x "$binary" ]]; then
         echo "release binary not found: $binary" >&2
         exit 1
@@ -90,7 +104,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-rm -rf "$output_dir"
+# Only remove stage and archive, not the entire output_dir
+rm -rf "${output_dir}/.stage" "${output_dir}/${package_name}.tar" "$archive" "$checksum" 2>/dev/null || true
 mkdir -p "$stage_root"
 install -m 0755 "$binary" "$stage_root/blnk"
 install -m 0644 README.md "$stage_root/README.md" 2>/dev/null || true
@@ -116,14 +131,18 @@ gzip -n -9 -c "${output_dir}/${package_name}.tar" > "$archive"
 rm -f "${output_dir}/${package_name}.tar"
 sha256sum "$archive" > "$checksum"
 
-# Smoke test
-mkdir -p "$smoke_root"
-tar -xzf "$archive" -C "$smoke_root"
-smoke_output=$("$smoke_root/$package_name/blnk" --version)
-expected="blnk $version"
-if [[ "$smoke_output" != "$expected" ]]; then
-    echo "release smoke test failed: expected '$expected', got '$smoke_output'" >&2
-    exit 1
+# Smoke test (skip for cross-compiled targets)
+if [[ "$is_cross_compile" == true ]]; then
+    echo "skipping smoke test for cross-compiled target $target"
+else
+    mkdir -p "$smoke_root"
+    tar -xzf "$archive" -C "$smoke_root"
+    smoke_output=$("$smoke_root/$package_name/blnk" --version)
+    expected="blnk $version"
+    if [[ "$smoke_output" != "$expected" ]]; then
+        echo "release smoke test failed: expected '$expected', got '$smoke_output'" >&2
+        exit 1
+    fi
 fi
 
 printf 'release_version=%s\n' "$version"

@@ -119,12 +119,12 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh -o 
     && echo "node: $(node --version)" \
     && echo "bun: $(bun --version)"
 
-# Install Rust 1.97 via rustup
+# Install Rust 1.98 via rustup
 ENV RUSTUP_HOME="/home/vscode/.rustup"
 ENV CARGO_HOME="/home/vscode/.cargo"
 ENV PATH="/home/vscode/.cargo/bin:${PATH}"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh \
-    && sh /tmp/rustup-init.sh -y --default-toolchain 1.97.0 --profile default \
+    && sh /tmp/rustup-init.sh -y --default-toolchain 1.98.1 --profile default \
     && rm -f /tmp/rustup-init.sh \
     && rustc --version \
     && cargo --version

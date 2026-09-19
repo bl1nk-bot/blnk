@@ -478,13 +478,19 @@ mod tests {
                 .with_timeout(Duration::from_millis(20))
                 .expect("timeout"),
         );
-        let error = handler
-            .run(
-                ShellCommand::new(shell_program()).args(shell_args(long_running_script())),
-                CancellationToken::new(),
-            )
-            .await
-            .expect_err("command should time out");
+        // Safety timeout: if the handler's timeout mechanism fails, this prevents the test from hanging forever
+        let result = tokio::time::timeout(Duration::from_secs(5), async {
+            handler
+                .run(
+                    ShellCommand::new(shell_program()).args(shell_args(long_running_script())),
+                    CancellationToken::new(),
+                )
+                .await
+        })
+        .await
+        .expect("test timed out — handler timeout mechanism may be broken");
+
+        let error = result.expect_err("command should time out");
         assert!(error.to_string().contains("timed out"));
     }
 

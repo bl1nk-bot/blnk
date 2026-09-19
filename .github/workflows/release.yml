@@ -136,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           cd release-assets
-          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 5
+          test "$(find . -maxdepth 1 -type f | wc -l)" -eq 3
           sha256sum ./* > SHA256SUMS
           sha256sum --check SHA256SUMS
           if ! gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then

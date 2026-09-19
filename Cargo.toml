@@ -11,6 +11,7 @@ license = "MIT"
 
 [workspace.lints.clippy]
 disallowed_types = "deny"
+disallowed_methods = "deny"
 
 [workspace.dependencies]
 # ── blnk shared deps ────────────────────────────────────────────────────
