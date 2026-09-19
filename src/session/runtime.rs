@@ -63,9 +63,7 @@ impl ControlMessage {
     }
 
     pub fn auth_required() -> Self {
-        Self::AuthRequired(wire::AuthRequiredMessage {
-            r#type: "auth_required".into(),
-        })
+        Self::AuthRequired(wire::AuthRequiredMessage { r#type: "auth_required".into() })
     }
 
     pub fn auth(pin: impl Into<String>) -> SessionResult<Self> {
@@ -73,10 +71,7 @@ impl ControlMessage {
         if pin.trim().is_empty() {
             return Err(BlnkError::Session("PIN must not be empty".into()));
         }
-        Ok(Self::Auth(wire::AuthMessage {
-            r#type: "auth".into(),
-            pin,
-        }))
+        Ok(Self::Auth(wire::AuthMessage { r#type: "auth".into(), pin }))
     }
 
     pub fn auth_result(success: bool) -> Self {
@@ -102,9 +97,7 @@ impl ControlMessage {
     pub fn error(message: impl Into<String>) -> SessionResult<Self> {
         let message = message.into();
         if message.trim().is_empty() {
-            return Err(BlnkError::Session(
-                "control error message must not be empty".into(),
-            ));
+            return Err(BlnkError::Session("control error message must not be empty".into()));
         }
         Ok(Self::Error(wire::ErrorMessage {
             r#type: "error".into(),
@@ -156,9 +149,7 @@ impl ControlMessage {
         {
             return Ok(Self::Error(message));
         }
-        Err(BlnkError::Protocol(
-            "invalid or unknown control message discriminator".into(),
-        ))
+        Err(BlnkError::Protocol("invalid or unknown control message discriminator".into()))
     }
 }
 
@@ -264,9 +255,7 @@ impl SessionRuntimeConfig {
 
     fn validate(&self) -> SessionResult<()> {
         if self.control_timeout.is_zero() {
-            return Err(BlnkError::Session(
-                "control timeout must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Session("control timeout must be greater than zero".into()));
         }
         if self.connect_path.trim().is_empty() {
             return Err(BlnkError::Session("connect path must not be empty".into()));
@@ -356,18 +345,13 @@ impl SessionRuntime {
         kind: StreamKind,
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
-        if matches!(
-            kind,
-            StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http
-        ) {
+        if matches!(kind, StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http) {
             // FIXME: ProxyStreamService exists in proxy_handler.rs but is NOT wired
             // into the ConnectionSupervisor dispatch loop. This blocks spec reqs
             // 4.3 (Web Proxy), 4.4 (TCP Forwarding), 4.10 (WebSocket Bridging).
             // See TODO.md "Codex-Inspired Adaptation Backlog" for proxy dispatch task.
             // TODO: Wire proxy dispatch before enabling these stream kinds.
-            return Err(BlnkError::Stream(
-                "proxy stream dispatch is not implemented".into(),
-            ));
+            return Err(BlnkError::Stream("proxy stream dispatch is not implemented".into()));
         }
         self.session.open_stream(kind, connect_path)
     }
@@ -554,9 +538,7 @@ impl SessionRuntime {
         }
         if frame.flags.is_syn() {
             if !frame.flags.is_dat() {
-                return Err(BlnkError::Protocol(
-                    "shell SYN frame must carry DAT payload".into(),
-                ));
+                return Err(BlnkError::Protocol("shell SYN frame must carry DAT payload".into()));
             }
             return Ok(frame);
         }
@@ -585,9 +567,7 @@ impl SessionRuntime {
                 "stream {stream_id} is not a shell stream ({:?})",
                 entry.kind()
             ))),
-            None => Err(BlnkError::Stream(format!(
-                "unknown shell stream id: {stream_id}"
-            ))),
+            None => Err(BlnkError::Stream(format!("unknown shell stream id: {stream_id}"))),
         }
     }
 
@@ -603,18 +583,14 @@ impl SessionRuntime {
                 "stream {stream_id} is not a file stream ({:?})",
                 entry.kind()
             ))),
-            None => Err(BlnkError::Stream(format!(
-                "unknown file stream id: {stream_id}"
-            ))),
+            None => Err(BlnkError::Stream(format!("unknown file stream id: {stream_id}"))),
         }
     }
 
     /// Runs the role-specific control exchange until both sides reach Ready.
     pub async fn handshake(&mut self) -> SessionResult<()> {
         if self.handshake_started {
-            return Err(BlnkError::Session(
-                "session handshake already started".into(),
-            ));
+            return Err(BlnkError::Session("session handshake already started".into()));
         }
         self.handshake_started = true;
 
@@ -737,9 +713,9 @@ impl SessionRuntime {
         match tokio::time::timeout(self.config.control_timeout, self.peer.recv_frame()).await {
             Ok(Ok(frame)) => Self::decode_control_frame(frame),
             Ok(Err(error)) => Err(error),
-            Err(_) => Err(BlnkError::Session(
-                "timed out waiting for session control message".into(),
-            )),
+            Err(_) => {
+                Err(BlnkError::Session("timed out waiting for session control message".into()))
+            }
         }
     }
 
@@ -791,7 +767,10 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                // Security: PIN comparison must be constant-time to avoid timing leaks.
+                if let Some(ref last_pin) = self.last_auth_pin
+                    && super::constant_time_pin_eq(last_pin.as_bytes(), message.pin.as_bytes())
+                {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());
@@ -1104,7 +1083,7 @@ mod tests {
         )
         .await;
         server
-            .open_stream(StreamKind::Tcp, "127.0.0.1:9")
+            .open_stream(StreamKind::Shell, "/shell")
             .expect("stream should open");
         assert_eq!(server.active_streams(), 1);
 
@@ -1141,10 +1120,7 @@ mod tests {
             .recv_shell_frame()
             .await
             .expect("server should receive peer SYN before accept");
-        assert_eq!(
-            decode_open_frame(&open_frame).expect("open decode"),
-            command
-        );
+        assert_eq!(decode_open_frame(&open_frame).expect("open decode"), command);
         server
             .accept_shell_stream(stream_id, "/shell")
             .expect("server should accept peer shell stream");
@@ -1157,10 +1133,7 @@ mod tests {
             .recv_shell_frame()
             .await
             .expect("server should receive stdin");
-        assert_eq!(
-            decode_input_frame(&input_frame).expect("input decode").data,
-            b"stdin"
-        );
+        assert_eq!(decode_input_frame(&input_frame).expect("input decode").data, b"stdin");
 
         server
             .send_shell_output(stream_id, b"stdout".to_vec(), false)

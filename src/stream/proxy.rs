@@ -441,10 +441,7 @@ impl ProxyPolicy {
             self.validate_ip(ip)?;
         }
 
-        Ok(ValidatedProxyTarget {
-            url: target.clone(),
-            key,
-        })
+        Ok(ValidatedProxyTarget { url: target.clone(), key })
     }
 
     /// Validate all answers from one DNS resolution and pin them for retries.
@@ -745,10 +742,7 @@ mod tests {
             .expect("public target should pass");
         assert_eq!(validated.target().host(), "example.com");
         assert_eq!(validated.target().port(), 443);
-        assert_eq!(
-            validated.addresses(),
-            &[SocketAddr::from(([1, 1, 1, 1], 443))]
-        );
+        assert_eq!(validated.addresses(), &[SocketAddr::from(([1, 1, 1, 1], 443))]);
     }
 
     #[test]
@@ -761,10 +755,7 @@ mod tests {
             SocketAddr::from(([10, 0, 0, 1], 80)),
             SocketAddr::from(([127, 0, 0, 1], 80)),
             SocketAddr::new(Ipv6Addr::LOCALHOST.into(), 80),
-            SocketAddr::new(
-                Ipv6Addr::from([0, 0, 0, 0, 0, 0xffff, 0x7f00, 0x1]).into(),
-                80,
-            ),
+            SocketAddr::new(Ipv6Addr::from([0, 0, 0, 0, 0, 0xffff, 0x7f00, 0x1]).into(), 80),
         ] {
             assert_eq!(
                 policy
@@ -929,12 +920,7 @@ mod tests {
             .expect("original target should pass");
         assert_eq!(
             no_redirects
-                .validate_redirect(
-                    &original,
-                    &original_url,
-                    ProxyAuthorization::UserConfirmed,
-                    0,
-                )
+                .validate_redirect(&original, &original_url, ProxyAuthorization::UserConfirmed, 0,)
                 .expect_err("redirect limit must be enforced"),
             ProxyPolicyError::RedirectLimitExceeded
         );
@@ -952,14 +938,8 @@ mod tests {
             })
             .expect("limits should be valid");
         assert!(policy.check_request_size(4).is_ok());
-        assert_eq!(
-            policy.check_request_size(5),
-            Err(ProxyPolicyError::RequestLimitExceeded)
-        );
-        assert_eq!(
-            policy.check_response_size(9),
-            Err(ProxyPolicyError::ResponseLimitExceeded)
-        );
+        assert_eq!(policy.check_request_size(5), Err(ProxyPolicyError::RequestLimitExceeded));
+        assert_eq!(policy.check_response_size(9), Err(ProxyPolicyError::ResponseLimitExceeded));
         assert_eq!(
             policy.check_concurrent_streams(2),
             Err(ProxyPolicyError::ConcurrencyLimitExceeded)
@@ -972,10 +952,7 @@ mod tests {
             BlnkError::from(ProxyPolicyError::AddressNotAllowed).to_string(),
             "stream error: proxy policy rejected: address_not_allowed"
         );
-        assert_eq!(
-            ProxyPolicyError::AddressNotAllowed.code(),
-            "address_not_allowed"
-        );
+        assert_eq!(ProxyPolicyError::AddressNotAllowed.code(), "address_not_allowed");
     }
 
     #[test]
@@ -1017,13 +994,7 @@ mod tests {
         let safe = redact_target_for_log(&target);
         assert_eq!(safe, "https://example.com:443");
         assert!(!safe.contains("secret"));
-        assert_eq!(
-            redact_header_value("Authorization", "Bearer secret"),
-            REDACTED_VALUE
-        );
-        assert_eq!(
-            redact_header_value("Content-Type", "text/plain"),
-            "text/plain"
-        );
+        assert_eq!(redact_header_value("Authorization", "Bearer secret"), REDACTED_VALUE);
+        assert_eq!(redact_header_value("Content-Type", "text/plain"), "text/plain");
     }
 }
