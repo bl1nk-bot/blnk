@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "blnk"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "anyhow",
  "arboard",
@@ -569,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "blnk-tui"
-version = "0.2.13"
+version = "0.2.14"
 dependencies = [
  "anyhow",
  "arboard",
