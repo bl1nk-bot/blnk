@@ -143,6 +143,7 @@ jobs:
           set -euo pipefail
           export ANDROID_NDK_HOME="${ANDROID_NDK_ROOT}"
           export CC_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android35-clang"
           export AR_aarch64_linux_android="${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar"
           cargo build --locked --release --target "${{ matrix.target }}" --bin blnk
       - name: Package binary
