@@ -119,7 +119,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh -o 
     && echo "node: $(node --version)" \
     && echo "bun: $(bun --version)"
 
-# Install Rust 1.98 via rustup
+# Install Rust 1.98.1 via rustup
 ENV RUSTUP_HOME="/home/vscode/.rustup"
 ENV CARGO_HOME="/home/vscode/.cargo"
 ENV PATH="/home/vscode/.cargo/bin:${PATH}"
