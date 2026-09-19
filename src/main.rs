@@ -6,8 +6,8 @@ use blnk::peer::TwoPeerHarness;
 use blnk::session::{SessionRuntime, SessionRuntimeConfig};
 use blnk::signaling::EndpointPolicy;
 use blnk::signaling::orchestration::{
-    DEFAULT_ORCHESTRATION_TIMEOUT, accept_server_session, connect_target, run_file_client,
-    run_shell_client, serve_session_with_shutdown,
+    AuditLog, DEFAULT_ORCHESTRATION_TIMEOUT, OperationScope, accept_server_session, connect_target,
+    run_file_client, run_shell_client, serve_session_with_shutdown,
 };
 use blnk::stream::shell::ShellCommand;
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
@@ -144,7 +144,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
     println!("serve_status=running; press Ctrl-C to stop");
     let shutdown = CancellationToken::new();
-    let session_task = serve_session_with_shutdown(session, root, shutdown.clone());
+    let session_task = serve_session_with_shutdown(
+        session,
+        root,
+        shutdown.clone(),
+        OperationScope::default(),
+        AuditLog::new(""),
+    );
     tokio::pin!(session_task);
     tokio::select! {
         result = &mut session_task => {
@@ -268,13 +274,9 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     )
     .await
     .context("establish remote signaling/WebRTC session")?;
-    let result = run_file_client(
-        &mut session.runtime,
-        &args.source,
-        &args.destination,
-        args.overwrite,
-    )
-    .await;
+    let result =
+        run_file_client(&mut session.runtime, &args.source, &args.destination, args.overwrite)
+            .await;
     let close_result = session.runtime.close().await;
     match (result, close_result) {
         (Err(error), _) => Err(error.into()),
@@ -319,10 +321,7 @@ async fn run_devices(args: DevicesArgs) -> Result<()> {
     if args.list || !registry.devices.is_empty() {
         println!("ID\tENDPOINT\tLAST_SEEN_UNIX");
         for device in registry.devices {
-            println!(
-                "{}\t{}\t{}",
-                device.id, device.endpoint, device.last_seen_unix
-            );
+            println!("{}\t{}\t{}", device.id, device.endpoint, device.last_seen_unix);
         }
     }
     Ok(())
@@ -361,16 +360,12 @@ async fn fixture_pair(pin: &str) -> Result<(SessionRuntime, SessionRuntime)> {
     let harness = TwoPeerHarness::new("control")
         .await
         .context("create local WebRTC fixture")?;
-    let mut client = SessionRuntime::new(
-        harness.offerer,
-        SessionRuntimeConfig::client(pin.to_owned()),
-    )
-    .context("create fixture client runtime")?;
-    let mut server = SessionRuntime::new(
-        harness.answerer,
-        SessionRuntimeConfig::server(pin.to_owned()),
-    )
-    .context("create fixture server runtime")?;
+    let mut client =
+        SessionRuntime::new(harness.offerer, SessionRuntimeConfig::client(pin.to_owned()))
+            .context("create fixture client runtime")?;
+    let mut server =
+        SessionRuntime::new(harness.answerer, SessionRuntimeConfig::server(pin.to_owned()))
+            .context("create fixture server runtime")?;
 
     let (client_result, server_result) = tokio::join!(client.handshake(), server.handshake());
     client_result.context("complete fixture client handshake")?;
@@ -388,6 +383,8 @@ async fn run_local_shell(pin: &str, command: ShellCommand) -> Result<i32> {
         },
         root,
         CancellationToken::new(),
+        OperationScope::default(),
+        AuditLog::new(LOCAL_FIXTURE_DEVICE_ID),
     ));
 
     let result = run_shell_client(&mut client, &command).await;
@@ -423,6 +420,8 @@ async fn run_local_cp_inner(
         },
         fixture_root.to_path_buf(),
         CancellationToken::new(),
+        OperationScope::default(),
+        AuditLog::new(LOCAL_FIXTURE_DEVICE_ID),
     ));
 
     let result = run_file_client(&mut client, source, destination, overwrite).await;

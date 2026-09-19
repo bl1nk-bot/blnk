@@ -146,9 +146,7 @@ pub fn compute_sas(input: &SasInput) -> Result<SasResult, BlnkError> {
             .map_err(|_| BlnkError::Protocol("SAS digest is too short".to_owned()))?,
     ) % 1_000_000;
 
-    Ok(SasResult {
-        sas: format!("{value:06}"),
-    })
+    Ok(SasResult { sas: format!("{value:06}") })
 }
 
 fn validate_nonce(nonce: &[u8]) -> Result<(), BlnkError> {
@@ -233,10 +231,7 @@ mod tests {
         };
         let encoded = serde_json::to_value(&challenge).expect("challenge should serialize");
         assert_eq!(encoded["type"], "pair_challenge");
-        assert_eq!(
-            encoded["nonce_d"],
-            STANDARD_NO_PAD.encode([0x01; NONCE_LEN])
-        );
+        assert_eq!(encoded["nonce_d"], STANDARD_NO_PAD.encode([0x01; NONCE_LEN]));
         assert!(
             !encoded["nonce_d"]
                 .as_str()

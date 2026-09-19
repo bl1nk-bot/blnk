@@ -20,6 +20,34 @@
 | **Session State Machine** | `src/session/` | PIN authentication (constant-time check), session timeouts, active stream lifecycle | `session::tests` |
 | **Stream Handlers** | `src/stream/` | `shell.rs` (PTY/cancellation), `file.rs` (sandboxed ops), `proxy.rs` (SSRF-protected HTTP/TCP/WS) | `stream::*::tests` |
 | **Web Control Surface** | `src/web/` | Axum loopback surface, CSRF/Cookie origin protection, WebSocket status streaming | `web::tests` |
+| **Terminal Detection** | `src/utils/terminal_detection.rs` | Terminal emulator detection (name, multiplexer, hyperlink support) | `terminal_detection::tests` |
+| **Hyperlink Policy** | `src/utils/hyperlinks.rs` | OSC 8 display policy (label-only vs full URL) | `hyperlinks::tests` |
+
+---
+
+## 1.5 TUI Subsystem (blnk-tui)
+
+**Crate:** `crates/blnk-tui/` — ratatui-based terminal user interface
+
+| Module | Source Path | State & Behavior | Evidence / Test File |
+|---|---|---|---|
+| **Terminal Lifecycle** | `tui.rs` | Raw mode, alternate screen, panic hook, synchronized draw | `tui.rs` (manual) |
+| **URL-Aware Wrapping** | `wrapping.rs` | Word wrap with URL preservation, sound mark projection, mixed URL/prose | `wrapping::tests` |
+| **Streaming Markdown** | `render/markdown.rs` | Single-pass parse with block boundary tracking (stub) | — |
+| **Vertical Tables** | `render/records.rs` | Grid→key/value fallback with threshold detection | — |
+| **Terminal Hyperlinks** | `terminal_hyperlinks.rs` | OSC 8 hyperlink annotation for ratatui Lines | — |
+| **Color Detection** | `terminal_palette.rs` | Default fg/bg from COLORFGBG + ANSI→RGB | `terminal_palette::tests` |
+| **Shimmer** | `shimmer.rs` | Time-based sweep animation with cosine band | — |
+| **Color Math** | `color.rs` | Blend, luma, CIE76 perceptual distance | `color::tests` |
+| **Display Width** | `width.rs` | Unicode width + sound mark handling | `width::tests` |
+| **Keyboard Modes** | `keyboard_modes.rs` | Kitty protocol detection (stub) | — |
+| **Windows Console** | `windows_console.rs` | Win32 console state (stub) | — |
+| **Notifications** | `notifications.rs` | Desktop notification backend (stub) | `workspace_messages::tests` |
+| **Pets** | `pets.rs` | Sixel/Kitty image rendering (stub) | — |
+| **Workspace Messages** | `workspace_messages.rs` | Headline extraction from protobuf | `workspace_messages::tests` |
+| **Proto Stubs** | `proto.rs` | Temporary type definitions (replace with prost) | — |
+
+**Status:** Phase 1 complete (core rendering). Phase 2 (platform integration) pending.
 
 ---
 
