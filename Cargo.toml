@@ -1,108 +1,10 @@
-[workspace]
-members = [".", "crates/blnk-tui"]
-# เพิ่ม tools ใหม่ที่นี่ เช่น "tools/my-new-tool"
-# ไม่ใช้ tools/* เพราะ dylint tools (เช่น argument-comment-lint) ไม่มี src/lib.rs
-resolver = "3"
-
-[workspace.package]
-version = "0.2.13"
-edition = "2024"
-license = "MIT"
-
-[workspace.lints.clippy]
-disallowed_types = "deny"
-
-[workspace.dependencies]
-# ── blnk shared deps ────────────────────────────────────────────────────
-anyhow = "1.0"
-axum = { version = "0.8.9", default-features = false, features = ["json", "http1", "tokio"] }
-base64 = "0.23"
-bytes = "1.12"
-clap = { version = "4.5", default-features = false, features = ["std", "derive"] }
-futures = "0.3"
-http = "1.5"
-rand = "0.9"
-reqwest = { version = "0.13", features = ["json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-sha2 = "0.10"
-shlex = "1.3"
-thiserror = "2.0"
-tokio = { version = "1.53", features = ["full"] }
-tokio-stream = "0.1"
-tokio-tungstenite = "0.26"
-tokio-util = { version = "0.7", default-features = false }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-url = "2.5"
-uuid = { version = "1.10", features = ["v4"] }
-
-# ── blnk-tui deps ──────────────────────────────────────────────────────
-chrono = { version = "0.4", features = ["serde"] }
-color-eyre = "0.6"
-crossterm = { version = "0.28", features = ["bracketed-paste", "event-stream"] }
-derive_more = { version = "2.0", default-features = false, features = ["is_variant"] }
-diffy = "0.4"
-dirs = "6.0"
-dunce = "1.0"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
-itertools = "0.14"
-lazy_static = "1.5"
-pathdiff = "0.2"
-pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
-ratatui = { version = "0.29", features = [
-    "scrolling-regions",
-    "unstable-backend-writer",
-    "unstable-rendered-line-info",
-    "unstable-widget-ref",
-] }
-regex-lite = "0.1"
-rmcp = { version = "3.4", features = ["server", "transport-streamable-http-server"] }
-strum = { version = "0.26", default-features = false, features = ["derive"] }
-strum_macros = "0.26"
-supports-color = "3.0"
-tempfile = "3.27"
-textwrap = "0.16"
-toml = "0.8"
-tracing-appender = { version = "0.2", features = ["parking_lot"] }
-syntect = "5.3"
-two-face = { version = "0.5", default-features = false, features = ["syntect-default-onig"] }
-unicode-segmentation = "1.12"
-unicode-width = "0.2"
-urlencoding = "2.1"
-webbrowser = "1.0"
-libc = "0.2"
-zbus = "4.4"
-which = "7.0"
-windows-sys = { version = "0.61", features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_Storage_FileSystem",
-    "Win32_System_Console",
-    "Win32_System_IO",
-    "Win32_System_Pipes",
-    "Win32_System_Threading",
-    "Win32_UI_WindowsAndMessaging",
-] }
-winsplit = "0.1"
-arboard = "3.6"
-
-# ── dev/test deps ───────────────────────────────────────────────────────
-assert_matches = "1.5"
-pretty_assertions = "1.4"
-serial_test = "3.0"
-vt100 = "0.15"
-wiremock = "0.6"
-insta = "1.42"
-
-# ── blnk package ────────────────────────────────────────────────────────
 [package]
 name = "blnk"
-version.workspace = true
-edition.workspace = true
+version = "0.2.14"
+edition = "2024"
 authors = ["Dollawatt Chidjai"]
 description = "Remote access multitool in Rust"
-license.workspace = true
+license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/bl1nk-bot/blnk"
 repository = "https://github.com/bl1nk-bot/blnk"
@@ -117,80 +19,59 @@ path = "src/main.rs"
 
 [dependencies]
 # Core
-tokio.workspace = true
-tokio-util = { workspace = true, features = ["time"] }
-futures.workspace = true
-async-trait = "0.1.91"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-util = "0.7.19"
+futures = "0.3.33"
+async-trait = "0.1.91"           # Type erasure for async trait methods
 async-channel = "2.5.0"
 prost = "0.14.4"
 
-# WebSocket
-tokio-tungstenite.workspace = true
+# For WebSocket support
+tokio-tungstenite = "0.30.0"
 webrtc = "0.20.0"
-bytes.workspace = true
+bytes = "1.12.1"
 
 # Networking
-axum = { workspace = true, features = ["ws"] }
+axum = { version = "0.8.9", features = ["ws"] }
 tungstenite = "0.30.0"
-reqwest.workspace = true
-http.workspace = true
+reqwest = { version = "0.13.4", features = ["json"] }
+http = "1.5.0"
 
 # CLI & Config
-clap.workspace = true
+clap = { version = "4.0", features = ["derive"] }
 config = "0.15.25"
-serde.workspace = true
-serde_json.workspace = true
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 rusqlite = { version = "0.31", features = ["bundled", "backup"] }
 chacha20poly1305 = "0.10"
 zeroize = { version = "1.8", features = ["derive"] }
 
 # Utilities
-tracing.workspace = true
-tracing-subscriber.workspace = true
-thiserror.workspace = true
-anyhow.workspace = true
-uuid.workspace = true
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "2.0.19"
+anyhow = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
 qrcode = "0.14.1"
-url.workspace = true
+url = "2.0"
 getrandom = "0.4"
-base64.workspace = true
+base64 = "0.23"
 rsa = { version = "0.9", features = ["sha2", "pem"] }
-sha2.workspace = true
+sha2 = { version = "0.10", features = ["oid"] }
 subtle = "2.6"
 
 # System
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", default-features = false, features = ["term", "fs", "process", "signal"] }
-libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", default-features = false, features = ["winuser", "winbase", "processthreadsapi"] }
-which.workspace = true
-windows-sys.workspace = true
-
-[target.'cfg(target_os = "linux")'.dependencies]
-zbus.workspace = true
-
-[target.'cfg(not(target_os = "android"))'.dependencies]
-arboard.workspace = true
 
 [build-dependencies]
 prost-build = "0.14.4"
 protoc-bin-vendored = "3"
 
 [dev-dependencies]
-assert_matches.workspace = true
-futures.workspace = true
-http.workspace = true
-pretty_assertions.workspace = true
-rand.workspace = true
-serial_test.workspace = true
-tokio-tungstenite.workspace = true
-uuid.workspace = true
-wiremock.workspace = true
-
-[lints]
-workspace = true
 
 [[bench]]
 name = "performance"

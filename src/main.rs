@@ -6,8 +6,8 @@ use blnk::peer::TwoPeerHarness;
 use blnk::session::{SessionRuntime, SessionRuntimeConfig};
 use blnk::signaling::EndpointPolicy;
 use blnk::signaling::orchestration::{
-    AuditLog, DEFAULT_ORCHESTRATION_TIMEOUT, OperationScope, accept_server_session, connect_target,
-    run_file_client, run_shell_client, serve_session_with_shutdown,
+    DEFAULT_ORCHESTRATION_TIMEOUT, accept_server_session, connect_target, run_file_client,
+    run_shell_client, serve_session_with_shutdown,
 };
 use blnk::stream::shell::ShellCommand;
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
@@ -144,13 +144,7 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
     println!("serve_status=running; press Ctrl-C to stop");
     let shutdown = CancellationToken::new();
-    let session_task = serve_session_with_shutdown(
-        session,
-        root,
-        shutdown.clone(),
-        OperationScope::default(),
-        AuditLog::new(""),
-    );
+    let session_task = serve_session_with_shutdown(session, root, shutdown.clone());
     tokio::pin!(session_task);
     tokio::select! {
         result = &mut session_task => {
@@ -394,8 +388,6 @@ async fn run_local_shell(pin: &str, command: ShellCommand) -> Result<i32> {
         },
         root,
         CancellationToken::new(),
-        OperationScope::default(),
-        AuditLog::new(LOCAL_FIXTURE_DEVICE_ID),
     ));
 
     let result = run_shell_client(&mut client, &command).await;
@@ -431,8 +423,6 @@ async fn run_local_cp_inner(
         },
         fixture_root.to_path_buf(),
         CancellationToken::new(),
-        OperationScope::default(),
-        AuditLog::new(LOCAL_FIXTURE_DEVICE_ID),
     ));
 
     let result = run_file_client(&mut client, source, destination, overwrite).await;

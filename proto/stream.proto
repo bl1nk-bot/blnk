@@ -62,8 +62,6 @@ message FileOp {
   int64 size = 4;            // For PUT: total bytes to send
   bool overwrite = 5;        // For PUT: allow overwrite
   repeated int64 range = 6;  // For GET: byte range [start, end]
-  uint64 request_id = 7;      // Correlates a response with its active request
-  string checksum = 8;        // For PUT: expected SHA-256 in lowercase hex
 }
 
 // File metadata
@@ -73,14 +71,12 @@ message FileInfo {
   bool is_dir = 3;           // Is directory
   string modified = 4;       // Last modified timestamp
   string mode = 5;          // File permissions
-  uint64 request_id = 6;     // Request that produced this metadata
 }
 
 // File list response
 message FileList {
   string path = 1;           // Directory path
   repeated FileInfo files = 2;  // Files in directory
-  uint64 request_id = 3;        // Request that produced this listing
 }
 
 // ============================================================================
@@ -181,54 +177,4 @@ message StreamContext {
 // Stream handler capabilities
 message StreamHandlerInfo {
   string type = 1;            // Stream type identifier
-}
-
-// ============================================================================
-// Unified Stream Message Envelope
-// ============================================================================
-
-// Semantic kind of a stream message. Combined with StreamType this gives
-// dispatch information without relying solely on SWSP frame flags.
-enum StreamMessageKind {
-  STREAM_MESSAGE_KIND_UNSPECIFIED = 0;
-  STREAM_MESSAGE_KIND_OPEN = 1;       // Stream open / handshake (SYN)
-  STREAM_MESSAGE_KIND_DATA = 2;       // Bulk data transfer
-  STREAM_MESSAGE_KIND_CLOSE = 3;      // Graceful close (FIN)
-  STREAM_MESSAGE_KIND_ERROR = 4;      // Error / policy rejection
-  STREAM_MESSAGE_KIND_CANCEL = 5;     // Cancellation request
-  STREAM_MESSAGE_KIND_RESIZE = 6;     // Terminal resize (shell only)
-  STREAM_MESSAGE_KIND_METADATA = 7;   // Response metadata (file info, list)
-}
-
-// Unified envelope carried as the SWSP frame payload for stream_id > 0.
-//
-// The `payload` bytes contain the type-specific protobuf message whose
-// schema is determined by the (stream_type, kind) pair:
-//
-//   (Shell,   OPEN)     → ShellOpen
-//   (Shell,   DATA)     → ShellInput | ShellOutput (direction depends on role)
-//   (Shell,   RESIZE)   → TerminalResize
-//   (Shell,   CLOSE)    → ShellExit
-//   (Shell,   ERROR)    → ShellError
-//   (Shell,   CANCEL)   → ShellCancel
-//   (File,    OPEN)     → FileOp
-//   (File,    DATA)     → raw bytes
-//   (File,    METADATA) → FileInfo | FileList
-//   (File,    ERROR)    → ShellError (reused)
-//   (Http,    OPEN)     → HTTPRequest
-//   (Http,    DATA)     → HTTPData
-//   (Http,    METADATA) → HTTPResponse
-//   (Tcp,     OPEN)     → TCPOpen
-//   (Tcp,     DATA)     → TCPData
-//   (WebSocket, OPEN)   → WebSocketOpen
-//   (WebSocket, DATA)   → WebSocketMessage
-//
-// Existing handlers may continue using raw SWSP frames without wrapping
-// them in StreamMessage. The envelope is opt-in for new code that benefits
-// from type-safe dispatch.
-message StreamMessage {
-  StreamType stream_type = 1;         // Which stream this message belongs to
-  StreamMessageKind kind = 2;         // Semantic action
-  uint32 sequence = 3;                // Monotonic sequence within the stream
-  bytes payload = 10;                 // Type-specific protobuf (decoded per table above)
 }
