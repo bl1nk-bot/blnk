@@ -27,9 +27,7 @@ fn signaling_register_fixture_preserves_wire_shape_and_semantics() {
 
 #[test]
 fn swsp_open_fixture_is_byte_exact_and_decodes() {
-    let bytes = hex_fixture(include_str!(
-        "fixtures/compatibility/v1/swsp_open_hello.hex"
-    ));
+    let bytes = hex_fixture(include_str!("fixtures/compatibility/v1/swsp_open_hello.hex"));
     let (frame, consumed) = Frame::decode(&bytes).expect("SWSP fixture should decode");
 
     assert_eq!(consumed, bytes.len());
@@ -41,9 +39,7 @@ fn swsp_open_fixture_is_byte_exact_and_decodes() {
 
 #[test]
 fn control_connect_fixture_preserves_protobuf_payload() {
-    let bytes = hex_fixture(include_str!(
-        "fixtures/compatibility/v1/control_connect_v1.hex"
-    ));
+    let bytes = hex_fixture(include_str!("fixtures/compatibility/v1/control_connect_v1.hex"));
     let message = ControlMessage::decode(&bytes).expect("control fixture should decode");
 
     assert_eq!(
@@ -54,15 +50,11 @@ fn control_connect_fixture_preserves_protobuf_payload() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn authenticated_session_fixture_reaches_ready_and_closes_cleanly() {
-    let transcript: serde_json::Value = serde_json::from_str(include_str!(
-        "fixtures/compatibility/v1/session_handshake_v1.json"
-    ))
-    .expect("transcript fixture must be valid JSON");
+    let transcript: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/compatibility/v1/session_handshake_v1.json"))
+            .expect("transcript fixture must be valid JSON");
     assert_eq!(transcript["protocol_version"], PROTOCOL_VERSION);
-    assert_eq!(
-        transcript["events"].as_array().expect("events array").len(),
-        5
-    );
+    assert_eq!(transcript["events"].as_array().expect("events array").len(), 5);
 
     let harness = TwoPeerHarness::new("compatibility-baseline")
         .await
