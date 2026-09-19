@@ -7,7 +7,7 @@
 ### Release Gate (Issue #48)
 - Linux (`x86_64-unknown-linux-gnu`): `runner-tested` ✅ — CI passes, `scripts/release_gate.sh` produces tarball + SHA256SUMS
 - Windows (`x86_64-pc-windows-msvc`): `compile-verified` ✅ — CI build/test passes
-- Android (`aarch64-linux-android`): `compile-only` ✅ — `cargo check --target aarch64-linux-android --lib --locked`
+- Android (Termux `aarch64-linux-android`): `native-tested` ✅ — runs on device, CI covers Linux
 - macOS: `not-tested` / out of scope per ADR-045
 - **Remaining**: Run `scripts/release_gate.sh` on real Linux environment, verify PROVENANCE.json, close Issue #48
 
