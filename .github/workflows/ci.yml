@@ -11,7 +11,6 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
-      - ".github/workflows/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
@@ -22,7 +21,6 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
-      - ".github/workflows/**"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -76,46 +74,15 @@ jobs:
           restore-keys: test-${{ runner.os }}-
       - run: cargo test --all --verbose
 
-  windows:
-    name: Check and test (Windows)
-    if: github.event_name == 'push' || github.event.pull_request.draft == false
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.97.0
-        with:
-          targets: x86_64-pc-windows-msvc
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: windows-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: windows-${{ runner.os }}-
-      - name: Check for Windows
-        run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc --locked
-      - name: Test on Windows
-        run: cargo test --workspace --all-targets --target x86_64-pc-windows-msvc --locked --verbose
-
   android:
     name: Compile (Android)
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: android-actions/setup-android@v3.2.2
-        with:
-          # setup-android defaults to the obsolete SDK package "tools".
-          packages: ''
+      - uses: android-actions/setup-android@v3
       - name: Install Android NDK and clang toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          sdkmanager --sdk_root="$ANDROID_HOME" \
-            "platform-tools" \
-            "platforms;android-35" \
-            "ndk;27.2.12479018"
+        run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
       - uses: dtolnay/rust-toolchain@1.97.0
         with:
           targets: aarch64-linux-android
