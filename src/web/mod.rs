@@ -838,7 +838,7 @@ mod tests {
     use reqwest::header::{HeaderValue as ReqwestHeaderValue, ORIGIN as REQWEST_ORIGIN};
     use reqwest::{Client, StatusCode as ReqwestStatusCode};
     use serde_json::Value;
-    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::{Message as TungsteniteMessage, client::IntoClientRequest};
 
     fn fixture_config() -> BrowserControlConfig {
         BrowserControlConfig {
@@ -1048,7 +1048,7 @@ mod tests {
             .await
             .expect("websocket connect");
         socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "hello", "csrf_token": csrf})
                     .to_string()
                     .into(),
@@ -1064,7 +1064,7 @@ mod tests {
         assert!(ready_text.contains("\"type\":\"ready\""));
 
         socket
-            .send(tokio_tungstenite::tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "status"}).to_string().into(),
             ))
             .await
@@ -1082,7 +1082,7 @@ mod tests {
         );
 
         socket
-            .send(tokio_tungstenite::tungstenite::Message::Text("x".repeat(512).into()))
+            .send(TungsteniteMessage::Text("x".repeat(512).into()))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;
