@@ -5,12 +5,13 @@ members = [".", "crates/blnk-tui"]
 resolver = "3"
 
 [workspace.package]
-version = "0.2.13"
+version = "0.2.14"
 edition = "2024"
 license = "MIT"
 
 [workspace.lints.clippy]
 disallowed_types = "deny"
+disallowed_methods = "deny"
 
 [workspace.dependencies]
 # ── blnk shared deps ────────────────────────────────────────────────────

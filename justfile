@@ -39,6 +39,10 @@ build-release:
 bench:
     cargo bench
 
+# Sync Rust version from rust-toolchain.toml to flake.nix and Dockerfile
+sync-rust:
+    ./scripts/sync-rust-version.sh
+
 # Bump patch version and sync Cargo.lock + CHANGELOG.md (usage: just bump [pr_number] [message])
 bump pr="0" msg="chore: release update":
     @python scripts/bump_version.py {{pr}} "{{msg}}"

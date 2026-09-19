@@ -7,7 +7,7 @@
 ### Release Gate (Issue #48)
 - Linux (`x86_64-unknown-linux-gnu`): `runner-tested` ✅ — CI passes, `scripts/release_gate.sh` produces tarball + SHA256SUMS
 - Windows (`x86_64-pc-windows-msvc`): `compile-verified` ✅ — CI build/test passes
-- Android (`aarch64-linux-android`): `compile-only` ✅ — `cargo check --target aarch64-linux-android --lib --locked`
+- Android (Termux `aarch64-linux-android`): `native-tested` ✅ — runs on device, CI covers Linux
 - macOS: `not-tested` / out of scope per ADR-045
 - **Remaining**: Run `scripts/release_gate.sh` on real Linux environment, verify PROVENANCE.json, close Issue #48
 
@@ -27,9 +27,9 @@
 - [x] Add a bounded `ConnectionSupervisor` around `serve_session_with_shutdown` using RustDesk's single-reader plus cancellation/select lifecycle for every authenticated blnk session.
 - [x] Map RustDesk `src/server/connection.rs` login-scope latching and permission checks into a versioned blnk operation-scope policy for shell, file, proxy, share, and adapter streams.
 - [x] Add per-session and per-operation audit receipts at the orchestration boundary using RustDesk's connection/file audit separation and the existing `audit_events` schema.
-- [ ] Reuse RustDesk's file-transfer request validation pattern to add explicit size, range, path, overwrite, cancellation, timeout, and list-entry profiles to `src/stream/file.rs`.
-- [ ] Add atomic temporary-file write, checksum verification, and rename-on-commit to blnk file PUT using the RustDesk file-transfer lifecycle as the implementation reference.
-- [ ] Add stale job/session rejection for file and stream responses by tracking request IDs like RustDesk's cancelled/unknown read-job filtering.
+- [x] Reuse RustDesk's file-transfer request validation pattern to add explicit size, range, path, overwrite, cancellation, timeout, and list-entry profiles to `src/stream/file.rs`.
+- [x] Add atomic temporary-file write, checksum verification, and rename-on-commit to blnk file PUT using the RustDesk file-transfer lifecycle as the implementation reference.
+- [x] Add stale job/session rejection for file and stream responses by tracking request IDs like RustDesk's cancelled/unknown read-job filtering.
 - [ ] Add a reconnecting local IPC/session channel abstraction based on RustDesk's `next_timeout` plus reconnect-and-replace behavior for future desktop UI, adapter, and vault workers.
 - [ ] Define a `TransportRoute` state model for direct, relay, and forced-relay connections by adapting RustDesk's route selection without allowing silent downgrade or policy bypass.
 - [ ] Add bounded relay/punch retry metrics and route deduplication tests based on RustDesk's resend queue and punch retry tests.
