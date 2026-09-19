@@ -91,6 +91,12 @@ if [[ ! -x "$binary" ]]; then
     fi
 fi
 
+# Determine package binary name (with .exe for Windows targets)
+package_binary="blnk"
+if [[ "$target" == *"windows"* ]]; then
+    package_binary="blnk.exe"
+fi
+
 manifest_sha=$(sha256sum Cargo.lock | awk '{print $1}')
 source_commit="${GITHUB_SHA:-$(git rev-parse HEAD)}"
 package_name="blnk-v${version}-${target}"
@@ -107,7 +113,7 @@ trap cleanup EXIT
 # Only remove stage and archive, not the entire output_dir
 rm -rf "${output_dir}/.stage" "${output_dir}/${package_name}.tar" "$archive" "$checksum" 2>/dev/null || true
 mkdir -p "$stage_root"
-install -m 0755 "$binary" "$stage_root/blnk"
+install -m 0755 "$binary" "$stage_root/$package_binary"
 install -m 0644 README.md "$stage_root/README.md" 2>/dev/null || true
 printf '%s\n' "$version" > "$stage_root/VERSION"
 
@@ -120,7 +126,7 @@ cat > "$stage_root/PROVENANCE.json" <<EOF
   "rust_toolchain": "$toolchain",
   "cargo_lock_sha256": "$manifest_sha",
   "build_command": "cargo build --locked --release --target $target",
-  "smoke_command": "./blnk --version"
+  "smoke_command": "./$package_binary --version"
 }
 EOF
 
@@ -137,7 +143,7 @@ if [[ "$is_cross_compile" == true ]]; then
 else
     mkdir -p "$smoke_root"
     tar -xzf "$archive" -C "$smoke_root"
-    smoke_output=$("$smoke_root/$package_name/blnk" --version)
+    smoke_output=$("$smoke_root/$package_name/$package_binary" --version)
     expected="blnk $version"
     if [[ "$smoke_output" != "$expected" ]]; then
         echo "release smoke test failed: expected '$expected', got '$smoke_output'" >&2
