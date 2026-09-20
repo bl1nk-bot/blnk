@@ -77,9 +77,7 @@ impl Identity {
         }
 
         if !is_valid_uid(&persisted.uid) {
-            return Err(BlnkError::Identity(
-                "identity file contains an invalid uid".to_owned(),
-            ));
+            return Err(BlnkError::Identity("identity file contains an invalid uid".to_owned()));
         }
 
         if persisted.pairing_code.len() != 6
@@ -291,9 +289,7 @@ fn derive_uid(private_key: &RsaPrivateKey) -> Result<String, BlnkError> {
 
 fn validate_rsa_key_size(private_key: &RsaPrivateKey) -> Result<(), BlnkError> {
     if private_key.n().bits() != RSA_BITS {
-        return Err(BlnkError::Identity(format!(
-            "identity key must be exactly {RSA_BITS} bits"
-        )));
+        return Err(BlnkError::Identity(format!("identity key must be exactly {RSA_BITS} bits")));
     }
     Ok(())
 }
@@ -649,10 +645,8 @@ mod tests {
 
     #[test]
     fn relative_identity_parent_hierarchy_is_created() {
-        let relative_root = PathBuf::from(format!(
-            "blnk-identity-relative-{}",
-            uuid::Uuid::new_v4().simple()
-        ));
+        let relative_root =
+            PathBuf::from(format!("blnk-identity-relative-{}", uuid::Uuid::new_v4().simple()));
         let relative_parent = relative_root.join("nested");
 
         ensure_private_parent(&relative_parent).expect("relative parents should be created");
@@ -665,10 +659,8 @@ mod tests {
         use std::sync::{Arc, Barrier};
         use std::thread;
 
-        let root = std::env::temp_dir().join(format!(
-            "blnk-identity-concurrent-{}",
-            uuid::Uuid::new_v4().simple()
-        ));
+        let root = std::env::temp_dir()
+            .join(format!("blnk-identity-concurrent-{}", uuid::Uuid::new_v4().simple()));
         let parent = Arc::new(root.join("nested"));
         let barrier = Arc::new(Barrier::new(8));
         let workers = (0..8)
@@ -719,10 +711,7 @@ mod tests {
 
         assert_eq!(identity.access_code(), reloaded.access_code());
         assert_eq!(identity.uid(), reloaded.uid());
-        assert_eq!(
-            identity.public_key_b64().ok(),
-            reloaded.public_key_b64().ok()
-        );
+        assert_eq!(identity.public_key_b64().ok(), reloaded.public_key_b64().ok());
         assert!(encoded.starts_with(b"-----BEGIN PRIVATE KEY-----\n"));
         assert!(
             encoded
@@ -751,10 +740,7 @@ mod tests {
         let derived_uid = derive_uid(&identity.private_key).expect("UID should derive");
         assert_eq!(derived_uid, pem_loaded.uid());
         assert_eq!(identity.access_code(), pem_loaded.access_code());
-        assert_eq!(
-            identity.public_key_b64().ok(),
-            pem_loaded.public_key_b64().ok()
-        );
+        assert_eq!(identity.public_key_b64().ok(), pem_loaded.public_key_b64().ok());
         let _ = fs::remove_dir_all(root);
     }
 
