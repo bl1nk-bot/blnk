@@ -95,10 +95,10 @@ fn detect_terminal_name() -> TerminalName {
     // VTE-based terminals set VTE_VERSION
     if std::env::var("VTE_VERSION").is_ok() {
         // Could be Konsole, GNOME Terminal, or generic VTE
-        if let Ok(term) = std::env::var("TERM") {
-            if term.contains("konsole") {
-                return TerminalName::Konsole;
-            }
+        if let Ok(term) = std::env::var("TERM")
+            && term.contains("konsole")
+        {
+            return TerminalName::Konsole;
         }
         // GNOME Terminal doesn't set a unique signal; treat as VTE
         return TerminalName::Vte;

@@ -6,34 +6,24 @@
 
 use std::fmt;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NotificationMethod {
     /// Use the terminal's built-in OSC 9 notification protocol.
     Osc9,
     /// Use notify-send / PowerShell (external command).
     External,
     /// Notifications disabled.
+    #[default]
     Disabled,
 }
 
-impl Default for NotificationMethod {
-    fn default() -> Self {
-        Self::Disabled
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NotificationCondition {
     /// Notify only when terminal is unfocused.
+    #[default]
     Unfocused,
     /// Always notify.
     Always,
-}
-
-impl Default for NotificationCondition {
-    fn default() -> Self {
-        Self::Unfocused
-    }
 }
 
 #[derive(Debug)]
