@@ -1,0 +1,81 @@
+src/protocol/swsp.rs
+  s_70fbbda2bead80::t_c2a323438400c5 107,120-124,158,208-209,295,303,322
+src/stream/proxy.rs
+  s_70fbbda2bead80::t_9d2ac2162b01f3 444,745,758,923,941-942,955,997-998
+src/web/mod.rs
+  s_22565f162396a3::t_62549fedd5d35b 140,346-348,408-410,431-433,438-440,567,590,620,829,834,858-860,1001,1016,1063-1065,1123
+tests/compatibility_baseline.rs
+  s_70fbbda2bead80::t_1306de2f317065 30,42,53-55,57
+benches/performance.rs
+  s_22565f162396a3::t_69e06a1ebabe6f 36
+crates/blnk-tui/src/render/records.rs
+  s_22565f162396a3::t_5740a4871ce14f 198-200,220
+crates/blnk-tui/src/terminal_hyperlinks.rs
+  s_22565f162396a3::t_60b2b6a0bec88b 22
+crates/blnk-tui/src/wrapping.rs
+  s_22565f162396a3::t_2f789c28554bfa 498,669,673,677,681,685,689
+src/config/args.rs
+  s_22565f162396a3::t_3ff5be69abfc8c 145
+src/config/mod.rs
+  s_22565f162396a3::t_9f1bba22bc8e4c 35,137-138
+src/identity/key.rs
+  s_22565f162396a3::t_29fd38559f1dce 80,292,648-649,662-663,714,743
+src/main.rs
+  s_22565f162396a3::t_4f3b60d12c87dc 277-279,324,363-368
+src/peer/mod.rs
+  s_22565f162396a3::t_ed7a6e8de742f0 313,568
+src/protocol/pairing.rs
+  s_22565f162396a3::t_3de0ea9e18c76d 138,223
+src/protocol/stream.rs
+  s_22565f162396a3::t_48bc8f501049f4 67-69,157,210-211,289,293,297
+src/session/mod.rs
+  s_22565f162396a3::t_f736d2cd42035a 104,125,259,289,295,334,346,424,441,508,512,514
+src/session/runtime.rs
+  s_22565f162396a3::t_79186f65a98fd6 66,74,100,152,258,348,354,541,570,586,593,716-718,1120,1133
+src/signaling/mod.rs
+  s_22565f162396a3::t_97a0b6117e1758 25,53,97,135
+src/signaling/orchestration.rs
+  s_22565f162396a3::t_64dcd5d9ad28a2 137-139,642,645,800-802,873,918,948,970,1022-1023,1248
+src/signaling/transport.rs
+  s_22565f162396a3::t_b9ea4914e16e50 88,196-199,349,376-382,552,691,938-939,944,1194
+src/storage/schema.rs
+  s_22565f162396a3::t_39d1ad34a79faf 362
+src/storage/store.rs
+  s_22565f162396a3::t_89a2fdd2c65c60 23,30,145-147,265,380
+src/stream/file.rs
+  s_22565f162396a3::t_04589cba02b244 257-259
+src/stream/proxy_handler.rs
+  s_22565f162396a3::t_609c636c777590 97,277-278,490,544-547,624,729
+src/stream/shell.rs
+  s_22565f162396a3::t_8cf946959de56e 109,134,142,150,179,210,267-268,337,556,559,562,569,578-579,613,642,651,684,703,728,750
+src/utils/error.rs
+  s_22565f162396a3::t_665011b31fe37a 44
+src/vault.rs
+  s_22565f162396a3::t_0eb5fbaf8b28b6 64,131
+tests/live_interop.rs
+  s_22565f162396a3::t_9686413d16f822 86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e7023602ce5fc1bc9082be61539178464563679c",
+  "prompts": {},
+  "sessions": {
+    "s_22565f162396a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09be4780-3664-4f51-b741-055ad49f7636",
+        "model": "unknown"
+      },
+      "human_author": "billlzzz18 <billlzzz1808@gmail.com>"
+    },
+    "s_70fbbda2bead80": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a02c19-45e5-7f11-8352-2e4cb958047f",
+        "model": "unknown"
+      },
+      "human_author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
