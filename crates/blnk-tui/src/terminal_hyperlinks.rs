@@ -19,10 +19,7 @@ pub struct HyperlinkLine {
 
 impl HyperlinkLine {
     pub fn new(line: Line<'static>) -> Self {
-        Self {
-            line,
-            hyperlinks: Vec::new(),
-        }
+        Self { line, hyperlinks: Vec::new() }
     }
 
     pub fn width(&self) -> usize {

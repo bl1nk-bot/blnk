@@ -41,10 +41,7 @@ mod tests {
         assert_eq!(format!("{identity_err}"), "identity error: missing key");
 
         let signaling_err = BlnkError::Signaling("connection dropped".into());
-        assert_eq!(
-            format!("{signaling_err}"),
-            "signaling error: connection dropped"
-        );
+        assert_eq!(format!("{signaling_err}"), "signaling error: connection dropped");
 
         let peer_err = BlnkError::Peer("ICE failed".into());
         assert_eq!(format!("{peer_err}"), "peer error: ICE failed");

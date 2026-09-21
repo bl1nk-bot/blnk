@@ -20,18 +20,14 @@ impl SqliteStore {
     pub fn open(path: impl AsRef<std::path::Path>) -> Result<Self> {
         let conn = Connection::open(path).context("open metadata sqlite database")?;
         create_tables(&conn).context("create metadata schema")?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn: Mutex::new(conn) })
     }
 
     /// Open an isolated in-memory database for tests and short-lived sessions.
     pub fn open_in_memory() -> Result<Self> {
         let conn = Connection::open_in_memory().context("open in-memory metadata database")?;
         create_tables(&conn).context("create metadata schema")?;
-        Ok(Self {
-            conn: Mutex::new(conn),
-        })
+        Ok(Self { conn: Mutex::new(conn) })
     }
 
     pub fn schema_version(&self) -> Result<i64> {
@@ -146,11 +142,9 @@ impl SqliteStore {
         let conn = self.lock()?;
         let tx = conn.unchecked_transaction()?;
         let current: i64 = tx
-            .query_row(
-                "SELECT current_revision FROM objects WHERE id = ?1",
-                [&object.id],
-                |row| row.get(0),
-            )
+            .query_row("SELECT current_revision FROM objects WHERE id = ?1", [&object.id], |row| {
+                row.get(0)
+            })
             .context("read current object revision")?;
         let revision = object.current_revision as i64;
         if revision != current + 1 {
@@ -268,10 +262,7 @@ fn upsert_search(tx: &rusqlite::Transaction<'_>, object: &ObjectRecord) -> Resul
         .metadata
         .as_ref()
         .context("object metadata is required")?;
-    tx.execute(
-        "DELETE FROM object_search WHERE object_id = ?1",
-        [&object.id],
-    )?;
+    tx.execute("DELETE FROM object_search WHERE object_id = ?1", [&object.id])?;
     tx.execute(
         "INSERT INTO object_search(object_id, title, description, tags, kind, provenance)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -386,10 +377,7 @@ mod tests {
     #[test]
     fn stores_searches_and_updates_immutable_revisions() {
         let store = SqliteStore::open_in_memory().unwrap();
-        assert_eq!(
-            store.schema_version().unwrap(),
-            crate::storage::SCHEMA_VERSION
-        );
+        assert_eq!(store.schema_version().unwrap(), crate::storage::SCHEMA_VERSION);
         store.insert_object(&fixture("o1", 1), "created").unwrap();
         assert_eq!(store.search("research", 10).unwrap().len(), 1);
         store.update_object(&fixture("o1", 2), "edit").unwrap();

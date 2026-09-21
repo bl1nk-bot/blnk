@@ -254,7 +254,9 @@ impl FileTransferRequest {
             FileValidationProfile::Delete => FileOperation::Delete,
         };
         if self.operation != expected {
-            return Err(BlnkError::Protocol("file validation profile does not match operation".into()));
+            return Err(BlnkError::Protocol(
+                "file validation profile does not match operation".into(),
+            ));
         }
         self.validate_shape()
     }

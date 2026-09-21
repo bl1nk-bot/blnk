@@ -310,9 +310,7 @@ impl PeerHandle {
                     return Err(BlnkError::Peer(error));
                 }
                 if self.events.channel_closed.load(Ordering::Acquire) {
-                    return Err(BlnkError::Peer(
-                        "data channel closed before opening".to_owned(),
-                    ));
+                    return Err(BlnkError::Peer("data channel closed before opening".to_owned()));
                 }
                 let notified = self.events.channel_state_changed.notified();
                 if self.events.channel_opened.load(Ordering::Acquire) {
@@ -567,10 +565,7 @@ mod tests {
             .expect("frame should receive");
 
         assert_eq!(received, frame);
-        assert_eq!(
-            frame.encode().expect("frame should encode").len(),
-            HEADER_LEN + 5
-        );
+        assert_eq!(frame.encode().expect("frame should encode").len(), HEADER_LEN + 5);
 
         harness.offerer.close().await.expect("offerer should close");
         harness
