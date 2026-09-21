@@ -1,0 +1,21 @@
+.markdownlint-cli2.yaml
+  s_22565f162396a3::t_b54a780a2a0b28 1-6
+tools/argument-comment-lint/README.md
+  s_22565f162396a3::t_03c7509e75015a 1-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72f16af4371b24f73c1b03a5b266206dcb1f17d1",
+  "prompts": {},
+  "sessions": {
+    "s_22565f162396a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09be4780-3664-4f51-b741-055ad49f7636",
+        "model": "unknown"
+      },
+      "human_author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
