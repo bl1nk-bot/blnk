@@ -41,6 +41,17 @@ pub struct PairCredentials {
     pub access_code: String,
 }
 
+impl std::fmt::Debug for PairCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairCredentials")
+            .field("message_type", &self.message_type)
+            .field("uid", &self.uid)
+            .field("public_key", &self.public_key)
+            .field("access_code", &"<redacted>")
+            .finish()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct SasInput {
     pub nonce_c: Vec<u8>,
@@ -249,6 +260,18 @@ mod tests {
 
         assert_eq!(credentials.message_type, "pair_credentials");
         assert_eq!(credentials.access_code, "access-code");
+    }
+
+    #[test]
+    fn pair_credentials_debug_redacts_access_code() {
+        let credentials = PairCredentials::new(
+            "uid-123".to_owned(),
+            "public-key-456".to_owned(),
+            "secret-access-code-789".to_owned(),
+        );
+        let debug_str = format!("{credentials:?}");
+        assert!(!debug_str.contains("secret-access-code-789"));
+        assert!(debug_str.contains("<redacted>"));
     }
 }
 
