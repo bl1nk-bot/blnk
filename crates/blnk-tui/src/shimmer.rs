@@ -5,7 +5,6 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
 
-use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
 use ratatui::text::Span;
@@ -55,12 +54,12 @@ pub(super) fn shimmer_spans(text: &str) -> Vec<Span<'static>> {
         let style = if has_true_color {
             let highlight = t.clamp(0.0, 1.0);
             let (r, g, b) = blend(highlight_color, base_color, highlight * 0.9);
-            // Allow custom RGB colors — this is the shimmer effect which
-            // intentionally blends terminal default colors at calculated levels.
-            #[allow(clippy::disallowed_methods)]
+            // Allow raw ratatui::style::Color::Rgb — this is the shimmer effect which
+            // intentionally blends terminal default colors at calculated levels (STYLE.md).
+            #[allow(clippy::disallowed_types)]
             {
                 Style::default()
-                    .fg(Color::Rgb(r, g, b))
+                    .fg(ratatui::style::Color::Rgb(r, g, b))
                     .add_modifier(Modifier::BOLD)
             }
         } else {

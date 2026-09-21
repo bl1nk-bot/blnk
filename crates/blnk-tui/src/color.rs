@@ -75,9 +75,96 @@ pub(crate) fn perceptual_distance(a: (u8, u8, u8), b: (u8, u8, u8)) -> f32 {
     (dl * dl + da * da + db * db).sqrt()
 }
 
+/// Allowed semantic and terminal colors per STYLE.md.
+///
+/// Banned colors (`Black`, `White`, `Blue`, `Yellow`, `Indexed`) cannot be constructed
+/// through this enum. Raw `ratatui::style::Color` is banned by Clippy (`disallowed_types`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ThemeColor {
+    /// User input tips, selection, status indicators.
+    Cyan,
+    /// Success, additions.
+    Green,
+    /// Errors, failures, deletions.
+    Red,
+    /// "blnk" brand text.
+    Magenta,
+    /// Terminal default / reset foreground.
+    #[default]
+    Reset,
+}
+
+impl ThemeColor {
+    /// Convert to the underlying ratatui [`Color`](ratatui::style::Color).
+    #[allow(clippy::disallowed_types)]
+    #[inline]
+    pub fn to_ratatui(self) -> ratatui::style::Color {
+        match self {
+            Self::Cyan => ratatui::style::Color::Cyan,
+            Self::Green => ratatui::style::Color::Green,
+            Self::Red => ratatui::style::Color::Red,
+            Self::Magenta => ratatui::style::Color::Magenta,
+            Self::Reset => ratatui::style::Color::Reset,
+        }
+    }
+}
+
+#[allow(clippy::disallowed_types)]
+impl From<ThemeColor> for ratatui::style::Color {
+    #[inline]
+    fn from(color: ThemeColor) -> Self {
+        color.to_ratatui()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[allow(clippy::disallowed_types)]
+    fn theme_color_converts_to_expected_ratatui_color() {
+        assert_eq!(ThemeColor::Cyan.to_ratatui(), ratatui::style::Color::Cyan);
+        assert_eq!(ThemeColor::Green.to_ratatui(), ratatui::style::Color::Green);
+        assert_eq!(ThemeColor::Red.to_ratatui(), ratatui::style::Color::Red);
+        assert_eq!(ThemeColor::Magenta.to_ratatui(), ratatui::style::Color::Magenta);
+        assert_eq!(ThemeColor::Reset.to_ratatui(), ratatui::style::Color::Reset);
+    }
+
+    #[test]
+    fn enforce_no_banned_colors_in_tui_sources() {
+        let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let banned_patterns =
+            ["Color::Black", "Color::White", "Color::Blue", "Color::Yellow", "Color::Indexed"];
+
+        fn check_dir(dir: &std::path::Path, banned: &[&str]) {
+            let entries = std::fs::read_dir(dir).expect("read dir");
+            for entry in entries {
+                let entry = entry.expect("dir entry");
+                let path = entry.path();
+                if path.is_dir() {
+                    check_dir(&path, banned);
+                } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+                    let content = std::fs::read_to_string(&path).expect("read file");
+                    let code_to_check =
+                        if path.file_name().and_then(|f| f.to_str()) == Some("color.rs") {
+                            content.split("#[cfg(test)]").next().unwrap_or(&content)
+                        } else {
+                            &content
+                        };
+                    for &pattern in banned {
+                        assert!(
+                            !code_to_check.contains(pattern),
+                            "Banned color pattern `{pattern}` found in `{}`. Use `ThemeColor` per STYLE.md.",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
+
+        check_dir(&src_dir, &banned_patterns);
+    }
 
     #[test]
     fn black_is_not_light() {

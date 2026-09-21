@@ -12,3 +12,5 @@ pub mod width;
 pub mod windows_console;
 pub mod workspace_messages;
 pub mod wrapping;
+
+pub use color::ThemeColor;
