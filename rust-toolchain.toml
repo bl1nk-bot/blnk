@@ -8,13 +8,13 @@
 # cargo check --all-targets --workspace
 # cargo clippy --all-targets --workspace
 # ```
-channel = "1.97.0"
+channel = "1.98.1"
 components = ["rustfmt", "clippy", "rust-analyzer"]
 profile = "default" # this will override global preferred profile if such is set
 targets = [
-    "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu",
-    "x86_64-pc-windows-msvc",
-    "aarch64-linux-android",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-pc-windows-msvc",
+  "aarch64-linux-android",
 ] # host target will be added automatically
 # force CI
