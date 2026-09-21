@@ -1,0 +1,14 @@
+.serena/project.yml
+  h_8d250db683f32f 11-19,32-33,172-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c96328588548a2aba926ff01dd8517a08cd3bc59",
+  "prompts": {},
+  "humans": {
+    "h_8d250db683f32f": {
+      "author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
