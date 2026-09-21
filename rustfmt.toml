@@ -1,1 +1,14 @@
+max_width = 100
+edition = "2024"
+use_small_heuristics = "Max"
+newline_style = "Unix"
+reorder_imports = true
+reorder_modules = true
+remove_nested_parens = true
 use_field_init_shorthand = true
+use_try_shorthand = true
+struct_lit_width = 30
+struct_variant_width = 30
+chain_width = 60
+single_line_if_else_max_width = 50
+single_line_let_else_max_width = 50
