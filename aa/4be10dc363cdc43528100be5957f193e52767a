@@ -1,0 +1,25 @@
+crates/blnk-tui/src/notifications.rs
+  s_22565f162396a3::t_f3b87ba1b76edd 9,16,20,23
+clippy.toml
+  s_22565f162396a3::t_dc1080d2879d17 38,42,46,50
+build.rs
+  s_22565f162396a3::t_4d73cce543f8f9 56-63
+src/utils/terminal_detection.rs
+  s_22565f162396a3::t_35cf5422049921 98-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aa4be10dc363cdc43528100be5957f193e52767a",
+  "prompts": {},
+  "sessions": {
+    "s_22565f162396a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09be4780-3664-4f51-b741-055ad49f7636",
+        "model": "gemini-3.8-flash"
+      },
+      "human_author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
