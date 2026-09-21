@@ -1,0 +1,14 @@
+rust-toolchain.toml
+  h_8d250db683f32f 11,15-18,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c7638e89a686e7c687a19712e07e37e763784291",
+  "prompts": {},
+  "humans": {
+    "h_8d250db683f32f": {
+      "author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
