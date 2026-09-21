@@ -1,0 +1,93 @@
+syntax = "proto3";
+package blnk.storage;
+
+import "object_model.proto";
+import "common.proto";
+
+message SchemaMigration {
+  uint32 version = 1;
+  string name = 2;
+  string checksum = 3;
+  int64 applied_at = 4;
+}
+message StorageMetadata {
+  string key = 1;
+  string value = 2;
+  int64 updated_at = 3;
+}
+message AppRecord {
+  string id = 1;
+  string adapter_id = 2;
+  string display_name = 3;
+  string version = 4;
+  string detected_path = 5;
+  map<string, string> capabilities = 6;
+  string status = 7;
+}
+message AppBinding {
+  string app_id = 1;
+  string object_id = 2;
+  string binding_kind = 3;
+  bool enabled = 4;
+  map<string, string> mapping = 5;
+  uint64 revision = 6;
+}
+message Workspace {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  string root_path = 4;
+  string profile_object_id = 5;
+  string status = 6;
+  int64 created_at = 7;
+  int64 updated_at = 8;
+}
+message Tag { string id = 1; string name = 2; }
+message ObjectSource {
+  string object_id = 1;
+  string source_type = 2;
+  string source_uri = 3;
+  string source_app_id = 4;
+  string source_hash = 5;
+  int64 imported_at = 6;
+  map<string, string> metadata = 7;
+}
+message ApplyReceipt {
+  string id = 1;
+  string object_id = 2;
+  uint64 revision = 3;
+  string app_id = 4;
+  string adapter_id = 5;
+  string target_path = 6;
+  string before_hash = 7;
+  string after_hash = 8;
+  string backup_id = 9;
+  string status = 10;
+  string error_code = 11;
+  int64 created_at = 12;
+  int64 completed_at = 13;
+}
+message BackupRecord {
+  string id = 1;
+  string kind = 2;
+  string path = 3;
+  string checksum = 4;
+  bool encrypted = 5;
+  uint64 source_revision = 6;
+  string reason = 7;
+  int64 created_at = 8;
+  int64 expires_at = 9;
+  int64 restored_at = 10;
+}
+message AuditEvent {
+  string event_id = 1;
+  string actor_type = 2;
+  string actor_id = 3;
+  string action = 4;
+  string entity_type = 5;
+  string entity_id = 6;
+  blnk.common.ResultStatus result = 7;
+  string error_code = 8;
+  map<string, string> metadata = 9;
+  int64 created_at = 10;
+}

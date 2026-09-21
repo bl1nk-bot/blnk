@@ -1,0 +1,121 @@
+syntax = "proto3";
+package blnk.object;
+
+import "common.proto";
+
+enum ObjectKind {
+  OBJECT_KIND_UNSPECIFIED = 0;
+  OBJECT_KIND_NOTE = 1;
+  OBJECT_KIND_MCP_SERVER = 2;
+  OBJECT_KIND_PROVIDER = 3;
+  OBJECT_KIND_PROFILE = 4;
+  OBJECT_KIND_PROMPT = 5;
+  OBJECT_KIND_SKILL = 6;
+  OBJECT_KIND_WORKSPACE_PACK = 7;
+  OBJECT_KIND_BOOKMARK = 8;
+  OBJECT_KIND_FILE_REFERENCE = 9;
+  OBJECT_KIND_SECRET_PASSWORD = 10;
+  OBJECT_KIND_SECRET_LOGIN = 11;
+  OBJECT_KIND_SECRET_WIFI = 12;
+  OBJECT_KIND_SECRET_TOTP = 13;
+  OBJECT_KIND_QR_CODE = 14;
+  OBJECT_KIND_WEBHOOK = 15;
+  OBJECT_KIND_BUTTON = 16;
+}
+
+message ObjectMetadata {
+  string title = 1;
+  string description = 2;
+  repeated string tags = 3;
+  blnk.common.Sensitivity sensitivity = 4;
+  blnk.common.Provenance provenance = 5;
+  blnk.common.Policy policy = 6;
+  string workspace_id = 7;
+  map<string, string> display_attributes = 8;
+}
+
+message ObjectRecord {
+  string id = 1;
+  ObjectKind kind = 2;
+  uint32 schema_version = 3;
+  ObjectMetadata metadata = 4;
+  blnk.common.ObjectStatus status = 5;
+  string payload_ref = 6;
+  string payload_hash = 7;
+  uint64 payload_size = 8;
+  string payload_media_type = 9;
+  uint64 current_revision = 10;
+  blnk.common.StorageState storage_state = 11;
+  int64 created_at = 12;
+  int64 updated_at = 13;
+  int64 last_used_at = 14;
+  string created_by_device_id = 15;
+}
+
+message ObjectRevision {
+  string object_id = 1;
+  uint64 revision = 2;
+  string payload_ref = 3;
+  string payload_hash = 4;
+  uint64 payload_size = 5;
+  string change_type = 6;
+  string change_summary = 7;
+  string author_device_id = 8;
+  int64 created_at = 9;
+}
+
+message ObjectPreview {
+  string id = 1;
+  ObjectKind kind = 2;
+  string title = 3;
+  blnk.common.Sensitivity sensitivity = 4;
+  repeated PreviewField fields = 5;
+  repeated TargetChange target_changes = 6;
+  repeated PolicyWarning warnings = 7;
+}
+message PreviewField {
+  string name = 1;
+  string display_value = 2;
+  bool redacted = 3;
+  bool sensitive = 4;
+}
+message TargetChange {
+  string target = 1;
+  string operation = 2;
+  string path = 3;
+  string before_hash = 4;
+  string after_hash = 5;
+  bool dangerous = 6;
+}
+message PolicyWarning {
+  string code = 1;
+  string message = 2;
+  bool requires_confirmation = 3;
+}
+
+message CreateObjectRequest {
+  ObjectKind kind = 1;
+  ObjectMetadata metadata = 2;
+  bytes payload = 3;
+  string payload_media_type = 4;
+}
+message GetObjectRequest { string id = 1; }
+message SearchObjectsRequest {
+  string query = 1;
+  repeated ObjectKind kinds = 2;
+  repeated string tags = 3;
+  string workspace_id = 4;
+  blnk.common.PageRequest page = 5;
+}
+message SearchObjectsResponse {
+  repeated ObjectRecord objects = 1;
+  blnk.common.PageInfo page = 2;
+}
+message UpdateObjectRequest {
+  string id = 1;
+  uint64 expected_revision = 2;
+  ObjectMetadata metadata = 3;
+  bytes payload = 4;
+  string change_summary = 5;
+}
+message DeleteObjectRequest { string id = 1; bool purge = 2; }

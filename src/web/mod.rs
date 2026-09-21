@@ -415,6 +415,14 @@ async fn security_headers(
     response
         .headers_mut()
         .insert(X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff"));
+    response.headers_mut().insert(
+        axum::http::header::HeaderName::from_static("x-frame-options"),
+        HeaderValue::from_static("DENY"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static("frame-ancestors 'none'"),
+    );
     response
         .headers_mut()
         .insert(VARY, HeaderValue::from_static("Origin"));
@@ -823,13 +831,17 @@ fn csrf_allowed(headers: &HeaderMap, expected: &str) -> bool {
 
 fn session_cookie(headers: &HeaderMap) -> Option<&str> {
     headers
-        .get(COOKIE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|cookie_header| {
-            cookie_header.split(';').find_map(|part| {
-                let (name, value) = part.trim().split_once('=')?;
-                (name == SESSION_COOKIE_NAME).then_some(value)
-            })
+        .get_all(COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .flat_map(|cookie_header| cookie_header.split(';'))
+        .find_map(|part| {
+            let (name, value) = part.trim().split_once('=')?;
+            if name == SESSION_COOKIE_NAME {
+                Some(value.trim().trim_matches('"'))
+            } else {
+                None
+            }
         })
 }
 
@@ -872,7 +884,7 @@ mod tests {
     use reqwest::header::{HeaderValue as ReqwestHeaderValue, ORIGIN as REQWEST_ORIGIN};
     use reqwest::{Client, StatusCode as ReqwestStatusCode};
     use serde_json::Value;
-    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::{Message as TungsteniteMessage, client::IntoClientRequest};
 
     fn fixture_config() -> BrowserControlConfig {
         BrowserControlConfig {
@@ -1031,6 +1043,17 @@ mod tests {
             .await
             .expect("health request");
         assert_eq!(disallowed_origin.status(), ReqwestStatusCode::OK);
+        assert_eq!(
+            disallowed_origin.headers().get("x-frame-options").unwrap(),
+            "DENY"
+        );
+        assert_eq!(
+            disallowed_origin
+                .headers()
+                .get("content-security-policy")
+                .unwrap(),
+            "frame-ancestors 'none'"
+        );
         assert!(
             disallowed_origin
                 .headers()
@@ -1078,7 +1101,7 @@ mod tests {
             .await
             .expect("websocket connect");
         socket
-            .send(tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "hello", "csrf_token": csrf})
                     .to_string()
                     .into(),
@@ -1094,7 +1117,7 @@ mod tests {
         assert!(ready_text.contains("\"type\":\"ready\""));
 
         socket
-            .send(tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "status"}).to_string().into(),
             ))
             .await
@@ -1112,7 +1135,7 @@ mod tests {
         );
 
         socket
-            .send(tungstenite::Message::Text("x".repeat(512).into()))
+            .send(TungsteniteMessage::Text("x".repeat(512).into()))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;
@@ -1125,5 +1148,16 @@ mod tests {
         let debug_output = format!("{config:?}");
         assert!(!debug_output.contains("secret-token-123"));
         assert!(debug_output.contains("<redacted>"));
+    }
+
+    #[test]
+    fn session_cookie_parses_multiple_headers_and_quoted_values() {
+        let mut headers = HeaderMap::new();
+        headers.append(COOKIE, HeaderValue::from_static("other=123"));
+        headers.append(
+            COOKIE,
+            HeaderValue::from_static("blnk_session=\"test_token_123\""),
+        );
+        assert_eq!(session_cookie(&headers), Some("test_token_123"));
     }
 }

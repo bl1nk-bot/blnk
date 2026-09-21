@@ -5,7 +5,7 @@ use std::fs;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Deserialize, PartialEq, Eq)]
 pub struct Config {
     #[serde(default = "default_signaling_url")]
     pub signaling_url: String,
@@ -17,6 +17,18 @@ pub struct Config {
     pub pin: Option<String>,
     #[serde(default = "default_ice_servers")]
     pub ice_servers: Vec<String>,
+}
+
+impl std::fmt::Debug for Config {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("signaling_url", &self.signaling_url)
+            .field("identity_path", &self.identity_path)
+            .field("devices_path", &self.devices_path)
+            .field("pin", &self.pin.as_ref().map(|_| "[REDACTED]"))
+            .field("ice_servers", &self.ice_servers)
+            .finish()
+    }
 }
 
 fn default_ice_servers() -> Vec<String> {
@@ -151,6 +163,17 @@ mod tests {
         assert_eq!(cfg.identity_path, "identity.json");
         assert_eq!(cfg.devices_path, "devices.json");
         assert_eq!(cfg.pin, None);
+    }
+
+    #[test]
+    fn config_debug_redacts_pin() {
+        let cfg = Config {
+            pin: Some("secret123".to_owned()),
+            ..Config::default()
+        };
+        let debug_str = format!("{cfg:?}");
+        assert!(!debug_str.contains("secret123"));
+        assert!(debug_str.contains("[REDACTED]"));
     }
 
     #[test]

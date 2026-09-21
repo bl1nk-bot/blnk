@@ -3,7 +3,13 @@
 //! The handlers are transport adapters, not a new session state machine. Callers
 //! must allocate the stream in `Session`/`SessionRuntime` and pass the resulting
 //! stream id here. Every outbound connection is resolved and checked once through
-//! [`ProxyPolicy`]; retries use only that pinned answer set.
+//! [`ProxyPolicy`']; retries use only that pinned answer set.
+//!
+//! FIXME: ProxyStreamService exists but is NOT wired into ConnectionSupervisor
+//! dispatch. The proxy openers (TCP/WebSocket/HTTP) are blocked at
+//! SessionRuntime::open_stream() with "proxy stream dispatch is not implemented".
+//! Until this is connected, spec requirements 4.3 (Web Proxy), 4.4 (TCP Forwarding),
+//! and 4.10 (WebSocket Bridging) remain incomplete.
 
 use std::{collections::HashMap, sync::Arc};
 

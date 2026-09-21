@@ -1,0 +1,95 @@
+syntax = "proto3";
+package blnk.sync;
+
+import "object_model.proto";
+import "common.proto";
+
+enum TrustState {
+  TRUST_STATE_UNSPECIFIED = 0;
+  TRUST_STATE_UNKNOWN = 1;
+  TRUST_STATE_PENDING = 2;
+  TRUST_STATE_TRUSTED = 3;
+  TRUST_STATE_BLOCKED = 4;
+  TRUST_STATE_REVOKED = 5;
+}
+enum SyncOperation {
+  SYNC_OPERATION_UNSPECIFIED = 0;
+  SYNC_OPERATION_UPSERT = 1;
+  SYNC_OPERATION_DELETE = 2;
+  SYNC_OPERATION_REVOKE = 3;
+}
+enum SyncState {
+  SYNC_STATE_UNSPECIFIED = 0;
+  SYNC_STATE_PENDING = 1;
+  SYNC_STATE_UPLOADED = 2;
+  SYNC_STATE_DOWNLOADED = 3;
+  SYNC_STATE_APPLIED = 4;
+  SYNC_STATE_CONFLICT = 5;
+  SYNC_STATE_FAILED = 6;
+}
+message DeviceRecord {
+  string id = 1;
+  string uid = 2;
+  string label = 3;
+  string platform = 4;
+  bytes public_key = 5;
+  string key_algorithm = 6;
+  TrustState trust_state = 7;
+  map<string, string> capabilities = 8;
+  string endpoint_hint = 9;
+  int64 last_seen_at = 10;
+  int64 created_at = 11;
+  int64 updated_at = 12;
+  int64 revoked_at = 13;
+}
+message SyncCursor {
+  string provider_id = 1;
+  string local_cursor = 2;
+  string remote_cursor = 3;
+  int64 last_success_at = 4;
+  string last_error_code = 5;
+  int64 updated_at = 6;
+}
+message VectorClock { map<string, uint64> counters = 1; }
+message SyncChange {
+  string id = 1;
+  string provider_id = 2;
+  string object_id = 3;
+  uint64 revision = 4;
+  SyncOperation operation = 5;
+  string payload_ref = 6;
+  string payload_hash = 7;
+  VectorClock vector = 8;
+  SyncState state = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+}
+message SyncBundle {
+  string provider_id = 1;
+  repeated SyncChange changes = 2;
+  repeated blnk.object.ObjectRecord objects = 3;
+  bytes encrypted_payload_bundle = 4;
+  string bundle_hash = 5;
+}
+message SyncConflict {
+  string id = 1;
+  string object_id = 2;
+  uint64 local_revision = 3;
+  uint64 remote_revision = 4;
+  string local_hash = 5;
+  string remote_hash = 6;
+  string resolution = 7;
+  int64 resolved_at = 8;
+  int64 created_at = 9;
+}
+message SyncRequest {
+  string provider_id = 1;
+  SyncCursor cursor = 2;
+  repeated string object_ids = 3;
+  bool include_credentials = 4;
+}
+message SyncResponse {
+  SyncBundle bundle = 1;
+  SyncCursor next_cursor = 2;
+  repeated SyncConflict conflicts = 3;
+}
