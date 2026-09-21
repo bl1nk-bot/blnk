@@ -80,7 +80,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3.2.2
+        with:
+          # setup-android defaults to the obsolete SDK package "tools".
+          packages: ''
       - name: Install Android NDK and clang toolchain
         run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
       - uses: dtolnay/rust-toolchain@1.97.0
