@@ -1104,7 +1104,7 @@ mod tests {
         )
         .await;
         server
-            .open_stream(StreamKind::Tcp, "127.0.0.1:9")
+            .open_stream(StreamKind::Shell, "/shell")
             .expect("stream should open");
         assert_eq!(server.active_streams(), 1);
 
