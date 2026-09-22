@@ -1,7 +1,7 @@
 use clap::Args;
 use std::net::IpAddr;
 
-#[derive(Debug, Args, Clone, Default)]
+#[derive(Args, Clone, Default)]
 pub struct ServeArgs {
     /// Override the signaling server URL for this invocation.
     #[arg(long)]
@@ -20,7 +20,19 @@ pub struct ServeArgs {
     pub qr: bool,
 }
 
-#[derive(Debug, Args, Clone, Default)]
+impl std::fmt::Debug for ServeArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServeArgs")
+            .field("signaling_url", &self.signaling_url)
+            .field("local_fixture", &self.local_fixture)
+            .field("once", &self.once)
+            .field("pin", &self.pin.as_ref().map(|_| "<redacted>"))
+            .field("qr", &self.qr)
+            .finish()
+    }
+}
+
+#[derive(Args, Clone, Default)]
 pub struct ConnectArgs {
     /// Peer or device target to connect to.
     #[arg(long)]
@@ -36,7 +48,18 @@ pub struct ConnectArgs {
     pub pin: Option<String>,
 }
 
-#[derive(Debug, Args, Clone)]
+impl std::fmt::Debug for ConnectArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConnectArgs")
+            .field("target", &self.target)
+            .field("local_fixture", &self.local_fixture)
+            .field("command", &self.command)
+            .field("pin", &self.pin.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
+}
+
+#[derive(Args, Clone)]
 pub struct CpArgs {
     /// Peer or device target for remote signaling/file transfer.
     #[arg(long)]
@@ -54,7 +77,20 @@ pub struct CpArgs {
     pub pin: Option<String>,
 }
 
-#[derive(Debug, Args, Clone)]
+impl std::fmt::Debug for CpArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CpArgs")
+            .field("target", &self.target)
+            .field("source", &self.source)
+            .field("destination", &self.destination)
+            .field("local_fixture", &self.local_fixture)
+            .field("overwrite", &self.overwrite)
+            .field("pin", &self.pin.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
+}
+
+#[derive(Args, Clone)]
 pub struct WebArgs {
     /// Bind address; the browser control surface accepts loopback addresses only.
     #[arg(long, default_value = "127.0.0.1", value_parser = clap::value_parser!(IpAddr))]
@@ -68,6 +104,17 @@ pub struct WebArgs {
     /// Bootstrap bearer token; can also be provided through BLNK_WEB_TOKEN.
     #[arg(long)]
     pub bootstrap_token: Option<String>,
+}
+
+impl std::fmt::Debug for WebArgs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebArgs")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("origin", &self.origin)
+            .field("bootstrap_token", &self.bootstrap_token.as_ref().map(|_| "<redacted>"))
+            .finish()
+    }
 }
 
 #[derive(Debug, Args, Clone, Default)]
@@ -199,5 +246,46 @@ mod tests {
         };
         assert!(dev_args.list);
         assert!(dev_args.local);
+    }
+
+    #[test]
+    fn args_debug_redacts_secrets() {
+        let serve = ServeArgs {
+            pin: Some("secret123".to_owned()),
+            ..ServeArgs::default()
+        };
+        let serve_debug = format!("{serve:?}");
+        assert!(!serve_debug.contains("secret123"));
+        assert!(serve_debug.contains("<redacted>"));
+
+        let connect = ConnectArgs {
+            pin: Some("secret456".to_owned()),
+            ..ConnectArgs::default()
+        };
+        let connect_debug = format!("{connect:?}");
+        assert!(!connect_debug.contains("secret456"));
+        assert!(connect_debug.contains("<redacted>"));
+
+        let cp = CpArgs {
+            target: None,
+            source: "a".into(),
+            destination: "b".into(),
+            local_fixture: false,
+            overwrite: false,
+            pin: Some("secret789".to_owned()),
+        };
+        let cp_debug = format!("{cp:?}");
+        assert!(!cp_debug.contains("secret789"));
+        assert!(cp_debug.contains("<redacted>"));
+
+        let web = WebArgs {
+            host: "127.0.0.1".parse().expect("ip"),
+            port: 0,
+            origin: "http://127.0.0.1:3000".into(),
+            bootstrap_token: Some("secret_token".to_owned()),
+        };
+        let web_debug = format!("{web:?}");
+        assert!(!web_debug.contains("secret_token"));
+        assert!(web_debug.contains("<redacted>"));
     }
 }
