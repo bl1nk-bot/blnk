@@ -189,7 +189,10 @@ mod tests {
         let TestCommand::Web(args) = cli.command else {
             panic!("expected web command");
         };
-        assert_eq!(args.host, "127.0.0.1".parse::<IpAddr>().expect("loopback ip"));
+        assert_eq!(
+            args.host,
+            "127.0.0.1".parse::<IpAddr>().expect("loopback ip")
+        );
         assert_eq!(args.port, 8080);
         assert_eq!(args.origin, "http://127.0.0.1:3000");
         assert_eq!(args.bootstrap_token.as_deref(), Some("fixture-token"));

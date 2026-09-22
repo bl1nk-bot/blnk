@@ -64,9 +64,9 @@ impl StreamTypeTag {
             StreamKind::Tcp => Ok(Self::Tcp),
             StreamKind::WebSocket => Ok(Self::WebSocket),
             StreamKind::Shell => Ok(Self::Shell),
-            StreamKind::Adapter => {
-                Err(BlnkError::Protocol("adapter stream has no wire envelope yet".into()))
-            }
+            StreamKind::Adapter => Err(BlnkError::Protocol(
+                "adapter stream has no wire envelope yet".into(),
+            )),
         }
     }
 }
@@ -154,7 +154,9 @@ impl StreamEnvelope {
     /// Wraps the envelope into an SWSP frame for a given stream_id.
     pub fn to_frame(&self, stream_id: u32) -> StreamResult<Frame> {
         if stream_id == 0 {
-            return Err(BlnkError::Stream("stream message stream_id must be non-zero".into()));
+            return Err(BlnkError::Stream(
+                "stream message stream_id must be non-zero".into(),
+            ));
         }
         let flags = match self.kind {
             MessageKind::Open => FrameFlags::SYN | FrameFlags::DAT,
@@ -207,8 +209,12 @@ mod tests {
 
     #[test]
     fn envelope_round_trips_through_swsp_frame() {
-        let envelope =
-            StreamEnvelope::new(StreamTypeTag::File, MessageKind::Data, 42, b"file-data".to_vec());
+        let envelope = StreamEnvelope::new(
+            StreamTypeTag::File,
+            MessageKind::Data,
+            42,
+            b"file-data".to_vec(),
+        );
         let frame = envelope.to_frame(5).expect("frame should build");
         assert_eq!(frame.stream_id, 5);
         assert!(frame.flags.is_dat());
@@ -286,14 +292,23 @@ mod tests {
     fn infer_kind_from_flags_matches_encode() {
         let open = StreamEnvelope::new(StreamTypeTag::Shell, MessageKind::Open, 0, Vec::new());
         let frame = open.to_frame(1).expect("frame");
-        assert_eq!(StreamEnvelope::infer_kind_from_flags(frame.flags), MessageKind::Open);
+        assert_eq!(
+            StreamEnvelope::infer_kind_from_flags(frame.flags),
+            MessageKind::Open
+        );
 
         let data = StreamEnvelope::new(StreamTypeTag::Shell, MessageKind::Data, 1, Vec::new());
         let frame = data.to_frame(1).expect("frame");
-        assert_eq!(StreamEnvelope::infer_kind_from_flags(frame.flags), MessageKind::Data);
+        assert_eq!(
+            StreamEnvelope::infer_kind_from_flags(frame.flags),
+            MessageKind::Data
+        );
 
         let close = StreamEnvelope::new(StreamTypeTag::Shell, MessageKind::Close, 2, Vec::new());
         let frame = close.to_frame(1).expect("frame");
-        assert_eq!(StreamEnvelope::infer_kind_from_flags(frame.flags), MessageKind::Close);
+        assert_eq!(
+            StreamEnvelope::infer_kind_from_flags(frame.flags),
+            MessageKind::Close
+        );
     }
 }

@@ -274,9 +274,13 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     )
     .await
     .context("establish remote signaling/WebRTC session")?;
-    let result =
-        run_file_client(&mut session.runtime, &args.source, &args.destination, args.overwrite)
-            .await;
+    let result = run_file_client(
+        &mut session.runtime,
+        &args.source,
+        &args.destination,
+        args.overwrite,
+    )
+    .await;
     let close_result = session.runtime.close().await;
     match (result, close_result) {
         (Err(error), _) => Err(error.into()),
@@ -321,7 +325,10 @@ async fn run_devices(args: DevicesArgs) -> Result<()> {
     if args.list || !registry.devices.is_empty() {
         println!("ID\tENDPOINT\tLAST_SEEN_UNIX");
         for device in registry.devices {
-            println!("{}\t{}\t{}", device.id, device.endpoint, device.last_seen_unix);
+            println!(
+                "{}\t{}\t{}",
+                device.id, device.endpoint, device.last_seen_unix
+            );
         }
     }
     Ok(())
@@ -360,12 +367,16 @@ async fn fixture_pair(pin: &str) -> Result<(SessionRuntime, SessionRuntime)> {
     let harness = TwoPeerHarness::new("control")
         .await
         .context("create local WebRTC fixture")?;
-    let mut client =
-        SessionRuntime::new(harness.offerer, SessionRuntimeConfig::client(pin.to_owned()))
-            .context("create fixture client runtime")?;
-    let mut server =
-        SessionRuntime::new(harness.answerer, SessionRuntimeConfig::server(pin.to_owned()))
-            .context("create fixture server runtime")?;
+    let mut client = SessionRuntime::new(
+        harness.offerer,
+        SessionRuntimeConfig::client(pin.to_owned()),
+    )
+    .context("create fixture client runtime")?;
+    let mut server = SessionRuntime::new(
+        harness.answerer,
+        SessionRuntimeConfig::server(pin.to_owned()),
+    )
+    .context("create fixture server runtime")?;
 
     let (client_result, server_result) = tokio::join!(client.handshake(), server.handshake());
     client_result.context("complete fixture client handshake")?;

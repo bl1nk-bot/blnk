@@ -61,7 +61,12 @@ impl EncryptedVault {
             request.payload_ref.clone()
         };
         let nonce = random_nonce()?;
-        let aad = aad(&payload_ref, &request.object_id, request.revision, &request.media_type);
+        let aad = aad(
+            &payload_ref,
+            &request.object_id,
+            request.revision,
+            &request.media_type,
+        );
         let mut ciphertext = request.plaintext.clone();
         let cipher = XChaCha20Poly1305::new(GenericArray::from_slice(self.root_key.as_ref()));
         cipher
@@ -128,7 +133,12 @@ impl EncryptedVault {
         if algorithm != ALGORITHM || nonce.len() != NONCE_LEN {
             return Err(anyhow!("unsupported vault record algorithm or nonce"));
         }
-        let aad = aad(&request.payload_ref, &object_id, revision as u64, &media_type);
+        let aad = aad(
+            &request.payload_ref,
+            &object_id,
+            revision as u64,
+            &media_type,
+        );
         if digest(&aad) != aad_hash {
             return Err(anyhow!("vault AAD integrity check failed"));
         }

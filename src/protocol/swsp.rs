@@ -104,7 +104,11 @@ pub struct Frame {
 
 impl Frame {
     pub fn new(stream_id: u32, flags: FrameFlags, payload: Vec<u8>) -> Self {
-        Self { stream_id, flags, payload }
+        Self {
+            stream_id,
+            flags,
+            payload,
+        }
     }
 
     /// Encodes one frame using [`DEFAULT_MAX_PAYLOAD_LEN`].
@@ -117,11 +121,16 @@ impl Frame {
         validate_maximum(maximum)?;
         validate_payload_len(self.payload.len(), maximum)?;
 
-        let payload_len = u16::try_from(self.payload.len())
-            .map_err(|_| FrameError::LengthOverflow { length: self.payload.len() })?;
-        let encoded_len = HEADER_LEN
-            .checked_add(self.payload.len())
-            .ok_or(FrameError::LengthOverflow { length: self.payload.len() })?;
+        let payload_len =
+            u16::try_from(self.payload.len()).map_err(|_| FrameError::LengthOverflow {
+                length: self.payload.len(),
+            })?;
+        let encoded_len =
+            HEADER_LEN
+                .checked_add(self.payload.len())
+                .ok_or(FrameError::LengthOverflow {
+                    length: self.payload.len(),
+                })?;
         let mut encoded = Vec::with_capacity(encoded_len);
         encoded.extend_from_slice(&self.stream_id.to_le_bytes());
         encoded.extend_from_slice(&self.flags.bits().to_le_bytes());
@@ -155,7 +164,9 @@ impl Frame {
 
         let frame_len = HEADER_LEN
             .checked_add(payload_len)
-            .ok_or(FrameError::LengthOverflow { length: payload_len })?;
+            .ok_or(FrameError::LengthOverflow {
+                length: payload_len,
+            })?;
         if input.len() < frame_len {
             return Err(FrameError::Incomplete {
                 expected: frame_len,
@@ -205,8 +216,11 @@ mod tests {
 
     #[test]
     fn round_trip_preserves_header_and_payload() {
-        let frame =
-            Frame::new(7, FrameFlags::SYN | FrameFlags::DAT, b"{\"kind\":\"shell\"}".to_vec());
+        let frame = Frame::new(
+            7,
+            FrameFlags::SYN | FrameFlags::DAT,
+            b"{\"kind\":\"shell\"}".to_vec(),
+        );
 
         let encoded = frame.encode().expect("frame should encode");
         assert_eq!(&encoded[..HEADER_LEN], &[7, 0, 0, 0, 9, 0, 16, 0]);
@@ -292,7 +306,10 @@ mod tests {
             frame
                 .encode_with_limit(8)
                 .expect_err("payload should exceed custom limit"),
-            FrameError::PayloadTooLarge { length: 12, maximum: 8 }
+            FrameError::PayloadTooLarge {
+                length: 12,
+                maximum: 8
+            }
         );
 
         let mut encoded = Frame::new(1, FrameFlags::DAT, vec![0; 12])
@@ -300,7 +317,10 @@ mod tests {
             .expect("frame should encode with a larger limit");
         assert_eq!(
             Frame::decode_with_limit(&encoded, 8).expect_err("payload should exceed decode limit"),
-            FrameError::PayloadTooLarge { length: 12, maximum: 8 }
+            FrameError::PayloadTooLarge {
+                length: 12,
+                maximum: 8
+            }
         );
         encoded[6..8].copy_from_slice(&u16::MAX.to_le_bytes());
         assert_eq!(
@@ -319,7 +339,10 @@ mod tests {
         assert!(flags.is_more());
         assert!(flags.is_fin());
         assert!(flags.is_dat());
-        assert_eq!(FrameFlags::from_bits(flags.bits()).expect("flags are valid"), flags);
+        assert_eq!(
+            FrameFlags::from_bits(flags.bits()).expect("flags are valid"),
+            flags
+        );
     }
 
     #[test]

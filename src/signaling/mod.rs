@@ -22,7 +22,9 @@ pub type SignalingResult<T> = Result<T, BlnkError>;
 
 fn require_message_type(actual: &str, expected: &str) -> SignalingResult<()> {
     if actual != expected {
-        return Err(BlnkError::Signaling(format!("message_type must be {expected}, got {actual}")));
+        return Err(BlnkError::Signaling(format!(
+            "message_type must be {expected}, got {actual}"
+        )));
     }
     Ok(())
 }
@@ -50,7 +52,9 @@ pub struct ProtocolVersion {
 
 impl ProtocolVersion {
     pub fn current() -> Self {
-        Self { version: PROTOCOL_VERSION }
+        Self {
+            version: PROTOCOL_VERSION,
+        }
     }
 
     pub fn validate(&self) -> SignalingResult<()> {
@@ -94,7 +98,10 @@ impl RegisterRequest {
         require_message_type(&self.message_type, "register")?;
         require_non_empty(&self.uid, "uid")?;
         require_non_empty(&self.public_key, "public_key")?;
-        ProtocolVersion { version: self.protocol }.validate()
+        ProtocolVersion {
+            version: self.protocol,
+        }
+        .validate()
     }
 }
 
@@ -132,7 +139,10 @@ impl std::fmt::Debug for IceServer {
         f.debug_struct("IceServer")
             .field("urls", &self.urls)
             .field("username", &self.username)
-            .field("credential", &self.credential.as_ref().map(|_| "<redacted>"))
+            .field(
+                "credential",
+                &self.credential.as_ref().map(|_| "<redacted>"),
+            )
             .finish()
     }
 }

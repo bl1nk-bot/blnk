@@ -101,7 +101,9 @@ impl ReadyMessage {
     ) -> SessionResult<Self> {
         let routing = routing.into();
         if routing != "target-prefix" && routing != "direct" {
-            return Err(BlnkError::Session(format!("unsupported routing mode: {routing}")));
+            return Err(BlnkError::Session(format!(
+                "unsupported routing mode: {routing}"
+            )));
         }
         Ok(Self {
             message_type: "ready".into(),
@@ -122,7 +124,9 @@ impl ControlErrorMessage {
     pub fn new(message: impl Into<String>) -> SessionResult<Self> {
         let message = message.into();
         if message.trim().is_empty() {
-            return Err(BlnkError::Session("control error message must not be empty".into()));
+            return Err(BlnkError::Session(
+                "control error message must not be empty".into(),
+            ));
         }
         Ok(Self {
             message_type: "error".into(),
@@ -256,7 +260,9 @@ impl Session {
                 self.state = SessionState::Authenticating;
                 Ok(())
             }
-            state => Err(BlnkError::Session(format!("cannot accept auth_required from {state:?}"))),
+            state => Err(BlnkError::Session(format!(
+                "cannot accept auth_required from {state:?}"
+            ))),
         }
     }
 
@@ -286,13 +292,18 @@ impl Session {
                 self.next_auth_allowed_at = None;
                 Ok(())
             }
-            state => Err(BlnkError::Session(format!("cannot mark session ready from {state:?}"))),
+            state => Err(BlnkError::Session(format!(
+                "cannot mark session ready from {state:?}"
+            ))),
         }
     }
 
     pub fn authenticate(&mut self, pin: &str, now: Instant) -> SessionResult<AuthOutcome> {
         if self.state != SessionState::Authenticating {
-            return Err(BlnkError::Session(format!("cannot authenticate from {:?}", self.state)));
+            return Err(BlnkError::Session(format!(
+                "cannot authenticate from {:?}",
+                self.state
+            )));
         }
         if let Some(next_allowed) = self.next_auth_allowed_at
             && now < next_allowed
@@ -331,7 +342,10 @@ impl Session {
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
         if self.state != SessionState::Ready {
-            return Err(BlnkError::Session(format!("cannot open stream from {:?}", self.state)));
+            return Err(BlnkError::Session(format!(
+                "cannot open stream from {:?}",
+                self.state
+            )));
         }
         self.registry.open(kind, connect_path)
     }
@@ -343,7 +357,10 @@ impl Session {
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
         if self.state != SessionState::Ready {
-            return Err(BlnkError::Session(format!("cannot accept stream from {:?}", self.state)));
+            return Err(BlnkError::Session(format!(
+                "cannot accept stream from {:?}",
+                self.state
+            )));
         }
         self.registry.accept(stream_id, kind, connect_path)
     }
@@ -421,7 +438,10 @@ mod tests {
             ..SessionConfig::default()
         };
         let mut session = Session::new(config, None).expect("valid no-auth session");
-        assert_eq!(session.begin_authentication().expect("no-auth transition"), None);
+        assert_eq!(
+            session.begin_authentication().expect("no-auth transition"),
+            None
+        );
         assert_eq!(session.state(), SessionState::Ready);
     }
 
@@ -438,7 +458,9 @@ mod tests {
             session
                 .authenticate("123", Instant::now())
                 .expect("wrong-length PIN should be rejected"),
-            AuthOutcome::Rejected { attempts_remaining: 2 }
+            AuthOutcome::Rejected {
+                attempts_remaining: 2
+            }
         );
         assert_eq!(session.auth_attempts(), 1);
     }
@@ -505,13 +527,20 @@ mod tests {
         let now = Instant::now();
         assert_eq!(
             session.authenticate("bad", now).expect("rejection"),
-            AuthOutcome::Rejected { attempts_remaining: 2 }
+            AuthOutcome::Rejected {
+                attempts_remaining: 2
+            }
         );
         assert_eq!(
             session.authenticate("bad", now).expect("rejection"),
-            AuthOutcome::Rejected { attempts_remaining: 1 }
+            AuthOutcome::Rejected {
+                attempts_remaining: 1
+            }
         );
-        assert_eq!(session.authenticate("bad", now).expect("closed"), AuthOutcome::Closed);
+        assert_eq!(
+            session.authenticate("bad", now).expect("closed"),
+            AuthOutcome::Closed
+        );
         assert_eq!(session.state(), SessionState::Closed);
         assert_eq!(session.active_streams(), 0);
     }

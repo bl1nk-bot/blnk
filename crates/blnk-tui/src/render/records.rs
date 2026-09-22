@@ -195,9 +195,9 @@ fn render_aligned_field(
             let label = header.plain_text();
             spans.push(Span::raw(" ".repeat(FIELD_LEADING_PADDING)));
             spans.push(Span::styled(label.clone(), label_style));
-            spans.push(Span::raw(
-                " ".repeat(label_width.saturating_sub(display_width(&label)) + FIELD_GAP),
-            ));
+            spans.push(Span::raw(" ".repeat(
+                label_width.saturating_sub(display_width(&label)) + FIELD_GAP,
+            )));
         } else {
             spans.push(Span::raw(" ".repeat(value_indent)));
         }
@@ -217,7 +217,10 @@ fn render_stacked_field(
         .unwrap_or_else(|| display_width(&header.plain_text()).max(1));
     let label = Line::from(Span::styled(header.plain_text(), label_style));
     let mut wrapped_labels = Vec::new();
-    push_owned_lines(&word_wrap_line(&label, RtOptions::new(label_width)), &mut wrapped_labels);
+    push_owned_lines(
+        &word_wrap_line(&label, RtOptions::new(label_width)),
+        &mut wrapped_labels,
+    );
     for label_line in wrapped_labels {
         let mut spans = vec![Span::raw(" ".repeat(FIELD_LEADING_PADDING))];
         spans.extend(label_line.spans);

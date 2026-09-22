@@ -495,7 +495,10 @@ fn is_absolute_url_like(token: &str) -> bool {
 
     if let Ok(url) = url::Url::parse(token) {
         let scheme = url.scheme().to_ascii_lowercase();
-        if matches!(scheme.as_str(), "http" | "https" | "ftp" | "ftps" | "ws" | "wss") {
+        if matches!(
+            scheme.as_str(),
+            "http" | "https" | "ftp" | "ftps" | "ws" | "wss"
+        ) {
             return url.host_str().is_some();
         }
         return true;
@@ -666,27 +669,45 @@ impl<'a> RtOptions<'a> {
     }
 
     pub fn initial_indent(self, initial_indent: Line<'a>) -> Self {
-        RtOptions { initial_indent, ..self }
+        RtOptions {
+            initial_indent,
+            ..self
+        }
     }
 
     pub fn subsequent_indent(self, subsequent_indent: Line<'a>) -> Self {
-        RtOptions { subsequent_indent, ..self }
+        RtOptions {
+            subsequent_indent,
+            ..self
+        }
     }
 
     pub fn break_words(self, break_words: bool) -> Self {
-        RtOptions { break_words, ..self }
+        RtOptions {
+            break_words,
+            ..self
+        }
     }
 
     pub fn word_separator(self, word_separator: textwrap::WordSeparator) -> RtOptions<'a> {
-        RtOptions { word_separator, ..self }
+        RtOptions {
+            word_separator,
+            ..self
+        }
     }
 
     pub fn wrap_algorithm(self, wrap_algorithm: textwrap::WrapAlgorithm) -> RtOptions<'a> {
-        RtOptions { wrap_algorithm, ..self }
+        RtOptions {
+            wrap_algorithm,
+            ..self
+        }
     }
 
     pub fn word_splitter(self, word_splitter: textwrap::WordSplitter) -> RtOptions<'a> {
-        RtOptions { word_splitter, ..self }
+        RtOptions {
+            word_splitter,
+            ..self
+        }
     }
 }
 

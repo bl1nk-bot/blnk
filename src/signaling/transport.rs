@@ -85,7 +85,9 @@ impl TransportRoute {
             routes.push(Self::Relay);
         }
         if routes.is_empty() {
-            return Err(BlnkError::Peer("no direct or relay route is available".into()));
+            return Err(BlnkError::Peer(
+                "no direct or relay route is available".into(),
+            ));
         }
         Ok(routes)
     }
@@ -193,10 +195,7 @@ enum WireMessage {
     #[serde(rename = "pair_approved")]
     PairApproved { client_id: String },
     #[serde(rename = "pair_rejected")]
-    PairRejected {
-        client_id: String,
-        reason: String,
-    },
+    PairRejected { client_id: String, reason: String },
     #[serde(rename = "error")]
     Error { message: String },
 }
@@ -346,7 +345,11 @@ impl TryFrom<WireMessage> for SignalingMessage {
                     .collect::<Result<Vec<_>, _>>()?,
                 force_relay,
             }),
-            WireMessage::Offer { client_id, sdp, streams } => Self::Offer(OfferMessage {
+            WireMessage::Offer {
+                client_id,
+                sdp,
+                streams,
+            } => Self::Offer(OfferMessage {
                 message_type: "offer".into(),
                 client_id,
                 sdp,
@@ -373,13 +376,14 @@ impl TryFrom<WireMessage> for SignalingMessage {
                 sdp,
                 encrypted_request,
             }),
-            WireMessage::Candidate { client_id, candidate } => {
-                Self::Candidate(IceCandidateMessage {
-                    message_type: "candidate".into(),
-                    client_id,
-                    candidate,
-                })
-            }
+            WireMessage::Candidate {
+                client_id,
+                candidate,
+            } => Self::Candidate(IceCandidateMessage {
+                message_type: "candidate".into(),
+                client_id,
+                candidate,
+            }),
             WireMessage::PairRequest {
                 client_id,
                 remote_ip,
@@ -549,7 +553,10 @@ impl ReconnectPolicy {
     }
 
     pub const fn limited(max_retries: usize, retry_delay: Duration) -> Self {
-        Self { max_retries, retry_delay }
+        Self {
+            max_retries,
+            retry_delay,
+        }
     }
 }
 
@@ -688,7 +695,10 @@ where
                 "maximum signaling message size must be greater than zero".into(),
             ));
         }
-        Ok(Self { socket, max_message_size })
+        Ok(Self {
+            socket,
+            max_message_size,
+        })
     }
 
     pub async fn send(&mut self, message: &SignalingMessage) -> TransportResult<()> {
@@ -935,13 +945,22 @@ mod tests {
 
     #[test]
     fn route_selection_prefers_direct_then_relay() {
-        assert_eq!(TransportRoute::select(false, true, true).unwrap(), TransportRoute::Direct);
-        assert_eq!(TransportRoute::select(false, false, true).unwrap(), TransportRoute::Relay);
+        assert_eq!(
+            TransportRoute::select(false, true, true).unwrap(),
+            TransportRoute::Direct
+        );
+        assert_eq!(
+            TransportRoute::select(false, false, true).unwrap(),
+            TransportRoute::Relay
+        );
     }
 
     #[test]
     fn forced_relay_never_downgrades_to_direct() {
-        assert_eq!(TransportRoute::select(true, true, true).unwrap(), TransportRoute::ForcedRelay);
+        assert_eq!(
+            TransportRoute::select(true, true, true).unwrap(),
+            TransportRoute::ForcedRelay
+        );
         assert!(TransportRoute::select(true, true, false).is_err());
     }
 
@@ -1191,7 +1210,10 @@ mod tests {
             .expect("error response arrives");
         match response {
             SignalingMessage::Error(error) => {
-                assert_eq!(error.message, "fixture does not implement this message flow");
+                assert_eq!(
+                    error.message,
+                    "fixture does not implement this message flow"
+                );
             }
             other => panic!("expected typed fixture error, got {other:?}"),
         }
