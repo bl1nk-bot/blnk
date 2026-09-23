@@ -52,6 +52,7 @@ impl TableCell {
                     .map(|span| span.content.as_ref())
                     .collect::<String>()
             })
+            .filter(|line| !line.trim().is_empty())
             .collect::<Vec<_>>()
             .join(" ")
     }
