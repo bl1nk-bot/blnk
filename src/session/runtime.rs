@@ -356,19 +356,6 @@ impl SessionRuntime {
         kind: StreamKind,
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
-        if matches!(
-            kind,
-            StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http
-        ) {
-            // FIXME: ProxyStreamService exists in proxy_handler.rs but is NOT wired
-            // into the ConnectionSupervisor dispatch loop. This blocks spec reqs
-            // 4.3 (Web Proxy), 4.4 (TCP Forwarding), 4.10 (WebSocket Bridging).
-            // See TODO.md "Codex-Inspired Adaptation Backlog" for proxy dispatch task.
-            // TODO: Wire proxy dispatch before enabling these stream kinds.
-            return Err(BlnkError::Stream(
-                "proxy stream dispatch is not implemented".into(),
-            ));
-        }
         self.session.open_stream(kind, connect_path)
     }
 
@@ -1000,17 +987,6 @@ mod tests {
         assert_eq!(server.state(), SessionState::Ready);
         assert_eq!(client.state(), SessionState::Ready);
         assert_eq!(server.active_streams(), 0);
-
-        for kind in [StreamKind::Tcp, StreamKind::WebSocket, StreamKind::Http] {
-            let error = server
-                .open_stream(kind, "/proxy")
-                .expect_err("unserviced proxy stream must be rejected");
-            assert!(
-                error
-                    .to_string()
-                    .contains("proxy stream dispatch is not implemented")
-            );
-        }
 
         let stream = server
             .open_stream(StreamKind::Shell, "/shell")

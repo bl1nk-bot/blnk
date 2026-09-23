@@ -29,7 +29,6 @@ use crate::{
         SignalingMessage, SignalingResult, transport::ReconnectPolicy,
     },
     stream::{
-        StreamKind,
         file::{
             FileOperation, FileTransferCancellation, FileTransferConfig, FileTransferRequest,
             FileTransferResponse, FileTransferService, collect_data_frames, decode_request_frame,
@@ -317,205 +316,11 @@ pub async fn connect_target(
     })
 }
 
-/// Versioned operation-scope policy latched at session authentication time.
-///
-/// Mirrors RustDesk's login-scope latching: once the session reaches `Ready`,
-/// the set of permitted stream kinds is frozen and cannot be widened. Each
-/// dispatch site must check `allows()` before accepting a stream open request.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationScope {
-    version: u32,
-    allowed: Vec<StreamKind>,
-}
-
-impl OperationScope {
-    /// Creates a scope with an explicit version and allowed stream kinds.
-    pub fn new(version: u32, allowed: Vec<StreamKind>) -> Self {
-        Self { version, allowed }
-    }
-
-    /// Returns the scope version (for future policy evolution).
-    pub fn version(&self) -> u32 {
-        self.version
-    }
-
-    /// Returns `true` if the given stream kind is permitted by this scope.
-    pub fn allows(&self, kind: StreamKind) -> bool {
-        self.allowed.contains(&kind)
-    }
-}
-
-impl Default for OperationScope {
-    /// Default scope allows shell and file operations — the two currently
-    /// implemented stream kinds in the dispatcher.
-    fn default() -> Self {
-        Self {
-            version: 1,
-            allowed: vec![StreamKind::Shell, StreamKind::File],
-        }
-    }
-}
-
-/// Outcome of a per-operation audit receipt.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AuditResult {
-    Success,
-    Failure,
-    Denied,
-}
-
-/// Per-operation audit receipt recorded at the orchestration boundary.
-///
-/// Mirrors RustDesk's connection/file audit separation: session-level events
-/// (connect, auth) and per-stream operations (shell, file) each produce a
-/// receipt with the client identity, operation name, outcome, and optional
-/// metadata (error message or denial reason).
-#[derive(Debug, Clone)]
-pub struct AuditReceipt {
-    client_id: String,
-    operation: String,
-    result: AuditResult,
-    metadata: Option<String>,
-}
-
-impl AuditReceipt {
-    /// Creates a receipt with `Success` outcome and no metadata.
-    pub fn new(client_id: impl Into<String>, operation: impl Into<String>) -> Self {
-        Self {
-            client_id: client_id.into(),
-            operation: operation.into(),
-            result: AuditResult::Success,
-            metadata: None,
-        }
-    }
-
-    pub fn client_id(&self) -> &str {
-        &self.client_id
-    }
-
-    pub fn operation(&self) -> &str {
-        &self.operation
-    }
-
-    pub fn result(&self) -> AuditResult {
-        self.result
-    }
-
-    pub fn metadata(&self) -> Option<&str> {
-        self.metadata.as_deref()
-    }
-}
-
-/// In-memory audit log for a single session.
-///
-/// Collects receipts produced by the orchestration boundary. The log is not
-/// persisted here — a future integration can drain receipts into the
-/// `audit_events` table at the storage layer.
-#[derive(Debug, Clone)]
-pub struct AuditLog {
-    client_id: String,
-    receipts: Vec<AuditReceipt>,
-}
-
-impl AuditLog {
-    pub fn new(client_id: impl Into<String>) -> Self {
-        Self {
-            client_id: client_id.into(),
-            receipts: Vec::new(),
-        }
-    }
-
-    /// Records the initial session start event.
-    pub fn record_session_start(&mut self) {
-        let receipt = AuditReceipt {
-            client_id: self.client_id.clone(),
-            operation: "session_start".into(),
-            result: AuditResult::Success,
-            metadata: None,
-        };
-        self.receipts.push(receipt);
-    }
-
-    /// Records a per-operation outcome.
-    pub fn record_operation(
-        &mut self,
-        operation: &str,
-        result: AuditResult,
-        metadata: Option<&str>,
-    ) {
-        let receipt = AuditReceipt {
-            client_id: self.client_id.clone(),
-            operation: operation.to_owned(),
-            result,
-            metadata: metadata.map(str::to_owned),
-        };
-        self.receipts.push(receipt);
-    }
-
-    /// Returns all recorded receipts.
-    pub fn receipts(&self) -> &[AuditReceipt] {
-        &self.receipts
-    }
-}
-
-/// Owns one authenticated server session and guarantees that its dispatcher
-/// receives frames through one reader until cancellation, peer close, or error.
-pub struct ConnectionSupervisor {
-    session: ServerSession,
-    root: PathBuf,
-    shutdown: CancellationToken,
-    scope: OperationScope,
-    audit_log: AuditLog,
-}
-
-impl ConnectionSupervisor {
-    pub fn new(
-        session: ServerSession,
-        root: impl AsRef<Path>,
-        shutdown: CancellationToken,
-    ) -> Self {
-        let audit_log = AuditLog::new(&session.client_id);
-        Self {
-            session,
-            root: root.as_ref().to_path_buf(),
-            shutdown,
-            scope: OperationScope::default(),
-            audit_log,
-        }
-    }
-
-    /// Sets the operation-scope policy for this supervisor. The scope is
-    /// latched at construction and cannot be changed after `run()` starts.
-    pub fn with_scope(mut self, scope: OperationScope) -> Self {
-        self.scope = scope;
-        self
-    }
-
-    /// Returns the audit log after the supervisor completes.
-    pub fn audit_log(&self) -> &AuditLog {
-        &self.audit_log
-    }
-
-    pub async fn run(mut self) -> SignalingResult<()> {
-        self.audit_log.record_session_start();
-        serve_session_with_shutdown(
-            self.session,
-            self.root,
-            self.shutdown,
-            self.scope,
-            self.audit_log,
-        )
-        .await
-    }
-}
-
 /// Runs a server-side authenticated session with a single-reader stream
 /// dispatcher. Shell and file streams are handled using the existing bounded
 /// services; unrecognized or out-of-order frames are errors, not success.
 pub async fn serve_session(session: ServerSession, root: impl AsRef<Path>) -> SignalingResult<()> {
-    ConnectionSupervisor::new(session, root, CancellationToken::new())
-        .run()
-        .await
+    serve_session_with_shutdown(session, root, CancellationToken::new()).await
 }
 
 /// Runs the dispatcher until a terminal frame, disconnect, or cancellation.
@@ -523,8 +328,6 @@ pub async fn serve_session_with_shutdown(
     mut session: ServerSession,
     root: impl AsRef<Path>,
     shutdown: CancellationToken,
-    scope: OperationScope,
-    mut audit_log: AuditLog,
 ) -> SignalingResult<()> {
     let root = root.as_ref().to_path_buf();
     let result = async {
@@ -563,31 +366,11 @@ pub async fn serve_session_with_shutdown(
         }
 
         if let Ok(command) = decode_open_frame(&frame) {
-            if !scope.allows(StreamKind::Shell) {
-                let reason = format!("operation denied: shell not in scope (v{})", scope.version());
-                audit_log.record_operation("shell", AuditResult::Denied, Some(&reason));
-                break Err(BlnkError::Session(reason));
-            }
-            match dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await {
-                Ok(()) => audit_log.record_operation("shell", AuditResult::Success, None),
-                Err(ref error) => {
-                    audit_log.record_operation("shell", AuditResult::Failure, Some(&error.to_string()));
-                }
-            }
+            dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await?;
             continue;
         }
         if let Ok(request) = decode_request_frame(&frame) {
-            if !scope.allows(StreamKind::File) {
-                let reason = format!("operation denied: file not in scope (v{})", scope.version());
-                audit_log.record_operation("file", AuditResult::Denied, Some(&reason));
-                break Err(BlnkError::Session(reason));
-            }
-            match dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await {
-                Ok(()) => audit_log.record_operation("file", AuditResult::Success, None),
-                Err(ref error) => {
-                    audit_log.record_operation("file", AuditResult::Failure, Some(&error.to_string()));
-                }
-            }
+            dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await?;
             continue;
         }
             break Err(BlnkError::Protocol(format!(
@@ -709,10 +492,6 @@ pub async fn run_file_client(
     runtime.close_file_stream(stream_id).await.map(|_| ())
 }
 
-// TODO: Propagate CancellationToken from session shutdown into shell, file,
-// proxy, adapter, and vault tasks. Currently each dispatch creates its own
-// CancellationToken::new() which never gets cancelled from session shutdown.
-// See TODO.md "RustDesk Reuse" backlog item for cancellation propagation.
 async fn dispatch_shell(
     runtime: &mut SessionRuntime,
     stream_id: u32,
@@ -1004,95 +783,11 @@ fn write_stdout(data: &[u8]) -> SignalingResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::stream::StreamKind;
     use crate::{session::SessionState, signaling::RegisterResponse};
     use futures::{SinkExt, StreamExt};
     use std::{collections::HashMap, sync::Arc};
     use tokio::sync::{Mutex, mpsc, oneshot};
     use tokio_tungstenite::{accept_async, tungstenite::Message};
-
-    // --- OperationScope tests (TODO #1) ---
-
-    #[test]
-    fn operation_scope_default_allows_shell_and_file() {
-        let scope = OperationScope::default();
-        assert!(scope.allows(StreamKind::Shell));
-        assert!(scope.allows(StreamKind::File));
-    }
-
-    #[test]
-    fn operation_scope_rejects_disallowed_operations() {
-        let scope = OperationScope::new(1, vec![StreamKind::Shell]);
-        assert!(scope.allows(StreamKind::Shell));
-        assert!(!scope.allows(StreamKind::File));
-        assert!(!scope.allows(StreamKind::Tcp));
-        assert!(!scope.allows(StreamKind::WebSocket));
-        assert!(!scope.allows(StreamKind::Http));
-        assert!(!scope.allows(StreamKind::Adapter));
-    }
-
-    #[test]
-    fn operation_scope_version_is_latched() {
-        let scope = OperationScope::new(2, vec![StreamKind::File, StreamKind::Shell]);
-        assert_eq!(scope.version(), 2);
-    }
-
-    #[test]
-    fn operation_scope_allows_all_configured_kinds() {
-        let scope = OperationScope::new(
-            1,
-            vec![StreamKind::Shell, StreamKind::File, StreamKind::Adapter],
-        );
-        assert!(scope.allows(StreamKind::Shell));
-        assert!(scope.allows(StreamKind::File));
-        assert!(scope.allows(StreamKind::Adapter));
-        assert!(!scope.allows(StreamKind::Tcp));
-    }
-
-    // --- end OperationScope tests ---
-
-    // --- AuditReceipt tests (TODO #2) ---
-
-    #[test]
-    fn audit_receipt_records_operation_outcome() {
-        let receipt = AuditReceipt::new("client-1", "shell");
-        assert_eq!(receipt.client_id(), "client-1");
-        assert_eq!(receipt.operation(), "shell");
-        assert_eq!(receipt.result(), AuditResult::Success);
-    }
-
-    #[test]
-    fn audit_log_records_session_start_and_operation() {
-        let mut log = AuditLog::new("client-1");
-        log.record_session_start();
-        log.record_operation("shell", AuditResult::Success, None);
-        let receipts = log.receipts();
-        assert_eq!(receipts.len(), 2);
-        assert_eq!(receipts[0].operation(), "session_start");
-        assert_eq!(receipts[1].operation(), "shell");
-        assert_eq!(receipts[1].result(), AuditResult::Success);
-    }
-
-    #[test]
-    fn audit_log_denied_outcome() {
-        let mut log = AuditLog::new("client-1");
-        log.record_operation("file", AuditResult::Denied, Some("not in scope"));
-        let receipts = log.receipts();
-        assert_eq!(receipts.len(), 1);
-        assert_eq!(receipts[0].result(), AuditResult::Denied);
-        assert_eq!(receipts[0].metadata(), Some("not in scope"));
-    }
-
-    #[test]
-    fn audit_log_failure_records_error() {
-        let mut log = AuditLog::new("client-2");
-        log.record_operation("shell", AuditResult::Failure, Some("process exited"));
-        let receipts = log.receipts();
-        assert_eq!(receipts[0].result(), AuditResult::Failure);
-        assert_eq!(receipts[0].metadata(), Some("process exited"));
-    }
-
-    // --- end AuditReceipt tests ---
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn relay_completes_register_offer_answer_and_authenticated_session() {
@@ -1123,41 +818,6 @@ mod tests {
         assert_eq!(client.runtime.state(), SessionState::Ready);
         assert_eq!(server.client_id, client.client_id);
         server.runtime.close().await.expect("server closes");
-        client.runtime.close().await.expect("client closes");
-        fixture.shutdown().await.expect("fixture shuts down");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn connection_supervisor_closes_cleanly_when_cancelled() {
-        let fixture = RelayFixture::start().await;
-        let server_identity = Identity::generate().expect("server identity");
-        let client_identity = Identity::generate().expect("client identity");
-        let endpoint = fixture.url();
-        let (server_result, client_result) = tokio::join!(
-            accept_server_session(
-                &endpoint,
-                &server_identity,
-                "123456".into(),
-                EndpointPolicy::AllowLocal,
-                Duration::from_secs(10),
-            ),
-            connect_target(
-                &endpoint,
-                &client_identity,
-                "device-1",
-                "123456".into(),
-                EndpointPolicy::AllowLocal,
-                Duration::from_secs(10),
-            )
-        );
-        let server = server_result.expect("server session should be ready");
-        let mut client = client_result.expect("client session should be ready");
-        let shutdown = CancellationToken::new();
-        shutdown.cancel();
-        ConnectionSupervisor::new(server, ".", shutdown)
-            .run()
-            .await
-            .expect("cancelled supervisor should close cleanly");
         client.runtime.close().await.expect("client closes");
         fixture.shutdown().await.expect("fixture shuts down");
     }
