@@ -22,7 +22,10 @@ use crate::stream::shell::{
 use crate::stream::{StreamEntry, StreamKind};
 use crate::utils::error::BlnkError;
 
-use super::{AuthOutcome, Session, SessionConfig, SessionResult, SessionState, SessionStats};
+use super::{
+    AuthOutcome, Session, SessionConfig, SessionResult, SessionState, SessionStats,
+    constant_time_pin_eq,
+};
 
 const CONTROL_STREAM_ID: u32 = 0;
 const DEFAULT_CONTROL_TIMEOUT: Duration = Duration::from_secs(5);
@@ -778,7 +781,9 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                if self.last_auth_pin.as_deref().is_some_and(|last_pin| {
+                    constant_time_pin_eq(last_pin.as_bytes(), message.pin.as_bytes())
+                }) {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());

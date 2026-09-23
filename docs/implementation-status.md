@@ -1,4 +1,4 @@
-# Implementation Status and Architecture Readiness (v0.2.6)
+# Implementation Status and Architecture Readiness (v0.2.15)
 
 **Verified Base:** Codebase ณ ปัจจุบันมี implementation ครบทั้ง Core Protocol, Handlers และ CLI (PRs #1 – #101 รวมอยู่ใน `main`) โดยชุดทดสอบ `cargo test --all` ผ่านทั้งหมด 134 tests
 
