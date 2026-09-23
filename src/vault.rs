@@ -3,8 +3,6 @@
 //! The first implementation uses a caller-provided 32-byte root key. A later
 //! platform adapter can unwrap that key from Windows Credential Manager or the
 //! Linux Secret Service without changing the vault record format.
-// TODO: Replace the caller-provided root key with a platform key-provider boundary
-// and preserve this record format across Windows/Linux implementations.
 
 use std::sync::Mutex;
 

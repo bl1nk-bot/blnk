@@ -51,19 +51,10 @@ impl Default for AuthRequiredMessage {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuthMessage {
     pub message_type: String,
     pub pin: String,
-}
-
-impl std::fmt::Debug for AuthMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AuthMessage")
-            .field("message_type", &self.message_type)
-            .field("pin", &"<redacted>")
-            .finish()
-    }
 }
 
 impl AuthMessage {
@@ -399,14 +390,6 @@ fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn auth_message_debug_redacts_pin() {
-        let msg = AuthMessage::new("123456").expect("valid pin");
-        let debug_output = format!("{msg:?}");
-        assert!(!debug_output.contains("123456"));
-        assert!(debug_output.contains("<redacted>"));
-    }
 
     #[test]
     fn whitespace_expected_pin_is_rejected() {

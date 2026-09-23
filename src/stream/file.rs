@@ -5,8 +5,9 @@
 //! replacement for platform ACLs. Wire requests use `stream.proto::FileOp`;
 //! file bytes remain SWSP DAT payloads and stream completion uses FIN.
 //!
-//! Validation is split into explicit size, range, path, overwrite,
-//! cancellation, timeout, and list-entry profiles.
+//! TODO: Add explicit size, range, path, overwrite, cancellation, timeout,
+//! and list-entry validation profiles (modeled after RustDesk's file-transfer
+//! request validation pattern). See TODO.md "RustDesk Reuse" backlog item.
 
 use std::fs::{self, Metadata};
 use std::io;
