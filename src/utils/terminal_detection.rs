@@ -77,10 +77,6 @@ static TERMINAL_INFO: LazyLock<TerminalInfo> = LazyLock::new(|| {
 });
 
 fn detect_terminal_name() -> TerminalName {
-    if std::env::var("TERM").ok().as_deref() == Some("dumb") {
-        return TerminalName::Dumb;
-    }
-
     // TERM_PROGRAM is the most reliable signal
     if let Ok(program) = std::env::var("TERM_PROGRAM") {
         match program.as_str() {

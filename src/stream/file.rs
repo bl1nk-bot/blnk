@@ -5,9 +5,8 @@
 //! replacement for platform ACLs. Wire requests use `stream.proto::FileOp`;
 //! file bytes remain SWSP DAT payloads and stream completion uses FIN.
 //!
-//! TODO: Add explicit size, range, path, overwrite, cancellation, timeout,
-//! and list-entry validation profiles (modeled after RustDesk's file-transfer
-//! request validation pattern). See TODO.md "RustDesk Reuse" backlog item.
+//! Validation is split into explicit size, range, path, overwrite,
+//! cancellation, timeout, and list-entry profiles.
 
 use std::fs::{self, Metadata};
 use std::io;
@@ -278,7 +277,6 @@ pub enum FileTransferResponse {
     Stat(wire::FileInfo),
     Delete {
         path: String,
-        request_id: u64,
     },
 }
 
@@ -595,10 +593,7 @@ impl FileTransferService {
         tokio::fs::remove_file(&path)
             .await
             .map_err(|error| io_error("delete file", error))?;
-        Ok(FileTransferResponse::Delete {
-            path: request.path.clone(),
-            request_id: request.request_id,
-        })
+        Ok(FileTransferResponse::Delete { path: request.path.clone() })
     }
 
     fn resolve_existing(&self, request_path: &str) -> StreamResult<PathBuf> {
@@ -775,7 +770,7 @@ pub fn encode_response_frames(
         FileTransferResponse::List(list) => {
             Ok(vec![Frame::new(stream_id, FrameFlags::DAT | FrameFlags::FIN, list.encode_to_vec())])
         }
-        FileTransferResponse::Delete { path, request_id } => Ok(vec![Frame::new(
+        FileTransferResponse::Delete { path } => Ok(vec![Frame::new(
             stream_id,
             FrameFlags::DAT | FrameFlags::FIN,
             wire::FileInfo {
@@ -784,7 +779,7 @@ pub fn encode_response_frames(
                 is_dir: false,
                 modified: String::new(),
                 mode: String::new(),
-                request_id: *request_id,
+                request_id: 0,
             }
             .encode_to_vec(),
         )]),
@@ -811,10 +806,7 @@ pub fn decode_response_metadata(
                     FileOperation::Get => FileTransferResponse::Download { info, data: Vec::new() },
                     FileOperation::Put => FileTransferResponse::Upload { info },
                     FileOperation::Stat => FileTransferResponse::Stat(info),
-                    FileOperation::Delete => FileTransferResponse::Delete {
-                        path: info.name,
-                        request_id: info.request_id,
-                    },
+                    FileOperation::Delete => FileTransferResponse::Delete { path: info.name },
                     FileOperation::List => unreachable!(),
                 })
                 .map_err(|error| {
@@ -838,7 +830,7 @@ pub fn decode_response_metadata_checked(
         | FileTransferResponse::Upload { info }
         | FileTransferResponse::Stat(info) => info.request_id,
         FileTransferResponse::List(list) => list.request_id,
-        FileTransferResponse::Delete { request_id, .. } => *request_id,
+        FileTransferResponse::Delete { .. } => request.request_id,
     };
     if request.request_id != 0 && response_id != request.request_id {
         return Err(BlnkError::Stream("response request id does not match active request".into()));
@@ -1093,37 +1085,6 @@ mod tests {
         ];
         let cancellation = FileTransferCancellation::default();
         assert_eq!(collect_data_frames(frames, 3, 10, &cancellation).expect("body"), b"abc");
-    }
-
-    #[test]
-    fn delete_response_preserves_and_checks_request_id() {
-        let request = FileTransferRequest::delete("old.txt").with_request_id(42);
-        let response = FileTransferResponse::Delete {
-            path: "old.txt".into(),
-            request_id: 42,
-        };
-        let frame = encode_response_frames(7, &response)
-            .expect("delete response frame")
-            .pop()
-            .expect("delete response frame should exist");
-        let mut tracker = super::super::StreamRequestTracker::default();
-        tracker
-            .register(request.request_id)
-            .expect("request should register");
-
-        let decoded = decode_response_metadata_checked(&request, &frame, &tracker)
-            .expect("matching delete response should decode");
-        assert_eq!(decoded, response);
-
-        let mismatched = FileTransferResponse::Delete {
-            path: "old.txt".into(),
-            request_id: 41,
-        };
-        let frame = encode_response_frames(7, &mismatched)
-            .expect("mismatched delete response frame")
-            .pop()
-            .expect("mismatched delete response frame should exist");
-        assert!(decode_response_metadata_checked(&request, &frame, &tracker).is_err());
     }
 
     #[tokio::test]

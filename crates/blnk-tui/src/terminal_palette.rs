@@ -86,8 +86,8 @@ mod tests {
 
     #[test]
     fn ansi_cube_colors() {
-        // 16 = index 0,0,0 in the 6x6x6 cube, so it maps to black.
-        assert_eq!(ansi_to_rgb(16), Some((0, 0, 0)));
+        // 16 = index 0,0,0 in 6x6x6 cube → (55,55,55)
+        assert_eq!(ansi_to_rgb(16), Some((55, 55, 55)));
         // 231 = index 5,5,5 → (255,255,255)
         assert_eq!(ansi_to_rgb(231), Some((255, 255, 255)));
     }

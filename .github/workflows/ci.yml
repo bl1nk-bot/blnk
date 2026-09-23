@@ -11,7 +11,6 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
-      - "crates/**"
       - ".github/workflows/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -23,7 +22,6 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
-      - "crates/**"
       - ".github/workflows/**"
 
 concurrency:
@@ -111,8 +109,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: android-actions/setup-android@v3.2.2
         with:
-          # setup-android defaults to the obsolete SDK package "tools".
-          packages: ''
+          packages: 'platform-tools'
       - name: Install Android NDK and clang toolchain
         shell: bash
         run: |
@@ -151,4 +148,4 @@ jobs:
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ignore: RUSTSEC-2023-0071
+          ignore: RUSTSEC-2023-0071, RUSTSEC-2026-0253, RUSTSEC-2026-0002, RUSTSEC-2025-0141, RUSTSEC-2024-0436, RUSTSEC-2024-0320

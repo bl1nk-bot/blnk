@@ -84,12 +84,12 @@ tokio-util = { workspace = true, features = ["time"] }
 libc.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus.workspace = true
+zbus = "4.4.0"
 
 [target.'cfg(windows)'.dependencies]
 which.workspace = true
 windows-sys.workspace = true
-winsplit.workspace = true
+winsplit = "0.1"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard.workspace = true

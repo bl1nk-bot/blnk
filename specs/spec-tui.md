@@ -107,11 +107,11 @@ TUI จัดการทุกอย่าง — browser แสดง QR/PIN �
 ### Layer Model
 
 | Layer | Modules | Role |
-| --- | --- | --- |
-| **Foundation** | `width`, `color` | Pure math, no I/O |
+|---|---|---|
+| **Foundation** | `width`, `color`, `terminal_palette` | Pure math, no I/O |
 | **Terminal** | `terminal_hyperlinks`, `wrapping`, `shimmer` | Text rendering primitives |
 | **Render** | `render/line_utils`, `render/markdown`, `render/records` | Layout and content rendering |
-| **Platform** | `tui`, `keyboard_modes`, `windows_console`, `terminal_palette` | OS/terminal environment detection and lifecycle |
+| **Platform** | `tui`, `keyboard_modes`, `windows_console` | OS interaction, lifecycle |
 | **Feature** | `notifications`, `pets`, `workspace_messages` | Domain-specific features |
 | **Protocol** | `proto` | Type definitions |
 
@@ -124,7 +124,6 @@ TUI จัดการทุกอย่าง — browser แสดง QR/PIN �
 **Purpose:** Calculate terminal cell width for text, handling Unicode edge cases.
 
 **Interface:**
-
 ```rust
 pub(crate) fn display_width(text: &str) -> usize;
 pub(crate) fn char_width(ch: char) -> usize;
@@ -133,7 +132,6 @@ pub(crate) fn usable_content_width_u16(total_width: u16, reserved_cols: u16) -> 
 ```
 
 **Invariants:**
-
 - `display_width` matches ratatui's terminal-cell semantics
 - Halfwidth sound marks (FF9E, FF9F) count as 1 cell each
 - `usable_content_width` returns `Some(n)` where `n > 0`, or `None` when exhausted
@@ -148,7 +146,6 @@ pub(crate) fn usable_content_width_u16(total_width: u16, reserved_cols: u16) -> 
 **Purpose:** Perceptual color operations for TUI rendering.
 
 **Interface:**
-
 ```rust
 pub(crate) fn is_light(bg: (u8, u8, u8)) -> bool;
 pub(crate) fn blend(fg: (u8, u8, u8), bg: (u8, u8, u8), alpha: f32) -> (u8, u8, u8);
@@ -156,7 +153,6 @@ pub(crate) fn perceptual_distance(a: (u8, u8, u8), b: (u8, u8, u8)) -> f32;
 ```
 
 **Invariants:**
-
 - `is_light` uses ITU-R BT.601 luma coefficients
 - `blend` is standard alpha compositing
 - `perceptual_distance` uses CIE76 (Euclidean in Lab space)
@@ -170,14 +166,12 @@ pub(crate) fn perceptual_distance(a: (u8, u8, u8), b: (u8, u8, u8)) -> f32;
 **Purpose:** Detect terminal's default foreground/background colors.
 
 **Interface:**
-
 ```rust
 pub(crate) fn default_bg() -> Option<(u8, u8, u8)>;
 pub(crate) fn default_fg() -> Option<(u8, u8, u8)>;
 ```
 
 **Invariants:**
-
 - Results are cached via `OnceLock` (detect once per process)
 - Falls back to sensible defaults (dark theme: bg=(30,30,30), fg=(204,204,204))
 - Parses `COLORFGBG` environment variable
@@ -192,7 +186,6 @@ pub(crate) fn default_fg() -> Option<(u8, u8, u8)>;
 **Purpose:** Annotate ratatui Lines with clickable hyperlink regions.
 
 **Interface:**
-
 ```rust
 pub struct Hyperlink {
     pub url: String,
@@ -208,7 +201,6 @@ pub fn remap_wrapped_line(source: &HyperlinkLine, wrapped: Vec<Line<'static>>) -
 ```
 
 **Invariants:**
-
 - `remap_wrapped_line` adjusts column offsets after word wrapping
 - Hyperlink columns are byte-range-based, not grapheme-based
 - Empty hyperlinks list means no clickable regions
@@ -222,7 +214,6 @@ pub fn remap_wrapped_line(source: &HyperlinkLine, wrapped: Vec<Line<'static>>) -
 **Purpose:** Word-wrap ratatui Lines while preserving URLs and handling Unicode edge cases.
 
 **Interface:**
-
 ```rust
 pub struct RtOptions<'a> {
     pub width: usize,
@@ -254,7 +245,6 @@ pub(crate) fn wrap_ranges_trim(text: &str, options: impl Into<textwrap::Options>
 ```
 
 **Invariants:**
-
 - URL-like tokens are never split across lines
 - Mixed URL/prose: URL stays intact, prose wraps at word boundaries
 - Halfwidth sound marks (FF9E, FF9F) are projected to equal-width placeholders
@@ -262,7 +252,6 @@ pub(crate) fn wrap_ranges_trim(text: &str, options: impl Into<textwrap::Options>
 - `wrap_ranges_trim` returns non-overlapping ranges without trailing spaces
 
 **URL Detection Rules:**
-
 - Absolute URLs: `scheme://host` (http, https, ftp, custom schemes)
 - Bare domains: `host[:port]/path` (requires recognized TLD or `www.` prefix)
 - IPv4: `192.168.1.1:8080/health`
@@ -277,13 +266,11 @@ pub(crate) fn wrap_ranges_trim(text: &str, options: impl Into<textwrap::Options>
 **Purpose:** Time-based sweep animation for branding text.
 
 **Interface:**
-
 ```rust
 pub(crate) fn shimmer_spans(text: &str) -> Vec<Span<'static>>;
 ```
 
 **Invariants:**
-
 - Sweep period: 2 seconds, synchronized to process start
 - Band half-width: 5 characters
 - Cosine interpolation for smooth gradient
@@ -291,7 +278,6 @@ pub(crate) fn shimmer_spans(text: &str) -> Vec<Span<'static>>;
 - Fallback: dim/bold intensity levels for non-true-color
 
 **Style Guide Compliance:**
-
 - Uses terminal default fg/bg colors (from `terminal_palette`)
 - `#[allow(clippy::disallowed_methods)]` for `Color::Rgb` — intentional override
 
@@ -304,7 +290,6 @@ pub(crate) fn shimmer_spans(text: &str) -> Vec<Span<'static>>;
 **Purpose:** Initialize, manage, and restore terminal state.
 
 **Interface:**
-
 ```rust
 pub type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
@@ -317,7 +302,6 @@ pub fn leave_alt_screen(terminal: &mut Terminal) -> Result<()>;
 ```
 
 **Invariants:**
-
 - `init()` enables raw mode + bracketed paste + alternate screen
 - `init()` installs panic hook that calls `restore_after_exit()`
 - `draw()` uses synchronized update for flicker-free rendering
@@ -325,7 +309,6 @@ pub fn leave_alt_screen(terminal: &mut Terminal) -> Result<()>;
 - Non-TTY stdin/stdout returns error immediately
 
 **Integration:**
-
 ```
 tui.rs::init()
   ├─ keyboard_modes::enable_keyboard_enhancement() → KeyboardCapability
@@ -343,7 +326,6 @@ tui.rs::init()
 **Purpose:** Detect and manage keyboard enhancement protocols.
 
 **Interface:**
-
 ```rust
 pub(crate) fn enable_keyboard_enhancement() -> KeyboardCapability;
 pub(crate) fn restore_keyboard_enhancement() -> Result<()>;
@@ -357,7 +339,6 @@ pub(crate) enum KeyboardCapability {
 ```
 
 **Invariants:**
-
 - Stack-based save/restore (supports nested `set_modes` calls)
 - Kitty protocol detected via CSI ? u flag query
 - modifyOtherKeys used as fallback (xterm-compatible)
@@ -365,7 +346,6 @@ pub(crate) enum KeyboardCapability {
 - Graceful degradation: if query fails, assume `None`
 
 **Detection Flow:**
-
 1. Send CSI ? u query
 2. Read response: `CSI ? <flags> u`
 3. If flags include `1` → KittyProtocol
@@ -381,7 +361,6 @@ pub(crate) enum KeyboardCapability {
 **Purpose:** Save/restore Windows console state for VT processing.
 
 **Interface:**
-
 ```rust
 pub(crate) fn init_console() -> Result<ConsoleState>;
 pub(crate) fn restore_console(state: &ConsoleState) -> Result<()>;
@@ -396,7 +375,6 @@ pub(crate) struct ConsoleState {
 ```
 
 **Invariants:**
-
 - `ConsoleState` captures original mode on init
 - `restore_console` returns to exact original state
 - `flush_input` clears buffered typeahead (FlushConsoleInputBuffer)
@@ -404,7 +382,6 @@ pub(crate) struct ConsoleState {
 - Unix: all functions are no-op (terminal handles this natively)
 
 **Win32 API Usage:**
-
 - `GetConsoleMode` / `SetConsoleMode`
 - `ENABLE_VIRTUAL_TERMINAL_PROCESSING` (0x0004)
 - `ENABLE_PROCESSED_OUTPUT` (0x0001)
@@ -420,7 +397,6 @@ pub(crate) struct ConsoleState {
 **Purpose:** Send system notifications on peer connect/disconnect events.
 
 **Interface:**
-
 ```rust
 pub(crate) trait NotificationBackend: Send + Sync {
     fn notify(&mut self, message: &str) -> Result<(), NotificationError>;
@@ -443,14 +419,12 @@ pub(crate) enum NotificationCondition {
 ```
 
 **Invariants:**
-
 - `detect_backend` returns `None` for `Disabled`
 - `should_emit` returns `false` when condition doesn't match focus state
 - Backend auto-disables on repeated failures (defensive)
 - Focus state from crossterm `FocusGained`/`FocusLost` events
 
 **Adapters:**
-
 - `Osc9Backend`: writes `\x1b]9;message\x07` to stdout
 - `ExternalBackend`: spawns `notify-send` (Linux) or PowerShell (Windows)
 
@@ -465,7 +439,6 @@ pub(crate) enum NotificationCondition {
 **Purpose:** Render ambient pet images in the terminal background.
 
 **Interface:**
-
 ```rust
 pub(crate) trait PetImageBackend: Send + Sync {
     fn render(&self, writer: &mut impl Write, img: &DynamicImage, pos: Position) -> Result<()>;
@@ -490,7 +463,6 @@ pub(crate) enum PetImageRenderError {
 ```
 
 **Invariants:**
-
 - `detect_backend` probes terminal: TERM_PROGRAM, DA1 response
 - Image decoded once via `image` crate, cached in `PetImageRenderState`
 - Position: character grid coordinates (not pixel coordinates)
@@ -498,13 +470,11 @@ pub(crate) enum PetImageRenderError {
 - No-op backend when no protocol supported
 
 **Adapters:**
-
 - `SixelBackend`: sixel escape sequences (Linux/macOS)
 - `KittyBackend`: Kitty graphics protocol (Kitty, WezTerm, Ghostty)
 - `NoopBackend`: unsupported terminals
 
 **Detection Flow:**
-
 1. Check `TERM_PROGRAM` for known terminals
 2. Send DA1 query (`CSI 0c` or `CSI c`)
 3. Parse response for Sixel/Kitty capability
@@ -521,7 +491,6 @@ pub(crate) enum PetImageRenderError {
 **Purpose:** Extract workspace headlines from protobuf messages.
 
 **Interface:**
-
 ```rust
 pub(crate) fn workspace_headline_from_response(
     response: GetWorkspaceMessagesResponse,
@@ -536,7 +505,6 @@ pub(crate) const WORKSPACE_HEADLINE_REFRESH_INTERVAL: Duration;
 ```
 
 **Invariants:**
-
 - Only `WorkspaceMessageType::Headline` messages are extracted
 - Empty/whitespace-only headlines filtered out
 - `FeatureDisabled` returned when `feature_enabled == false`
@@ -551,7 +519,6 @@ pub(crate) const WORKSPACE_HEADLINE_REFRESH_INTERVAL: Duration;
 **Purpose:** Single-pass markdown rendering with block boundary tracking.
 
 **Interface:**
-
 ```rust
 pub(crate) struct StreamingMarkdownRender {
     pub(crate) lines: Vec<HyperlinkLine>,
@@ -563,7 +530,6 @@ pub(crate) struct StreamingMarkdownRender {
 ```
 
 **Invariants:**
-
 - Single parser pass collects both styled output and metadata
 - Block offsets refer to exact source text (not normalized)
 - `pending_math_start` tracks unfinished display equations
@@ -581,14 +547,12 @@ pub(crate) struct StreamingMarkdownRender {
 **Purpose:** Render markdown tables in key/value format when grid layout is unreadable.
 
 **Interface:**
-
 ```rust
 pub(crate) fn should_render_records(rows: &[Vec<TableCell>], column_widths: &[usize], metrics: &[TableColumnMetrics]) -> bool;
 pub(crate) fn render_records(headers: &[TableCell], rows: &[Vec<TableCell>], metrics: &[TableColumnMetrics], available_width: Option<usize>, label_style: Style, separator_style: Style) -> Vec<HyperlinkLine>;
 ```
 
 **Invariants:**
-
 - Auto-switch from grid to key/value when:
   - Token-heavy columns have fragmented words
   - Narrative columns are cramped (≥7 lines in narrow width)
@@ -598,7 +562,6 @@ pub(crate) fn render_records(headers: &[TableCell], rows: &[Vec<TableCell>], met
 - Separator: `─` character between records
 
 **Thresholds:**
-
 - `MIN_ALIGNED_COMPACT_VALUE_WIDTH`: 12
 - `MIN_ALIGNED_EXPANSIVE_VALUE_WIDTH`: 24
 - `CRAMPED_EXPANSIVE_CELL_LINES`: 4
@@ -613,7 +576,6 @@ pub(crate) fn render_records(headers: &[TableCell], rows: &[Vec<TableCell>], met
 **Purpose:** Stub protobuf types for development.
 
 **Interface:**
-
 ```rust
 pub mod blnk {
     pub mod workspace {
@@ -626,7 +588,6 @@ pub mod blnk {
 ```
 
 **Invariants:**
-
 - Mirrors `proto/workspace.proto` structure exactly
 - Temporary: replace with prost-generated types when integrating with blnk core
 
@@ -649,7 +610,7 @@ main()
 
 ### Draw Cycle
 
-```rust
+```
 tui::draw(terminal, |frame| {
     // 1. Header (workspace headline)
     if let Some(headline) = cached_headline {
@@ -675,7 +636,7 @@ tui::draw(terminal, |frame| {
 
 ### Event Handling
 
-```rust
+```
 loop {
     match event::read()? {
         Event::Key(key) => {
@@ -703,7 +664,7 @@ loop {
 ### Color Usage (clippy.toml enforced)
 
 | Context | Color | Source |
-| --- | --- | --- |
+|---|---|---|
 | Headers | bold | ratatui Modifier::BOLD |
 | Secondary text | dim | ratatui Modifier::DIM |
 | User input tips | cyan | Color::Cyan |
@@ -724,7 +685,6 @@ loop {
 ## Testing Strategy
 
 ### Unit Tests (per module)
-
 - `color.rs`: blend, luma, perceptual distance
 - `width.rs`: display width, sound marks, usable width
 - `wrapping.rs`: URL detection, wrap ranges, adaptive wrapping
@@ -732,13 +692,11 @@ loop {
 - `workspace_messages.rs`: headline extraction, filtering
 
 ### Integration Tests
-
 - `tui.rs`: init/restore cycle, panic hook
 - `render/records.rs`: grid→key/value threshold detection
 - `render/markdown.rs`: streaming block boundary tracking
 
 ### Manual Testing
-
 - Kitty protocol detection (real terminal)
 - Sixel rendering (if available)
 - Cross-platform: Linux, macOS, Windows, Android/Termux

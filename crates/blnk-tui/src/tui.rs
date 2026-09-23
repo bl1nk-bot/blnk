@@ -25,24 +25,6 @@ use ratatui::crossterm::terminal::enable_raw_mode;
 
 pub type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
-struct InitGuard {
-    active: bool,
-}
-
-impl InitGuard {
-    fn disable(&mut self) {
-        self.active = false;
-    }
-}
-
-impl Drop for InitGuard {
-    fn drop(&mut self) {
-        if self.active {
-            let _ = restore();
-        }
-    }
-}
-
 /// Initialize terminal: raw mode + alternate screen + panic hook.
 pub fn init() -> Result<Terminal> {
     if !stdin().is_terminal() {
@@ -53,53 +35,30 @@ pub fn init() -> Result<Terminal> {
     }
 
     enable_raw_mode()?;
-    let mut guard = InitGuard { active: true };
-
-    if let Err(error) = execute!(stdout(), EnableBracketedPaste) {
-        return Err(error);
-    }
+    execute!(stdout(), EnableBracketedPaste)?;
 
     let backend = CrosstermBackend::new(stdout());
-    let mut terminal = match ratatui::Terminal::new(backend) {
-        Ok(terminal) => terminal,
-        Err(error) => {
-            return Err(error);
-        }
-    };
+    let mut terminal = ratatui::Terminal::new(backend)?;
 
     // Clear and enter alternate screen
-    if let Err(error) = execute!(stdout(), EnterAlternateScreen) {
-        return Err(error);
-    }
-    if let Err(error) = terminal.clear() {
-        return Err(error);
-    }
+    execute!(stdout(), EnterAlternateScreen)?;
+    terminal.clear()?;
 
-    guard.disable();
     set_panic_hook();
     Ok(terminal)
 }
 
 /// Restore terminal to original state.
 pub fn restore() -> Result<()> {
-    let mut first_error = None;
-    let mut record = |result: Result<()>| {
-        if let Err(error) = result
-            && first_error.is_none()
-        {
-            first_error = Some(error);
-        }
-    };
-
-    record(execute!(stdout(), DisableBracketedPaste));
-    record(execute!(stdout(), LeaveAlternateScreen));
-    record(disable_raw_mode());
-    record(execute!(
+    let _ = execute!(stdout(), DisableBracketedPaste);
+    let _ = execute!(stdout(), LeaveAlternateScreen);
+    let _ = disable_raw_mode();
+    let _ = execute!(
         stdout(),
         crossterm::cursor::SetCursorStyle::DefaultUserShape,
         crossterm::cursor::Show
-    ));
-    first_error.map_or(Ok(()), Err)
+    );
+    Ok(())
 }
 
 /// Restore terminal after exit (stronger reset).

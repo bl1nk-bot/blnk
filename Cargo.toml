@@ -155,7 +155,7 @@ url.workspace = true
 getrandom = "0.4"
 base64.workspace = true
 rsa = { version = "0.9", features = ["sha2", "pem"] }
-sha2 = { workspace = true, features = ["oid"] }
+sha2.workspace = true
 subtle = "2.6"
 
 # System

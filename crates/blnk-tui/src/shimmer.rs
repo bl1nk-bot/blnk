@@ -54,7 +54,7 @@ pub(super) fn shimmer_spans(text: &str) -> Vec<Span<'static>> {
         };
         let style = if has_true_color {
             let highlight = t.clamp(0.0, 1.0);
-            let (r, g, b) = blend(base_color, highlight_color, highlight * 0.9);
+            let (r, g, b) = blend(highlight_color, base_color, highlight * 0.9);
             // Allow custom RGB colors — this is the shimmer effect which
             // intentionally blends terminal default colors at calculated levels.
             #[allow(clippy::disallowed_methods)]

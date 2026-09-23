@@ -31,6 +31,7 @@
 | `blnk.adapter` | `adapter.proto` | client detection/import/apply/rollback contract |
 | `blnk.workspace` | `workspace.proto` | packs, selections, projections, prompt, skill, snapshot |
 | legacy packages | existing `proto/*.proto` | wire/session/stream compatibility |
+| `stream` | `stream.proto` | unified stream message envelope, per-stream-type messages |
 
 ## 3. Common contract
 
@@ -302,6 +303,9 @@ Generated Rust bindings อยู่ใน `src/proto_generated.rs` และห
 8. Sync concurrent revision สร้าง conflict
 9. Adapter fixture ทุกตัวมี detect/import/preview/apply/rollback
 10. Windows/Linux สามารถใช้ generated contract เดียวกัน
+11. `StreamMessage` envelope encode/decode round-trip ได้
+12. `StreamMessageKind` enum values ไม่เปลี่ยนจาก golden descriptors
+13. `StreamMessage` dispatch table ตรงกับ schema ใน `specs/blnk-stream-protocol.md`
 
 ## 13. Source of truth
 

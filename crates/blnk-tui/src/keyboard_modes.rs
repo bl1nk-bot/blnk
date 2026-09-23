@@ -4,9 +4,14 @@
 //! Stub — implement platform-specific keyboard handling later.
 #![allow(dead_code)]
 
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+
+static KEYBOARD_ENHANCEMENT_DISABLED: AtomicBool = AtomicBool::new(false);
+
 /// Check if keyboard enhancement was explicitly disabled via env var.
 pub(crate) fn keyboard_enhancement_disabled() -> bool {
-    std::env::var_os("BLNK_DISABLE_KEYBOARD_ENHANCEMENT").is_some()
+    KEYBOARD_ENHANCEMENT_DISABLED.load(Ordering::Relaxed)
 }
 
 /// Detect if running inside VSCode's integrated terminal.
