@@ -22,28 +22,37 @@ pub type StreamResult<T> = Result<T, BlnkError>;
 #[derive(Debug, Default, Clone)]
 pub struct StreamRequestTracker {
     active: BTreeSet<u64>,
+    retired: BTreeSet<u64>,
 }
 
 impl StreamRequestTracker {
     pub fn register(&mut self, request_id: u64) -> StreamResult<()> {
-        if request_id == 0 || !self.active.insert(request_id) {
+        if request_id == 0
+            || self.active.contains(&request_id)
+            || self.retired.contains(&request_id)
+        {
             return Err(BlnkError::Stream("duplicate or invalid request id".into()));
         }
+        self.active.insert(request_id);
         Ok(())
     }
 
     pub fn cancel(&mut self, request_id: u64) {
-        self.active.remove(&request_id);
+        if self.active.remove(&request_id) {
+            self.retired.insert(request_id);
+        }
     }
     pub fn complete(&mut self, request_id: u64) {
-        self.active.remove(&request_id);
+        if self.active.remove(&request_id) {
+            self.retired.insert(request_id);
+        }
     }
     pub fn is_active(&self, request_id: u64) -> bool {
         request_id != 0 && self.active.contains(&request_id)
     }
 
     pub fn accept(&self, request_id: u64) -> StreamResult<()> {
-        if self.is_active(request_id) {
+        if self.is_active(request_id) && !self.retired.contains(&request_id) {
             Ok(())
         } else {
             Err(BlnkError::Stream("stale or unknown stream response".into()))
@@ -244,5 +253,20 @@ mod tests {
         tracker.cancel(7);
         assert!(tracker.accept(7).is_err());
         assert!(tracker.accept(99).is_err());
+    }
+
+    #[test]
+    fn request_tracker_rejects_reused_retired_ids() {
+        let mut tracker = StreamRequestTracker::default();
+        tracker.register(7).expect("request should register");
+        tracker.complete(7);
+
+        assert!(tracker.register(7).is_err());
+        assert!(tracker.accept(7).is_err());
+
+        let mut tracker = StreamRequestTracker::default();
+        tracker.register(9).expect("request should register");
+        tracker.cancel(9);
+        assert!(tracker.register(9).is_err());
     }
 }

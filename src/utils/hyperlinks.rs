@@ -10,7 +10,13 @@ use crate::utils::terminal_detection::TerminalInfo;
 
 /// Check if `destination` looks like a web URL we could hyperlink.
 pub fn is_web_destination(destination: &str) -> bool {
-    destination.starts_with("http://") || destination.starts_with("https://")
+    if !(destination.starts_with("http://") || destination.starts_with("https://")) {
+        return false;
+    }
+
+    !destination
+        .chars()
+        .any(|ch| ch.is_control() || ch.is_ascii_whitespace())
 }
 
 /// Returns `true` if the URL should be hidden (label-only rendering).
@@ -68,6 +74,8 @@ mod tests {
     fn is_web_destination_check() {
         assert!(is_web_destination("https://example.com"));
         assert!(is_web_destination("http://example.com"));
+        assert!(!is_web_destination("https://example.com\u{1b}]8;;evil"));
+        assert!(!is_web_destination("https://example.com/path with spaces"));
         assert!(!is_web_destination("ftp://example.com"));
         assert!(!is_web_destination("/local/path"));
     }

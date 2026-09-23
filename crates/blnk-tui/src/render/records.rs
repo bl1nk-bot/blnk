@@ -45,10 +45,15 @@ impl TableCell {
     pub fn plain_text(&self) -> String {
         self.lines
             .iter()
-            .flat_map(|line| line.line.spans.iter())
-            .map(|span| span.content.as_ref())
+            .map(|line| {
+                line.line
+                    .spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
             .collect::<Vec<_>>()
-            .join("")
+            .join(" ")
     }
 }
 

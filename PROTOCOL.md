@@ -7,7 +7,7 @@ blnk uses **SWSP (Stream Wire Session Protocol)** over WebRTC Data Channels and 
 Each SWSP frame begins with an 8-byte little-endian header:
 
 | Field | Size | Description |
-|---|---|---|
+| --- | --- | --- |
 | `stream_id` | 4 bytes (u32 LE) | Stream identifier (0 is reserved for control) |
 | `flags` | 2 bytes (u16 LE) | Bitmask flags: SYN, ACK, FIN, RST, DAT, PSH |
 | `length` | 2 bytes (u16 LE) | Payload size in bytes (max 65,535 bytes) |

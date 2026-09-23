@@ -89,7 +89,7 @@
 ### 2.2 Layer Boundaries
 
 | Boundary | Caller | Callee | Contract |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | UI ↔ Application Services | Tauri commands + typed IPC | T1/T2/T3/T6 services | structured errors, no SQL/WebRTC direct call |
 | Application Services ↔ transport-blnk | typed Rust API | `transport_blnk::Transport` | `TransportError` enum, async |
 | transport-blnk ↔ blnk Rust | typed Rust API | blnk public modules | `BlnkError` re-exported |
@@ -123,7 +123,7 @@
 ### 3.3 ผลกระทบที่ตามมา
 
 | Dimension | Library (chosen) | Subprocess (rejected) |
-|---|---|---|
+| --- | --- | --- |
 | Bundle size | Bl1nk binary รวม blnk source (compile once, link statically) | Bl1nk binary + `blnk` binary แยก (2 artifacts, installer 2 files) |
 | Deployment | 1 binary, 1 update channel | 2 binaries, version sync risk |
 | IPC overhead | none | stdout parsing + JSON/structured framing |
@@ -136,7 +136,7 @@
 ### 3.4 Upstream contribution ที่ต้องทำเพื่อให้ library path สะอาด
 
 | Change | Purpose |
-|---|---|
+| --- | --- |
 | `[package].publish = true` (หรือ private registry) + semver tag | downstream `cargo add blnk` ได้ |
 | Doc comments (`///`) ครบทุก public type ใน transport modules | downstream DX |
 | `pub use` facade ที่ crate root สำหรับ transport subset | ergonomics: `use blnk::SignalingClient` |
@@ -150,14 +150,14 @@
 mapping ต่อไปนี้แสดง Bl1nk use case (left) → blnk Rust API call (middle) → config params (right) → expected output (rightmost). ใช้เป็น contract สำหรับ `transport-blnk` crate
 
 | # | Bl1nk Operation | blnk API Call | Config Params | Expected Output |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | 1 | **Discover device ใน LAN** | `discovery::MdnsResponder::announce()` + `discovery::query()` | service name, port | `Vec<DiscoveredPeer>` พร้อม id/ip/port |
 | 2 | **Connect signaling (remote device)** | `SignalingClient::new(url)` → `connect()` → `connect_with_retry()` | signaling_url, identity_path, endpoint_policy | `SignalingConnection` |
 | 3 | **Register device** | `SignalingClient::transact(RegisterRequest)` | uid, public_key | `RegisterResponse { pairing_code }` |
 | 4 | **Send/receive pairing commit** | `SignalingClient::transact(PairRequest/PairAnswer)` | nonce, commit | `PairApproved/PairRejected` |
 | 5 | **Open WebRTC connection** | `PeerHandle::create_offer()` → `accept_offer()` → `wait_connected()` | target device, ice_servers | `PeerHandle` (Connected) |
 | 6 | **Open data channel** | `PeerHandle::create_data_channel("blnk-control")` → `wait_channel_open()` | label, reliability config | `DataChannel Open` |
-| 7 | **Run session handshake** | `SessionRuntime::run_handshake()` | pin, role | `SessionState::Ready` |
+| 7 | **Run session handshake** | `SessionRuntime::new(peer, SessionRuntimeConfig::server/client(pin))` → `SessionRuntime::handshake()`/state machine | pin, role | `SessionState::Ready` |
 | 8 | **Open shell stream** | `StreamRegistry::open()` + `ShellHandler` | command, env, cwd | `stream_id`, async shell I/O |
 | 9 | **Open file stream (download)** | `StreamRegistry::open()` + `FileHandler` | `remote:path`, range, offset | `stream_id`, chunked file bytes |
 | 10 | **Open file stream (upload)** | `StreamRegistry::open()` + `FileHandler` | local path, chunk_size | `stream_id`, chunked file bytes |
@@ -169,13 +169,13 @@ mapping ต่อไปนี้แสดง Bl1nk use case (left) → blnk Rust
 ### 4.1 Pin/identity lifecycle ที่ Bl1nk ต้อง enforce
 
 - **PIN** — ใช้แค่ครั้งเดียวต่อ session; blnk `SessionRuntime` handle attempt/lockout ให้แล้ว
-- **access_code** — สร้างใน blnk `Identity` ตอน bootstrap; persist ใน Bl1nk Vault (encrypted); pass เข้า `SessionRuntime` เมื่อ reconnect
+- **access_code** — สร้างใน blnk `Identity::generate()/load()` ตอน bootstrap, persist ใน Bl1nk Vault (encrypted), และมักถูกส่งกลับ/ตรวจสอบผ่าน upstream pairing credentials (`PairCredentials.access_code` หรือ transport-blnk verifier) ก่อน/ระหว่าง session setup; current `SessionRuntimeConfig` ไม่มี field สำหรับ `access_code` และไม่ควรถูกใช้เป็น source ของ secret นี้
 - **pairing_code** — 6-digit decimal; แสดง QR ผ่าน `utils::qr`; ใช้ครั้งเดียวต่อ pair
 
 ### 4.2 Bl1nk operations ที่ map ไม่ตรง (gaps)
 
 | Bl1nk Need | blnk Capability | Gap | Workaround |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Send envelope > 16 KB | SWSP max payload 16 KB | envelope fragmentation | transport-blnk implements fragment/reassemble |
 | Send N objects batched | 1 stream = 1 capability | multi-object envelope | transport-blnk uses envelope-as-stream (1 stream per envelope containing N objects) |
 | Send envelope receipt callback | no app-level ACK | no sender-side notification when receiver opens | transport-blnk implements request/ack application protocol on top of SWSP |
@@ -330,7 +330,7 @@ State transitions verified by transport-blnk ก่อน open session boundary:
 แบ่งตาม team topology ใน `specs/blnk-product-roadmap.md:158-216`
 
 | WP ID | Owner Team | Goal | Deliverable | Dependency | Exit Criteria |
-|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- |
 | **WP-T4-01** | T4 | Define `transport-blnk` crate skeleton | crate skeleton + Cargo.toml + module structure + minimal `TransportError` | none | `cargo check` ผ่าน + empty module compiles |
 | **WP-T4-02** | T4 | Implement device registry bridge | `Bl1nkDeviceRegistry` ↔ `blnk::DeviceRegistry` mapping + discovery adapter | WP-T4-01 | round-trip test: Bl1nk `DeviceRecord` ↔ blnk `DeviceRecord` |
 | **WP-T4-03** | T4 | Implement signaling connect + register + pair | thin wrapper over `SignalingClient` | WP-T4-01 | unit test: register → pair → connect ด้วย `RelayFixture` |
@@ -498,7 +498,7 @@ State transitions verified by transport-blnk ก่อน open session boundary:
 ### 7.6 Phase Gates Summary
 
 | Phase | Goal | Verification Gate | Release | Exit if |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | P1 | blnk lib API hardening | `cargo test` + `cargo doc` + downstream integration test | blnk v0.3.0 | downstream depend ได้ |
 | P2 | transport-blnk skeleton | smoke shell + file ในเครื่องเดียว | Bl1nk pre-release | smoke ผ่าน |
 | P3 | ShareEnvelope E2E | 2 devices send/receive/apply | Bl1nk Phase 3 release | receipt + access code + negative cases ผ่าน |
@@ -512,7 +512,7 @@ State transitions verified by transport-blnk ก่อน open session boundary:
 > รายการ PR ที่ต้อง contribute กลับ `bl1nk-bot/blnk@main` เพื่อให้ Phase 1 ของ roadmap เสร็จ — ไม่ใช่ fork
 
 | ID | Change | Purpose | Affects |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **BX-01** | `[package].publish` policy + semver tag discipline | downstream `cargo add blnk` ทำงาน + version coupling | `Cargo.toml` |
 | **BX-02** | `pub use` facade at crate root for transport subset | ergonomics: `use blnk::SignalingClient` | `src/lib.rs` |
 | **BX-03** | Doc comments `///` ครบทุก public type ใน signaling/peer/session/protocol/stream/identity/vault | downstream DX + IDE help | `src/signaling/`, `src/peer/`, `src/session/`, `src/protocol/`, `src/stream/`, `src/identity/`, `src/vault/` |
@@ -588,7 +588,7 @@ async fn open_session(
 ### 9.3 Integration points กับ Application Services ที่มีอยู่
 
 | Service | Integration | Note |
-|---|---|---|
+| --- | --- | --- |
 | `share` (T4) | consume `ShareEvent` channel + drive UI | map state machine |
 | `vault` (T2) | `encrypted_payload` เก็บเป็น opaque Vault blob + `payload_hash` index | reuse `VaultRecord` schema |
 | `device_registry` (T1/T4) | sync with `Bl1nkDeviceRegistry` ↔ `blnk::DeviceRegistry` | bidirectional |
@@ -598,7 +598,7 @@ async fn open_session(
 ### 9.4 New modules in Bl1nk (Bl1nk-only, ไม่ต้องการ blnk change)
 
 | Module | Purpose |
-|---|---|
+| --- | --- |
 | `transport-blnk::verifier` | Argon2id verifier + state machine (per-share) |
 | `transport-blnk::envelope` | envelope codec (ถ้า BX-05 ยังไม่ผ่าน upstream review) |
 | `transport-blnk::event` | ShareEvent channel (ถ้า BX-07 ยังไม่ผ่าน) |
@@ -625,7 +625,7 @@ External signaling server / remote peer
 ### 10.1 Material Classification (per `CONTEXT.md` + `STYLE.md`)
 
 | Material | Storage | Logging | Transport |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | PIN (6 bytes) | ไม่ persist; in-memory only | **never** log | constant-time compare |
 | `pairing_code` (6-digit decimal) | regenerate per session load | never log in plaintext | in signaling offer/answer |
 | `access_code` (11-char base64url) | persist ใน Bl1nk Vault (encrypted) | never log in plaintext | pass เข้้า `SessionRuntime` |
@@ -637,7 +637,7 @@ External signaling server / remote peer
 ### 10.2 Trust Boundaries
 
 | Boundary | Enforcement |
-|---|---|
+| --- | --- |
 | Tauri ↔ Backend | typed commands + structured errors (Section 9.2) |
 | transport-blnk ↔ blnk | single-process, Rust type system (no separate boundary) |
 | Bl1nk Vault ↔ blnk private key | BX-10 proposed: blnk รับ Identity จาก Bl1nk constructor injection |
@@ -648,7 +648,7 @@ External signaling server / remote peer
 ### 10.3 Audit / Event Log Strategy
 
 | Event | Sink | Format |
-|---|---|---|
+| --- | --- | --- |
 | `ShareEvent::Created/Offered/Opened/Verified/Consumed/Cancelled/Expired/Failed` | Bl1nk audit log (T2) | structured JSON |
 | blnk `tracing` events | tracing subscriber → structured log | span-scoped (peer_id, session_id, stream_id) |
 | Sign in/out | Bl1nk audit log | structured |
@@ -733,7 +733,7 @@ External signaling server / remote peer
 ### 12.1 Risks (8 items with mitigation)
 
 | # | Risk | Impact | Likelihood | Mitigation |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **R1** | blnk lib API breaking change (no semver guarantee yet) | downstream integration break | high in v0.x | pin tag + Cargo.lock; contribute semver policy ใน Phase 1 (BX-01); Bl1nk fork fallback ถ้า reject |
 | **R2** | Cross-machine original-Go/browser interop unproven | production deployment uncertainty | high | Phase 5 cross-machine evidence tests (WP-T8-14); explicit "NOT supported" claim จนกว่าจะพิสูจน์ |
 | **R3** | SWSP max payload 16 KB ต้อง fragment ทุก envelope | complexity + memory pressure for large payloads | certain | fragment + reassemble + integrity verify in transport-blnk |
@@ -746,7 +746,7 @@ External signaling server / remote peer
 ### 12.2 Decisions ที่ต้อง escalate
 
 | # | Decision | Owner | Consulted | Recommendation |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | **D1** | BX-01: ตกลง semver policy ใน blnk repo (currently pre-1.0, breaking changes allowed) | T8 blnk maintainer + T1 Bl1nk | all Bl1nk teams | freeze API ใน 0.3.0, guarantee semver from 1.0.0 |
 | **D2** | BX-04: ย้าย `TwoPeerHarness` + `RelayFixture` เข้า `src/test_utils/` หรือเก็บใน `tests/common/` | T8 blnk maintainer | T4 Bl1nk | move to `src/test_utils.rs` gated `#[cfg(feature = "test-harness")]` for downstream reuse |
 | **D3** | BX-05: ShareEnvelope codec อยู่ blnk หรือ Bl1nk | T4 Bl1nk + T8 blnk | T1, T2 | upstream — reuse Bl1nk's envelope codec module as starting point |
@@ -761,7 +761,7 @@ External signaling server / remote peer
 ## 13. Evidence Index
 
 | Claim | Source |
-|---|---|
+| --- | --- |
 | blnk Cargo.toml has [lib] + [[bin]] | `Cargo.toml:9-15` |
 | src/lib.rs exposes 12 public modules | `src/lib.rs:1-13` |
 | `BlnkError` 8 variants | `utils/error.rs` |
@@ -794,19 +794,19 @@ External signaling server / remote peer
 
 ### URL อ้างอิงทั้งหมด
 
-- blnk repo root: https://github.com/bl1nk-bot/blnk
-- spec.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/specs/spec.md
-- implementation-status.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/implementation-status.md
-- architecture.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/architecture.md
-- api.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/api.md
-- blueprint.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/blueprint.md
-- protocol.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/PROTOCOL.md
-- style.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/STYLE.md
-- context.md: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/CONTEXT.md
-- proto/share.proto: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/share.proto
-- proto/swsp.proto: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/swsp.proto
-- proto/object_model.proto: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/object_model.proto
-- proto/sync.proto: https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/sync.proto
+- blnk repo root: <https://github.com/bl1nk-bot/blnk>
+- spec.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/specs/spec.md>
+- implementation-status.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/implementation-status.md>
+- architecture.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/architecture.md>
+- api.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/api.md>
+- blueprint.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/docs/blueprint.md>
+- protocol.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/PROTOCOL.md>
+- style.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/STYLE.md>
+- context.md: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/CONTEXT.md>
+- proto/share.proto: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/share.proto>
+- proto/swsp.proto: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/swsp.proto>
+- proto/object_model.proto: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/object_model.proto>
+- proto/sync.proto: <https://raw.githubusercontent.com/bl1nk-bot/blnk/main/proto/sync.proto>
 
 ### Upstream research deliverables
 
@@ -818,7 +818,7 @@ External signaling server / remote peer
 ## 14. Glossary
 
 | Term | Definition |
-|---|---|
+| --- | --- |
 | **SWSP** | Stream Wire Session Protocol — binary framing over WebRTC data channels; 8-byte LE header (`stream_id` 4B + `flags` 2B + `length` 2B) + payload max 16 KB conservative |
 | **SignalingClient** | blnk public type — WebSocket JSON transport ไปยัง signaling server; preflight `EndpointPolicy::PublicOnly` |
 | **PeerHandle** | blnk public type — wraps WebRTC `RTCPeerConnection` + data channel + SWSP frame queue |

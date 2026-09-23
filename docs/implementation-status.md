@@ -40,7 +40,7 @@
 | **Display Width** | `width.rs` | Unicode width + sound mark handling | `width::tests` |
 | **Keyboard Modes** | `keyboard_modes.rs` | Kitty protocol detection (stub) | — |
 | **Windows Console** | `windows_console.rs` | Win32 console state (stub) | — |
-| **Notifications** | `notifications.rs` | Desktop notification backend (stub) | `workspace_messages::tests` |
+| **Notifications** | `notifications.rs` | Desktop notification backend (stub) | — |
 | **Pets** | `pets.rs` | Sixel/Kitty image rendering (stub) | — |
 | **Workspace Messages** | `workspace_messages.rs` | Headline extraction from protobuf | `workspace_messages::tests` |
 | **Proto Stubs** | `proto.rs` | Temporary type definitions (replace with prost) | — |

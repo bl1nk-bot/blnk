@@ -11,6 +11,7 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
+      - "crates/**"
       - ".github/workflows/**"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -22,6 +23,7 @@ on:
       - "Cargo.lock"
       - "tests/**"
       - "benches/**"
+      - "crates/**"
       - ".github/workflows/**"
 
 concurrency:

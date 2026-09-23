@@ -1008,7 +1008,6 @@ mod tests {
         assert!(!scope.allows(StreamKind::Tcp));
         assert!(!scope.allows(StreamKind::WebSocket));
         assert!(!scope.allows(StreamKind::Http));
-        assert!(!scope.allows(StreamKind::Adapter));
     }
 
     #[test]
@@ -1019,11 +1018,13 @@ mod tests {
 
     #[test]
     fn operation_scope_allows_all_configured_kinds() {
-        let scope =
-            OperationScope::new(1, vec![StreamKind::Shell, StreamKind::File, StreamKind::Adapter]);
+        let scope = OperationScope::new(
+            1,
+            vec![StreamKind::Shell, StreamKind::File, StreamKind::WebSocket],
+        );
         assert!(scope.allows(StreamKind::Shell));
         assert!(scope.allows(StreamKind::File));
-        assert!(scope.allows(StreamKind::Adapter));
+        assert!(scope.allows(StreamKind::WebSocket));
         assert!(!scope.allows(StreamKind::Tcp));
     }
 

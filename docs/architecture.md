@@ -4,6 +4,7 @@
 
 blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI + WebRTC peer-to-peer communication
 แนวคิดหลัก:
+
 - CLI เป็น entry point
 - signaling เป็นตัวเริ่ม session
 - WebRTC เป็น transport layer หลัก
@@ -21,7 +22,9 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 ## 2. High-Level Components
 
 ### 2.1 CLI Layer
+
 รับคำสั่งจาก user และแปลงเป็น operation
+
 - `serve`
 - `connect`
 - `cp`
@@ -35,7 +38,9 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - handle errors/logging
 
 ### 2.2 Config Layer
+
 จัดการ configuration จากไฟล์, env, และ CLI flags
+
 - signaling server
 - identity path
 - pin config
@@ -43,7 +48,9 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 - debug/log settings
 
 ### 2.3 Signaling Layer
+
 เชื่อมต่อกับ signaling server ผ่าน WebSocket
+
 - register device
 - request connection
 - exchange offer/answer/candidate
@@ -52,23 +59,29 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 โมดูลจริงใน source แบ่งเป็น `src/signaling/transport.rs` (WebSocket client + local fixture) และ `src/signaling/orchestration.rs` (ผูก signaling เข้ากับ `PeerHandle` และ `SessionRuntime`)
 
 ### 2.3.1 Discovery Layer (mDNS)
+
 ทำ local discovery แบบ LAN โดยไม่พึ่ง signaling server เสมอไป
+
 - ใช้ UDP multicast บน service type `_blnk._tcp.local` ผ่าน `src/discovery/mod.rs`
 - `MdnsResponder` ประกาศ service ของตัวเอง และ `discover_local_peers` ค้นหา peer ภายใน timeout ที่กำหนด
 - ใช้ `CancellationToken` ควบคุม lifecycle ของ background task
 - ใช้ร่วมกับ `blnk devices --local` ใน CLI
 
 ### 2.4 Peer Layer
+
 - ใช้ `webrtc` crate (v0.20) บน `tokio` runtime
 - lifecycle: ICE, SDP, DTLS/SCTP, data channel
 - โมดูล `src/peer/mod.rs` มีเพียง `PeerHandle` (public type) และ `TwoPeerHarness` (test/integration helper) ไม่มี `connection.rs` หรือ `ice.rs` แยก
 
 ### 2.5 Session Layer
+
 - โมดูล `src/session/` แบ่งเป็น `mod.rs` (typed messages และ state) และ `runtime.rs` (`SessionRuntime`, `SessionRuntimeConfig`, `SessionRuntimeSnapshot`)
 - ไม่มี `session.rs` หรือ `auth.rs` แยกเป็นไฟล์
 
 ### 2.6 Stream Layer
+
 จัดการ stream protocol และ dispatch ไปยัง handler
+
 - control stream (stream id 0)
 - shell stream (`src/stream/shell.rs`)
 - file stream (`src/stream/file.rs`)
@@ -78,25 +91,31 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 ปัจจุบัน `ProxyStreamService` ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง การ wire TCP/WebSocket/HTTP เข้ากับ stream registry เป็นงานถัดไป (Issue #42)
 
 ### 2.7 Protocol Layer
+
 เก็บ definition ของ message และ frame format
+
 - `src/protocol/mod.rs` — module root
 - `src/protocol/swsp.rs` — SWSP frame codec
 - `src/protocol/pairing.rs` — pairing messages
 - `src/proto_generated.rs` — generated protobuf จาก `proto/*.proto` (ใช้สำหรับ control/stream messages เท่านั้น signaling ใช้ typed JSON)
 
 ### 2.8 Identity Layer
+
 - `src/identity/mod.rs` — `Identity` struct, derived values (`uid`, `pairing_code`, `access_code`)
 - `src/identity/key.rs` — RSA-2048 key pair, sign/decrypt (RSA-OAEP)
 - รองรับทั้ง JSON และ PEM persistence
 
 ### 2.9 Storage Layer
+
 - `src/storage/mod.rs` — `SqliteStore`, `SCHEMA_VERSION = 1`
 - `src/storage/schema.rs` — schema constants
 - `src/storage/store.rs` — concrete implementation
 - ใช้สำหรับ device registry และ metadata persistence
 
 ### 2.10 Web/HTTP Layer
+
 ให้บริการ **loopback-only browser control surface** สำหรับ lifecycle/status ของ local browser session
+
 - bind เฉพาะ loopback address
 - ตรวจ exact configured Origin และ CORS แบบไม่ใช้ wildcard
 - bootstrap ด้วย bearer token แล้วออก HttpOnly/SameSite session cookie
@@ -107,10 +126,12 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 งานนี้ยังไม่ serve frontend assets และไม่ expose remote shell/file/proxy/signaling/WebRTC capability จาก browser; สิ่งเหล่านั้นต้องผ่าน authenticated session/capability boundary และมี evidence เฉพาะก่อนเพิ่ม surface
 
 ### 2.11 Vault (Encrypted Storage)
+
 - `src/vault.rs` — `EncryptedVault` ใช้ XChaCha20-Poly1305 สำหรับ secret persistence
 - เป็น boundary แยกจาก `Storage` (ที่เก็บ metadata แบบ plain)
 
 ### 2.12 Utility Layer
+
 - QR code (`src/utils/qr.rs`)
 - error types (`src/utils/error.rs` — `BlnkError`)
 - helpers (`src/utils/mod.rs`)
@@ -227,7 +248,6 @@ This is a local lifecycle/status flow. It does not establish browser WebRTC, con
 
 For the current CLI remote path, the server dispatcher is single-reader: it first validates stream flags and ownership, then routes shell and file openers to their existing bounded services. A malformed opener, unknown stream or invalid terminal frame is a protocol error and triggers session cleanup rather than a success response.
 
-
 1. receive SWSP frame
 2. parse stream id and flags
 3. route to handler ตาม stream type
@@ -239,18 +259,23 @@ For the current CLI remote path, the server dispatcher is single-reader: it firs
 ## 5. Architectural Principles
 
 ### 5.1 Separation of Concerns
+
 แต่ละ module รับผิดชอบเรื่องเดียวให้ชัด
 
 ### 5.2 Async First
+
 ทุก network I/O และ stream operation ใช้ async/await
 
 ### 5.3 Protocol-Driven Design
+
 protocol เป็น source of truth สำหรับ message shape และ framing
 
 ### 5.4 Trait-Based Extensibility
+
 handler แต่ละประเภทควร implement trait ร่วมกัน
 
 ### 5.5 Minimal Global State
+
 หลีกเลี่ยง global mutable state ใช้ `Arc`, `Mutex`, `RwLock` อย่างระวัง
 
 ---
@@ -258,16 +283,20 @@ handler แต่ละประเภทควร implement trait ร่วม�
 ## 6. Core Runtime Model
 
 ### 6.1 Runtime
+
 ใช้ `tokio` เป็น runtime หลัก
 
 ### 6.2 Task Model
+
 - network listeners รันเป็น async task
 - signaling loop รันแยก task
 - data channel processing รันแยก task
 - stream handlers รันตาม connection/session
 
 ### 6.3 Communication
+
 ใช้ channels เช่น:
+
 - `tokio::sync::mpsc`
 - `tokio::sync::oneshot`
 - `tokio::sync::broadcast`
@@ -298,19 +327,23 @@ handler แต่ละประเภทควร implement trait ร่วม�
 ## 9. Cross-Platform Strategy
 
 ### 9.1 Unix
+
 - PTY ใช้ `nix`
 - file and socket operations ใช้ standard library + Unix extensions
 
 ### 9.2 Windows
+
 - PTY ใช้ `winapi`
 - ต้องแยก platform-specific code อย่างชัดเจนด้วย `cfg`
 
 ### 9.3 Shared Core
+
 logic หลักของ protocol, signaling, session, stream ควรเป็น shared code
 
 ---
 
 ## 10. Security Considerations
+
 - key material ต้องเก็บอย่างปลอดภัย — `EncryptedVault` ใช้ XChaCha20-Poly1305 สำหรับ secret ที่ต้องการ confidentiality-at-rest
 - auth flow ต้องป้องกัน replay พื้นฐาน — PIN verified แบบ constant-time (`subtle::ConstantTimeEq`) พร้อม retry limit และ delay
 - sensitive payload ต้องไม่ log — `tracing` redact secret เสมอ; `ProxyPolicy::redact_target_for_log` ซ่อน credential-bearing header
@@ -323,18 +356,21 @@ logic หลักของ protocol, signaling, session, stream ควรเป
 ## 11. Testing Architecture
 
 ### 11.1 Unit Tests
+
 - protocol parsing
 - frame encoding/decoding
 - identity utilities
 - auth logic
 
 ### 11.2 Integration Tests
+
 - signaling flow
 - peer connection flow
 - session negotiation
 - file/tcp/shell stream behavior
 
 ### 11.3 Cross-Platform Tests
+
 - PTY behavior
 - path handling
 - binary release compatibility
@@ -342,6 +378,7 @@ logic หลักของ protocol, signaling, session, stream ควรเป
 ---
 
 ## 12. Release Architecture
+
 - build release binary ด้วย `cargo build --release`
 - strip symbols สำหรับ production (ใช้ `strip = "symbols"` ใน `[profile.release]`)
 - ใช้ CI สำหรับทุก platform (Linux เป็น primary target ปัจจุบัน; Windows/Android อยู่ใน roadmap)
@@ -360,11 +397,11 @@ blnk-tui เป็น ratatui-based terminal user interface สำหรับ b
 ### 10.2 Layer Model
 
 | Layer | Modules | Role |
-|---|---|---|
-| **Foundation** | `width`, `color`, `terminal_palette` | Pure math, no I/O |
+| --- | --- | --- |
+| **Foundation** | `width`, `color` | Pure math, no I/O |
 | **Terminal** | `terminal_hyperlinks`, `wrapping`, `shimmer` | Text rendering primitives |
 | **Render** | `render/line_utils`, `render/markdown`, `render/records` | Layout and content rendering |
-| **Platform** | `tui`, `keyboard_modes`, `windows_console` | OS interaction, lifecycle |
+| **Platform** | `tui`, `keyboard_modes`, `windows_console`, `terminal_palette` | OS/terminal environment detection and lifecycle |
 | **Feature** | `notifications`, `pets`, `workspace_messages` | Domain-specific features |
 | **Protocol** | `proto` | Type definitions |
 
@@ -383,6 +420,7 @@ blnk-tui เป็น ratatui-based terminal user interface สำหรับ b
 ### 10.4 Integration with Core
 
 blnk-tui ปัจจุบันเป็น standalone crate. เมื่อ Phase 2 เสร็จ:
+
 - blnk-tui จะ depend on blnk core สำหรับ proto types
 - blnk core จะ re-export `utils::terminal_detection` และ `utils::hyperlinks`
 - Event loop จะเชื่อมต่อกับ signaling + peer modules ของ blnk core

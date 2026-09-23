@@ -144,12 +144,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
 
     println!("serve_status=running; press Ctrl-C to stop");
     let shutdown = CancellationToken::new();
+    let audit_log = AuditLog::new(&session.client_id);
     let session_task = serve_session_with_shutdown(
         session,
         root,
         shutdown.clone(),
         OperationScope::default(),
-        AuditLog::new(""),
+        audit_log,
     );
     tokio::pin!(session_task);
     tokio::select! {

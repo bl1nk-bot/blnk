@@ -56,6 +56,7 @@
 ## Final Check
 
 If you can't tell from reading the code:
+
 - Who owns the state
 - Where errors flow
 - Where the async boundary is
@@ -68,7 +69,7 @@ If you can't tell from reading the code:
 ### Colors (enforced via clippy.toml)
 
 | Context | Color | ANSI |
-|---|---|---|
+| --- | --- | --- |
 | Headers | bold | `Modifier::BOLD` |
 | Secondary text | dim | `Modifier::DIM` |
 | User input, selection, status | cyan | `Color::Cyan` |
