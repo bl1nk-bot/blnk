@@ -122,6 +122,10 @@ impl SqliteStore {
 
     /// Search only redacted metadata indexed in SQLite FTS5.
     pub fn search(&self, query: &str, limit: u32) -> Result<Vec<ObjectRecord>> {
+        let sanitized = sanitize_fts5_query(query);
+        if sanitized.is_empty() {
+            return Ok(Vec::new());
+        }
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT o.id, o.kind, o.schema_version, o.title, o.description, o.sensitivity,
@@ -132,7 +136,7 @@ impl SqliteStore {
              WHERE object_search MATCH ?1 AND o.status != 'deleted'
              ORDER BY o.updated_at DESC LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![query, limit.max(1)], row_to_object)?;
+        let rows = stmt.query_map(params![sanitized, limit.max(1)], row_to_object)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
@@ -359,6 +363,32 @@ fn optional_timestamp(value: i64) -> Option<i64> {
     (value != 0).then_some(value)
 }
 
+/// Security: Sanitizes user-provided search queries for SQLite FTS5 matching.
+/// Strips special query syntax symbols (quotes, colons, booleans) and formats terms
+/// as exact double-quoted prefix matches to prevent FTS5 syntax errors and operator injection.
+fn sanitize_fts5_query(query: &str) -> String {
+    let clean: String = query
+        .chars()
+        .map(|character| {
+            if character.is_alphanumeric() || character == '-' || character == '_' {
+                character
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    let terms: Vec<&str> = clean.split_whitespace().collect();
+    if terms.is_empty() {
+        String::new()
+    } else {
+        terms
+            .iter()
+            .map(|term| format!("\"{term}\"*"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -395,5 +425,17 @@ mod tests {
         store.update_object(&fixture("o1", 2), "edit").unwrap();
         assert_eq!(store.get_object("o1").unwrap().unwrap().current_revision, 2);
         assert!(store.update_object(&fixture("o1", 2), "stale").is_err());
+    }
+
+    #[test]
+    fn search_query_sanitization_handles_empty_and_special_fts5_syntax() {
+        let store = SqliteStore::open_in_memory().unwrap();
+        store.insert_object(&fixture("o1", 1), "created").unwrap();
+
+        assert_eq!(store.search("", 10).unwrap(), Vec::new());
+        assert_eq!(store.search("   \t", 10).unwrap(), Vec::new());
+        assert_eq!(store.search("\" OR 1=1 --", 10).unwrap().len(), 0);
+        assert_eq!(store.search("note:research *", 10).unwrap().len(), 1);
+        assert_eq!(store.search("!!!***", 10).unwrap(), Vec::new());
     }
 }
