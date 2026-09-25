@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.15] — PR #144
+- fix(storage): sanitize fts5 search query input
+
 ## [0.2.14] — PR #131
 - chore(security): redact access_code in PairCredentials Debug formatting
 
