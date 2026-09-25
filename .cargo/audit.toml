@@ -1,0 +1,4 @@
+[advisories]
+ignore = [
+    "RUSTSEC-2023-0071", # rsa crate Marvin Attack (no patched version available for rsa 0.9.x)
+]
