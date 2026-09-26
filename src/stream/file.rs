@@ -4,6 +4,9 @@
 //! canonicalized root. It does not claim to be an OS-wide sandbox or a
 //! replacement for platform ACLs. Wire requests use `stream.proto::FileOp`;
 //! file bytes remain SWSP DAT payloads and stream completion uses FIN.
+//!
+//! Validation is split into explicit size, range, path, overwrite,
+//! cancellation, timeout, and list-entry profiles.
 
 use std::fs::{self, Metadata};
 use std::io;
@@ -15,6 +18,7 @@ use std::sync::{
 use std::time::{Duration, UNIX_EPOCH};
 
 use prost::Message;
+use sha2::{Digest, Sha256};
 
 use crate::proto_generated::stream as wire;
 use crate::protocol::swsp::{DEFAULT_MAX_PAYLOAD_LEN, Frame, FrameFlags};
@@ -27,6 +31,15 @@ const DEFAULT_MAX_LIST_ENTRIES: usize = 10_000;
 const DEFAULT_OPERATION_TIMEOUT: Duration = Duration::from_secs(10);
 const FILE_TYPE: &str = "file";
 static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileValidationProfile {
+    Get,
+    Put,
+    List,
+    Stat,
+    Delete,
+}
 
 /// File-transfer operation requested by a peer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -72,6 +85,8 @@ pub struct FileTransferRequest {
     pub overwrite: bool,
     /// Inclusive byte range `[start, end]` for GET; empty means the full file.
     pub range: Option<(u64, u64)>,
+    pub request_id: u64,
+    pub checksum: String,
 }
 
 impl FileTransferRequest {
@@ -83,6 +98,8 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range,
+            request_id: 0,
+            checksum: String::new(),
         })
     }
 
@@ -93,7 +110,18 @@ impl FileTransferRequest {
             size,
             overwrite,
             range: None,
+            request_id: 0,
+            checksum: String::new(),
         }
+    }
+
+    pub fn with_request_id(mut self, request_id: u64) -> Self {
+        self.request_id = request_id;
+        self
+    }
+    pub fn with_checksum(mut self, checksum: impl Into<String>) -> Self {
+        self.checksum = checksum.into();
+        self
     }
 
     pub fn list(path: impl Into<String>) -> Self {
@@ -103,6 +131,8 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
+            request_id: 0,
+            checksum: String::new(),
         }
     }
 
@@ -113,6 +143,8 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
+            request_id: 0,
+            checksum: String::new(),
         }
     }
 
@@ -123,6 +155,8 @@ impl FileTransferRequest {
             size: 0,
             overwrite: false,
             range: None,
+            request_id: 0,
+            checksum: String::new(),
         }
     }
 
@@ -159,6 +193,8 @@ impl FileTransferRequest {
             })?,
             overwrite: message.overwrite,
             range,
+            request_id: message.request_id,
+            checksum: message.checksum,
         };
         request.validate_shape()?;
         Ok(request)
@@ -176,6 +212,8 @@ impl FileTransferRequest {
             size: i64::try_from(self.size).unwrap_or(i64::MAX),
             overwrite: self.overwrite,
             range,
+            request_id: self.request_id,
+            checksum: self.checksum.clone(),
         }
     }
 
@@ -185,21 +223,42 @@ impl FileTransferRequest {
         }
         validate_range(self.range)?;
         if self.operation != FileOperation::Put && self.size != 0 {
-            return Err(BlnkError::Protocol(
-                "file request size is only valid for PUT".into(),
-            ));
+            return Err(BlnkError::Protocol("file request size is only valid for PUT".into()));
         }
         if self.operation != FileOperation::Put && self.overwrite {
-            return Err(BlnkError::Protocol(
-                "file request overwrite is only valid for PUT".into(),
-            ));
+            return Err(BlnkError::Protocol("file request overwrite is only valid for PUT".into()));
         }
         if self.operation != FileOperation::Get && self.range.is_some() {
+            return Err(BlnkError::Protocol("file request range is only valid for GET".into()));
+        }
+        if self.operation != FileOperation::Put && !self.checksum.is_empty() {
+            return Err(BlnkError::Protocol("file checksum is only valid for PUT".into()));
+        }
+        if !self.checksum.is_empty()
+            && (self.checksum.len() != 64
+                || !self.checksum.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        {
             return Err(BlnkError::Protocol(
-                "file request range is only valid for GET".into(),
+                "file checksum must be 64 hexadecimal characters".into(),
             ));
         }
         Ok(())
+    }
+
+    pub fn validate_profile(&self, profile: FileValidationProfile) -> StreamResult<()> {
+        let expected = match profile {
+            FileValidationProfile::Get => FileOperation::Get,
+            FileValidationProfile::Put => FileOperation::Put,
+            FileValidationProfile::List => FileOperation::List,
+            FileValidationProfile::Stat => FileOperation::Stat,
+            FileValidationProfile::Delete => FileOperation::Delete,
+        };
+        if self.operation != expected {
+            return Err(BlnkError::Protocol(
+                "file validation profile does not match operation".into(),
+            ));
+        }
+        self.validate_shape()
     }
 }
 
@@ -207,11 +266,18 @@ impl FileTransferRequest {
 /// configured maximum file size and are intended for the MVP only.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FileTransferResponse {
-    Download { info: wire::FileInfo, data: Vec<u8> },
-    Upload { info: wire::FileInfo },
+    Download {
+        info: wire::FileInfo,
+        data: Vec<u8>,
+    },
+    Upload {
+        info: wire::FileInfo,
+    },
     List(wire::FileList),
     Stat(wire::FileInfo),
-    Delete { path: String },
+    Delete {
+        path: String,
+    },
 }
 
 /// Cooperative cancellation shared by file operations and frame collectors.
@@ -253,9 +319,7 @@ impl FileTransferConfig {
             .canonicalize()
             .map_err(|error| io_error("canonicalize file-transfer root", error))?;
         if !root.is_dir() {
-            return Err(BlnkError::Stream(
-                "file-transfer root must be a directory".into(),
-            ));
+            return Err(BlnkError::Stream("file-transfer root must be a directory".into()));
         }
         Ok(Self {
             root,
@@ -267,9 +331,7 @@ impl FileTransferConfig {
 
     pub fn with_max_file_size(mut self, max_file_size: u64) -> StreamResult<Self> {
         if max_file_size == 0 {
-            return Err(BlnkError::Stream(
-                "max file size must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Stream("max file size must be greater than zero".into()));
         }
         self.max_file_size = max_file_size;
         Ok(self)
@@ -277,9 +339,7 @@ impl FileTransferConfig {
 
     pub fn with_max_list_entries(mut self, max_list_entries: usize) -> StreamResult<Self> {
         if max_list_entries == 0 {
-            return Err(BlnkError::Stream(
-                "max list entries must be greater than zero".into(),
-            ));
+            return Err(BlnkError::Stream("max list entries must be greater than zero".into()));
         }
         self.max_list_entries = max_list_entries;
         Ok(self)
@@ -356,9 +416,7 @@ impl FileTransferService {
         }
         let size = metadata.len();
         if size > self.config.max_file_size {
-            return Err(BlnkError::Stream(
-                "file exceeds configured maximum size".into(),
-            ));
+            return Err(BlnkError::Stream("file exceeds configured maximum size".into()));
         }
         let mut file = tokio::fs::File::open(&path)
             .await
@@ -384,9 +442,7 @@ impl FileTransferService {
                 ));
             }
         } else if start > end || end >= size {
-            return Err(BlnkError::Stream(
-                "file range is outside file bounds".into(),
-            ));
+            return Err(BlnkError::Stream("file range is outside file bounds".into()));
         }
         let selected = if size == 0 {
             Vec::new()
@@ -394,7 +450,7 @@ impl FileTransferService {
             data[start as usize..=end as usize].to_vec()
         };
         Ok(FileTransferResponse::Download {
-            info: file_info(&request.path, &metadata),
+            info: with_request_id(file_info(&request.path, &metadata), request.request_id),
             data: selected,
         })
     }
@@ -406,14 +462,10 @@ impl FileTransferService {
         cancellation: &FileTransferCancellation,
     ) -> StreamResult<FileTransferResponse> {
         if request.size > self.config.max_file_size {
-            return Err(BlnkError::Stream(
-                "upload exceeds configured maximum size".into(),
-            ));
+            return Err(BlnkError::Stream("upload exceeds configured maximum size".into()));
         }
         if request.size != upload.len() as u64 {
-            return Err(BlnkError::Stream(
-                "upload size does not match request".into(),
-            ));
+            return Err(BlnkError::Stream("upload size does not match request".into()));
         }
         let path = self.resolve_for_write(&request.path, request.overwrite)?;
         let parent = path
@@ -439,12 +491,20 @@ impl FileTransferService {
             tokio::io::AsyncWriteExt::flush(&mut file)
                 .await
                 .map_err(|error| io_error("flush temporary upload", error))?;
-            drop(file);
-            if request.overwrite && tokio::fs::try_exists(&path).await.unwrap_or(false) {
-                tokio::fs::remove_file(&path)
-                    .await
-                    .map_err(|error| io_error("replace existing upload", error))?;
+            file.sync_all()
+                .await
+                .map_err(|error| io_error("sync temporary upload", error))?;
+            tokio::io::AsyncWriteExt::shutdown(&mut file)
+                .await
+                .map_err(|error| io_error("close temporary upload", error))?;
+            if !request.checksum.is_empty() {
+                let digest = Sha256::digest(upload);
+                let actual = format!("{digest:x}");
+                if !actual.eq_ignore_ascii_case(&request.checksum) {
+                    return Err(BlnkError::Stream("upload checksum verification failed".into()));
+                }
             }
+            drop(file);
             tokio::fs::rename(&temp_path, &path)
                 .await
                 .map_err(|error| io_error("commit upload", error))?;
@@ -452,7 +512,7 @@ impl FileTransferService {
                 .await
                 .map_err(|error| io_error("stat uploaded file", error))?;
             Ok::<_, BlnkError>(FileTransferResponse::Upload {
-                info: file_info(&request.path, &metadata),
+                info: with_request_id(file_info(&request.path, &metadata), request.request_id),
             })
         }
         .await;
@@ -485,9 +545,7 @@ impl FileTransferService {
         {
             check_cancelled(cancellation)?;
             if files.len() >= self.config.max_list_entries {
-                return Err(BlnkError::Stream(
-                    "directory exceeds configured entry limit".into(),
-                ));
+                return Err(BlnkError::Stream("directory exceeds configured entry limit".into()));
             }
             let metadata = tokio::fs::symlink_metadata(entry.path())
                 .await
@@ -499,6 +557,7 @@ impl FileTransferService {
         Ok(FileTransferResponse::List(wire::FileList {
             path: request.path.clone(),
             files,
+            request_id: request.request_id,
         }))
     }
 
@@ -512,9 +571,9 @@ impl FileTransferService {
         let metadata = tokio::fs::metadata(&path)
             .await
             .map_err(|error| io_error("stat file", error))?;
-        Ok(FileTransferResponse::Stat(file_info(
-            &request.path,
-            &metadata,
+        Ok(FileTransferResponse::Stat(with_request_id(
+            file_info(&request.path, &metadata),
+            request.request_id,
         )))
     }
 
@@ -534,9 +593,7 @@ impl FileTransferService {
         tokio::fs::remove_file(&path)
             .await
             .map_err(|error| io_error("delete file", error))?;
-        Ok(FileTransferResponse::Delete {
-            path: request.path.clone(),
-        })
+        Ok(FileTransferResponse::Delete { path: request.path.clone() })
     }
 
     fn resolve_existing(&self, request_path: &str) -> StreamResult<PathBuf> {
@@ -550,9 +607,7 @@ impl FileTransferService {
             .canonicalize()
             .map_err(|error| io_error("canonicalize file path", error))?;
         if !resolved.starts_with(&self.config.root) {
-            return Err(BlnkError::Stream(
-                "file path escapes configured root".into(),
-            ));
+            return Err(BlnkError::Stream("file path escapes configured root".into()));
         }
         Ok(resolved)
     }
@@ -586,9 +641,7 @@ impl FileTransferService {
                 .canonicalize()
                 .map_err(|error| io_error("canonicalize file parent", error))?;
             if !canonical_parent.starts_with(&self.config.root) {
-                return Err(BlnkError::Stream(
-                    "file path escapes configured root".into(),
-                ));
+                return Err(BlnkError::Stream("file path escapes configured root".into()));
             }
         }
         Ok(candidate)
@@ -600,11 +653,7 @@ pub fn encode_request_frame(stream_id: u32, request: &FileTransferRequest) -> St
     if stream_id == 0 {
         return Err(BlnkError::Stream("file stream id must be non-zero".into()));
     }
-    Ok(Frame::new(
-        stream_id,
-        FrameFlags::SYN | FrameFlags::DAT,
-        request.encode()?,
-    ))
+    Ok(Frame::new(stream_id, FrameFlags::SYN | FrameFlags::DAT, request.encode()?))
 }
 
 /// Builds a file-data frame. The final chunk carries FIN and intermediate
@@ -628,9 +677,7 @@ pub fn encode_data_frame(stream_id: u32, data: Vec<u8>, final_chunk: bool) -> St
 /// Decodes a file request from a SYN frame.
 pub fn decode_request_frame(frame: &Frame) -> StreamResult<FileTransferRequest> {
     if frame.stream_id == 0 || !frame.flags.is_syn() || !frame.flags.is_dat() {
-        return Err(BlnkError::Protocol(
-            "file request must be a non-control SYN|DAT frame".into(),
-        ));
+        return Err(BlnkError::Protocol("file request must be a non-control SYN|DAT frame".into()));
     }
     FileTransferRequest::from_wire(
         wire::FileOp::decode(frame.payload.as_slice()).map_err(|error| {
@@ -650,26 +697,20 @@ where
     I: IntoIterator<Item = Frame>,
 {
     if expected_size > max_file_size {
-        return Err(BlnkError::Stream(
-            "upload exceeds configured maximum size".into(),
-        ));
+        return Err(BlnkError::Stream("upload exceeds configured maximum size".into()));
     }
     let mut data = Vec::with_capacity(expected_size as usize);
     let mut finished = false;
     for frame in frames {
         check_cancelled(cancellation)?;
         if frame.stream_id == 0 || !frame.flags.is_dat() || frame.flags.is_syn() {
-            return Err(BlnkError::Protocol(
-                "file data must be a non-control DAT frame".into(),
-            ));
+            return Err(BlnkError::Protocol("file data must be a non-control DAT frame".into()));
         }
         if finished {
             return Err(BlnkError::Protocol("file data arrived after FIN".into()));
         }
         if data.len() as u64 + frame.payload.len() as u64 > expected_size {
-            return Err(BlnkError::Stream(
-                "file upload contains too many bytes".into(),
-            ));
+            return Err(BlnkError::Stream("file upload contains too many bytes".into()));
         }
         data.extend_from_slice(&frame.payload);
         finished = frame.flags.is_fin();
@@ -681,9 +722,7 @@ where
         return Err(BlnkError::Stream("file upload did not receive FIN".into()));
     }
     if data.len() as u64 != expected_size {
-        return Err(BlnkError::Stream(
-            "file upload size does not match request".into(),
-        ));
+        return Err(BlnkError::Stream("file upload size does not match request".into()));
     }
     Ok(data)
 }
@@ -726,17 +765,11 @@ pub fn encode_response_frames(
             Ok(frames)
         }
         FileTransferResponse::Upload { info } | FileTransferResponse::Stat(info) => {
-            Ok(vec![Frame::new(
-                stream_id,
-                FrameFlags::DAT | FrameFlags::FIN,
-                info.encode_to_vec(),
-            )])
+            Ok(vec![Frame::new(stream_id, FrameFlags::DAT | FrameFlags::FIN, info.encode_to_vec())])
         }
-        FileTransferResponse::List(list) => Ok(vec![Frame::new(
-            stream_id,
-            FrameFlags::DAT | FrameFlags::FIN,
-            list.encode_to_vec(),
-        )]),
+        FileTransferResponse::List(list) => {
+            Ok(vec![Frame::new(stream_id, FrameFlags::DAT | FrameFlags::FIN, list.encode_to_vec())])
+        }
         FileTransferResponse::Delete { path } => Ok(vec![Frame::new(
             stream_id,
             FrameFlags::DAT | FrameFlags::FIN,
@@ -746,6 +779,7 @@ pub fn encode_response_frames(
                 is_dir: false,
                 modified: String::new(),
                 mode: String::new(),
+                request_id: 0,
             }
             .encode_to_vec(),
         )]),
@@ -769,10 +803,7 @@ pub fn decode_response_metadata(
         FileOperation::Get | FileOperation::Put | FileOperation::Stat | FileOperation::Delete => {
             wire::FileInfo::decode(frame.payload.as_slice())
                 .map(|info| match request.operation {
-                    FileOperation::Get => FileTransferResponse::Download {
-                        info,
-                        data: Vec::new(),
-                    },
+                    FileOperation::Get => FileTransferResponse::Download { info, data: Vec::new() },
                     FileOperation::Put => FileTransferResponse::Upload { info },
                     FileOperation::Stat => FileTransferResponse::Stat(info),
                     FileOperation::Delete => FileTransferResponse::Delete { path: info.name },
@@ -785,18 +816,36 @@ pub fn decode_response_metadata(
     }
 }
 
+pub fn decode_response_metadata_checked(
+    request: &FileTransferRequest,
+    frame: &Frame,
+    tracker: &super::StreamRequestTracker,
+) -> StreamResult<FileTransferResponse> {
+    if request.request_id != 0 {
+        tracker.accept(request.request_id)?;
+    }
+    let response = decode_response_metadata(request, frame)?;
+    let response_id = match &response {
+        FileTransferResponse::Download { info, .. }
+        | FileTransferResponse::Upload { info }
+        | FileTransferResponse::Stat(info) => info.request_id,
+        FileTransferResponse::List(list) => list.request_id,
+        FileTransferResponse::Delete { .. } => request.request_id,
+    };
+    if request.request_id != 0 && response_id != request.request_id {
+        return Err(BlnkError::Stream("response request id does not match active request".into()));
+    }
+    Ok(response)
+}
+
 fn safe_relative_path(request_path: &str) -> StreamResult<PathBuf> {
     // Security: reject embedded null bytes to prevent null byte injection vulnerabilities.
     if request_path.contains('\0') {
-        return Err(BlnkError::Stream(
-            "null bytes in file path are not allowed".into(),
-        ));
+        return Err(BlnkError::Stream("null bytes in file path are not allowed".into()));
     }
     let path = Path::new(request_path);
     if path.is_absolute() {
-        return Err(BlnkError::Stream(
-            "absolute file paths are not allowed".into(),
-        ));
+        return Err(BlnkError::Stream("absolute file paths are not allowed".into()));
     }
     let mut relative = PathBuf::new();
     for component in path.components() {
@@ -804,9 +853,7 @@ fn safe_relative_path(request_path: &str) -> StreamResult<PathBuf> {
             Component::CurDir => {}
             Component::Normal(value) => relative.push(value),
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
-                return Err(BlnkError::Stream(
-                    "file path traversal is not allowed".into(),
-                ));
+                return Err(BlnkError::Stream("file path traversal is not allowed".into()));
             }
         }
     }
@@ -831,10 +878,7 @@ fn check_cancelled(cancellation: &FileTransferCancellation) -> StreamResult<()> 
 }
 
 fn io_error(operation: &str, error: io::Error) -> BlnkError {
-    BlnkError::Io(io::Error::new(
-        error.kind(),
-        format!("{operation}: {error}"),
-    ))
+    BlnkError::Io(io::Error::new(error.kind(), format!("{operation}: {error}")))
 }
 
 fn file_info(name: &str, metadata: &Metadata) -> wire::FileInfo {
@@ -844,7 +888,13 @@ fn file_info(name: &str, metadata: &Metadata) -> wire::FileInfo {
         is_dir: metadata.is_dir(),
         modified: modified_string(metadata),
         mode: mode_string(metadata),
+        request_id: 0,
     }
+}
+
+fn with_request_id(mut info: wire::FileInfo, request_id: u64) -> wire::FileInfo {
+    info.request_id = request_id;
+    info
 }
 
 fn modified_string(metadata: &Metadata) -> String {
@@ -914,11 +964,7 @@ mod tests {
         let cancellation = FileTransferCancellation::default();
 
         service
-            .execute(
-                FileTransferRequest::put("nested.txt", 5, false),
-                b"hello",
-                &cancellation,
-            )
+            .execute(FileTransferRequest::put("nested.txt", 5, false), b"hello", &cancellation)
             .await
             .expect("upload should succeed");
         let download = service
@@ -947,11 +993,7 @@ mod tests {
             .expect("stat should succeed");
         assert!(matches!(stat, FileTransferResponse::Stat(_)));
         service
-            .execute(
-                FileTransferRequest::delete("nested.txt"),
-                &[],
-                &cancellation,
-            )
+            .execute(FileTransferRequest::delete("nested.txt"), &[], &cancellation)
             .await
             .expect("delete should succeed");
         assert!(!root.join("nested.txt").exists());
@@ -977,21 +1019,13 @@ mod tests {
         );
         assert!(
             service
-                .execute(
-                    FileTransferRequest::put("existing.txt", 3, false),
-                    b"new",
-                    &cancellation,
-                )
+                .execute(FileTransferRequest::put("existing.txt", 3, false), b"new", &cancellation,)
                 .await
                 .is_err()
         );
         assert!(
             service
-                .execute(
-                    FileTransferRequest::put("large.txt", 5, false),
-                    b"12345",
-                    &cancellation,
-                )
+                .execute(FileTransferRequest::put("large.txt", 5, false), b"12345", &cancellation,)
                 .await
                 .is_err()
         );
@@ -1017,11 +1051,7 @@ mod tests {
         let cancellation = FileTransferCancellation::default();
         assert!(
             service
-                .execute(
-                    FileTransferRequest::stat("link/secret.txt"),
-                    &[],
-                    &cancellation,
-                )
+                .execute(FileTransferRequest::stat("link/secret.txt"), &[], &cancellation,)
                 .await
                 .is_err()
         );
@@ -1054,10 +1084,7 @@ mod tests {
             encode_data_frame(7, b"c".to_vec(), true).expect("final chunk"),
         ];
         let cancellation = FileTransferCancellation::default();
-        assert_eq!(
-            collect_data_frames(frames, 3, 10, &cancellation).expect("body"),
-            b"abc"
-        );
+        assert_eq!(collect_data_frames(frames, 3, 10, &cancellation).expect("body"), b"abc");
     }
 
     #[tokio::test]
@@ -1079,10 +1106,7 @@ mod tests {
             .recv_file_frame()
             .await
             .expect("server should receive request");
-        assert_eq!(
-            decode_request_frame(&frame).expect("request decode"),
-            request
-        );
+        assert_eq!(decode_request_frame(&frame).expect("request decode"), request);
         client
             .send_file_chunk(client_stream.id(), b"ok".to_vec(), true)
             .await
