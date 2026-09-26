@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.16] — PR #146
+- fix(telemetry): redact braintrust api_key in debug formatting
+
 ## [0.2.15] — PR #145
 - feat(telemetry): add opt-in Braintrust OTLP session spans (serve/connect/cp)
 
