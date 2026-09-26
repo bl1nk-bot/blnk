@@ -14,6 +14,7 @@ P2P remote access ผ่าน WebRTC — ไม่ต้องสมัคร�
 - **Loopback Browser Control** — `blnk web` สำหรับควบคุม lifecycle/status ผ่าน HTTP/WS บน loopback เท่านั้น
 - **Proxy Streams** — TCP/WebSocket/HTTP ผ่าน `ProxyStreamService` ที่บังคับใช้ `ProxyPolicy` แบบ deny-by-default (dispatch เข้า session อยู่ใน Issue #42)
 - **Encrypted Vault** — secret ที่ต้องการ confidentiality-at-rest เก็บใน `EncryptedVault` (XChaCha20-Poly1305)
+- **Braintrust Telemetry** — session telemetry ส่งไป Braintrust ผ่าน OTLP/HTTP (opt-in)
 
 ## การติดตั้ง
 
@@ -47,6 +48,11 @@ cargo run -- connect --target <DEVICE_ID> --pin <PIN>
 
 # Loopback browser control surface
 cargo run -- web --host 127.0.0.1 --port 0 --origin http://127.0.0.1:3000
+
+# Braintrust telemetry (opt-in)
+export BRAINTRUST_API_KEY=<your-api-key>
+export BRAINTRUST_PROJECT_ID=<your-project-id>
+cargo run -- serve --signaling-url <URL> --pin <PIN>
 
 # QR pairing
 cargo run -- serve --qr
