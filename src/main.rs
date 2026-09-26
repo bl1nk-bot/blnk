@@ -10,10 +10,12 @@ use blnk::signaling::orchestration::{
     run_shell_client, serve_session_with_shutdown,
 };
 use blnk::stream::shell::ShellCommand;
+use blnk::telemetry::braintrust::{BraintrustExporter, SpanKind, TelemetrySpan};
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::Path;
+use std::time::Instant;
 use tokio_util::sync::CancellationToken;
 
 const LOCAL_FIXTURE_DEVICE_ID: &str = "local-fixture";
@@ -124,6 +126,7 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
         .pin
         .or(config.pin)
         .ok_or_else(|| anyhow!("remote serve requires --pin or BLNK_PIN"))?;
+    let session_started_at = Instant::now();
     let session = accept_server_session(
         &signaling_url,
         &identity,
@@ -133,30 +136,52 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     )
     .await
     .context("establish remote signaling/WebRTC session")?;
+    let telemetry = load_telemetry()?;
     println!("serve_status=connected; client_id={}", session.client_id);
     let root = std::env::current_dir().context("get serve root")?;
+    let client_id = session.client_id.clone();
     if args.once {
-        blnk::signaling::orchestration::serve_session(session, root)
+        let result = blnk::signaling::orchestration::serve_session(session, root)
             .await
-            .context("serve remote session")?;
-        return Ok(());
+            .context("serve remote session");
+        return export_session_span(
+            telemetry.as_ref(),
+            "session.serve",
+            SpanKind::Session,
+            "serve",
+            Some(client_id),
+            session_started_at,
+            result,
+        )
+        .await;
     }
 
     println!("serve_status=running; press Ctrl-C to stop");
+    let client_id = session.client_id.clone();
     let shutdown = CancellationToken::new();
     let session_task = serve_session_with_shutdown(session, root, shutdown.clone());
     tokio::pin!(session_task);
-    tokio::select! {
-        result = &mut session_task => {
-            result.context("serve remote session")?;
+    let serve_result = async {
+        tokio::select! {
+            result = &mut session_task => result.context("serve remote session"),
+            signal = tokio::signal::ctrl_c() => {
+                signal.context("wait for shutdown signal")?;
+                shutdown.cancel();
+                session_task.await.context("serve remote session")
+            }
         }
-        signal = tokio::signal::ctrl_c() => {
-            signal.context("wait for shutdown signal")?;
-            shutdown.cancel();
-            session_task.await.context("serve remote session")?;
-        }
-    }
-    Ok(())
+    };
+    let serve_result = serve_result.await;
+    export_session_span(
+        telemetry.as_ref(),
+        "session.serve",
+        SpanKind::Session,
+        "serve",
+        Some(client_id),
+        session_started_at,
+        serve_result,
+    )
+    .await
 }
 
 async fn run_web(args: WebArgs) -> Result<()> {
@@ -212,6 +237,7 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
         .pin
         .or(config.pin)
         .ok_or_else(|| anyhow!("connect to a remote device requires --pin or BLNK_PIN"))?;
+    let connect_started_at = Instant::now();
     let mut session = connect_target(
         &device.endpoint,
         &identity,
@@ -222,18 +248,31 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
     )
     .await
     .context("establish remote signaling/WebRTC session")?;
+    let telemetry = load_telemetry()?;
     let command = shell_command_from_args(&args.command)?;
     let result = run_shell_client(&mut session.runtime, &command).await;
     let close_result = session.runtime.close().await;
     let exit_code = match (result, close_result) {
-        (Err(error), _) => return Err(error.into()),
-        (Ok(_), Err(error)) => return Err(error.into()),
-        (Ok(code), Ok(())) => code,
+        (Err(error), _) => Err(error.into()),
+        (Ok(_), Err(error)) => Err(error.into()),
+        (Ok(code), Ok(())) => {
+            if code == 0 {
+                Ok(())
+            } else {
+                Err(anyhow!("remote shell exited with status {code}"))
+            }
+        }
     };
-    if exit_code != 0 {
-        bail!("remote shell exited with status {exit_code}");
-    }
-    Ok(())
+    export_session_span(
+        telemetry.as_ref(),
+        "session.connect",
+        SpanKind::Shell,
+        target,
+        Some(session.client_id.clone()),
+        connect_started_at,
+        exit_code,
+    )
+    .await
 }
 
 async fn run_cp(args: CpArgs) -> Result<()> {
@@ -258,6 +297,7 @@ async fn run_cp(args: CpArgs) -> Result<()> {
         .pin
         .or(config.pin)
         .ok_or_else(|| anyhow!("remote cp requires --pin or BLNK_PIN"))?;
+    let copy_started_at = Instant::now();
     let mut session = connect_target(
         &device.endpoint,
         &identity,
@@ -268,6 +308,7 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     )
     .await
     .context("establish remote signaling/WebRTC session")?;
+    let telemetry = load_telemetry()?;
     let result = run_file_client(
         &mut session.runtime,
         &args.source,
@@ -276,11 +317,50 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     )
     .await;
     let close_result = session.runtime.close().await;
-    match (result, close_result) {
+    let copy_result = match (result, close_result) {
         (Err(error), _) => Err(error.into()),
         (Ok(()), Err(error)) => Err(error.into()),
         (Ok(()), Ok(())) => Ok(()),
+    };
+    export_session_span(
+        telemetry.as_ref(),
+        "session.copy",
+        SpanKind::File,
+        target,
+        Some(session.client_id.clone()),
+        copy_started_at,
+        copy_result,
+    )
+    .await
+}
+
+/// Build the Braintrust exporter when telemetry is configured.
+fn load_telemetry() -> anyhow::Result<Option<BraintrustExporter>> {
+    BraintrustExporter::from_env().context("init braintrust telemetry")
+}
+
+/// Export one session-level span, then forward the original outcome.
+/// Telemetry failures never change the command result.
+async fn export_session_span(
+    telemetry: Option<&BraintrustExporter>,
+    name: &str,
+    kind: SpanKind,
+    session_id: &str,
+    peer_id: Option<String>,
+    started_at: Instant,
+    outcome: anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    if let Some(exporter) = telemetry {
+        let mut span = TelemetrySpan::new(name, kind, session_id);
+        span.peer_id = peer_id;
+        span.duration_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        if let Err(error) = &outcome {
+            span.success = false;
+            span.error = Some(error.to_string());
+        }
+        exporter.export(std::slice::from_ref(&span)).await;
     }
+    outcome
 }
 
 async fn run_devices(args: DevicesArgs) -> Result<()> {
