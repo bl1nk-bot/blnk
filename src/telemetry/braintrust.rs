@@ -106,9 +106,7 @@ impl BraintrustExporter {
             endpoint,
             api_key,
             project_id,
-            client: reqwest::Client::builder()
-                .timeout(EXPORT_TIMEOUT)
-                .build()?,
+            client: reqwest::Client::builder().timeout(EXPORT_TIMEOUT).build()?,
         }))
     }
 
@@ -145,10 +143,7 @@ impl BraintrustExporter {
             .client
             .post(&self.endpoint)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header(
-                "x-bt-parent",
-                format!("project_id:{}", self.project_id),
-            )
+            .header("x-bt-parent", format!("project_id:{}", self.project_id))
             .header("Content-Type", "application/json")
             .json(&payload)
             .send()

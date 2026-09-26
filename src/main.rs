@@ -10,10 +10,8 @@ use blnk::signaling::orchestration::{
     run_shell_client, serve_session_with_shutdown,
 };
 use blnk::stream::shell::ShellCommand;
+use blnk::telemetry::braintrust::{BraintrustExporter, SpanKind, TelemetrySpan};
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
-use blnk::telemetry::braintrust::{
-    BraintrustExporter, SpanKind, TelemetrySpan,
-};
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
 use std::path::Path;
