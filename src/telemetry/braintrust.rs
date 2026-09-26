@@ -69,12 +69,24 @@ impl TelemetrySpan {
 }
 
 /// Minimal OTLP/HTTP exporter for the Braintrust-hosted endpoint.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BraintrustExporter {
     endpoint: String,
     api_key: String,
     project_id: String,
     client: reqwest::Client,
+}
+
+impl std::fmt::Debug for BraintrustExporter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Security: redact api_key in debug output to prevent credential exposure in logs.
+        f.debug_struct("BraintrustExporter")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"[REDACTED]")
+            .field("project_id", &self.project_id)
+            .field("client", &self.client)
+            .finish()
+    }
 }
 
 impl BraintrustExporter {
@@ -325,5 +337,18 @@ mod tests {
         assert!(trace.chars().all(|c| c.is_ascii_hexdigit()));
         let span = span_id();
         assert!(span.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn braintrust_exporter_debug_redacts_api_key() {
+        let exporter = BraintrustExporter {
+            endpoint: "https://otel.test/v1/traces".to_owned(),
+            api_key: "secret_braintrust_key_123".to_owned(),
+            project_id: "test-project".to_owned(),
+            client: reqwest::Client::new(),
+        };
+        let debug_output = format!("{exporter:?}");
+        assert!(!debug_output.contains("secret_braintrust_key_123"));
+        assert!(debug_output.contains("[REDACTED]"));
     }
 }
