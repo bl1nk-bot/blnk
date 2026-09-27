@@ -16,37 +16,3 @@ large-error-threshold = 256
 # These are documented safety targets. Actual clippy enforcement depends on
 # the configured lint set; if you want compile-time bans, add
 # `disallowed-methods` / `disallowed-types` rules here or in the CI config.
-
-# ── TUI Style Guide (ratatui) ──────────────────────────────────────────
-# Colors ALLOWED as foreground:
-#   cyan  = user input tips, selection, status indicators
-#   green = success, additions
-#   red   = errors, failures, deletions
-#   magenta = "blnk" brand text
-#   reset/default = most of the time
-#
-# Colors BANNED as foreground:
-#   black, white → use default/reset instead (terminal theme handles contrast)
-#   blue, yellow → not in style guide
-#
-# Rules below enforce via disallowed-methods once ratatui is added.
-# Rationale: https://github.com/bl1nk-bot/blnk/blob/main/STYLE.md
-
-[[disallowed-methods]]
-path = "ratatui::style::Color::Black"
-reason = "TUI style: avoid black fg; use default/reset for terminal theme contrast"
-[[disallowed-methods]]
-path = "ratatui::style::Color::White"
-reason = "TUI style: avoid white fg; use default/reset for terminal theme contrast"
-[[disallowed-methods]]
-path = "ratatui::style::Color::Blue"
-reason = "TUI style: blue not in style guide; use cyan/green/red/magenta"
-[[disallowed-methods]]
-path = "ratatui::style::Color::Yellow"
-reason = "TUI style: yellow not in style guide; use cyan/green/red/magenta"
-[[disallowed-methods]]
-path = "ratatui::style::Color::Rgb"
-reason = "TUI style: avoid custom RGB colors; no guarantee of contrast across themes"
-[[disallowed-methods]]
-path = "ratatui::style::Color::Indexed"
-reason = "TUI style: avoid indexed colors; use named ANSI colors instead"

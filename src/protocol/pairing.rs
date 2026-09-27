@@ -24,12 +24,30 @@ pub struct PairChallenge {
     pub nonce_d: Vec<u8>,
 }
 
+impl std::fmt::Debug for PairChallenge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairChallenge")
+            .field("message_type", &self.message_type)
+            .field("nonce_d", &"[REDACTED]")
+            .finish()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairReveal {
     #[serde(rename = "type")]
     pub message_type: String,
     #[serde(with = "base64_bytes")]
     pub nonce_c: Vec<u8>,
+}
+
+impl std::fmt::Debug for PairReveal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairReveal")
+            .field("message_type", &self.message_type)
+            .field("nonce_c", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -39,17 +57,6 @@ pub struct PairCredentials {
     pub uid: String,
     pub public_key: String,
     pub access_code: String,
-}
-
-impl std::fmt::Debug for PairCredentials {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PairCredentials")
-            .field("message_type", &self.message_type)
-            .field("uid", &self.uid)
-            .field("public_key", &self.public_key)
-            .field("access_code", &"<redacted>")
-            .finish()
-    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -105,6 +112,17 @@ impl PairCredentials {
     }
 }
 
+impl std::fmt::Debug for PairCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairCredentials")
+            .field("message_type", &self.message_type)
+            .field("uid", &self.uid)
+            .field("public_key", &self.public_key)
+            .field("access_code", &"[REDACTED]")
+            .finish()
+    }
+}
+
 pub fn generate_nonce() -> Result<Vec<u8>, BlnkError> {
     let mut nonce = vec![0_u8; NONCE_LEN];
     getrandom::fill(&mut nonce)
@@ -146,7 +164,9 @@ pub fn compute_sas(input: &SasInput) -> Result<SasResult, BlnkError> {
             .map_err(|_| BlnkError::Protocol("SAS digest is too short".to_owned()))?,
     ) % 1_000_000;
 
-    Ok(SasResult { sas: format!("{value:06}") })
+    Ok(SasResult {
+        sas: format!("{value:06}"),
+    })
 }
 
 fn validate_nonce(nonce: &[u8]) -> Result<(), BlnkError> {
@@ -231,7 +251,10 @@ mod tests {
         };
         let encoded = serde_json::to_value(&challenge).expect("challenge should serialize");
         assert_eq!(encoded["type"], "pair_challenge");
-        assert_eq!(encoded["nonce_d"], STANDARD_NO_PAD.encode([0x01; NONCE_LEN]));
+        assert_eq!(
+            encoded["nonce_d"],
+            STANDARD_NO_PAD.encode([0x01; NONCE_LEN])
+        );
         assert!(
             !encoded["nonce_d"]
                 .as_str()
@@ -260,13 +283,32 @@ mod tests {
     #[test]
     fn pair_credentials_debug_redacts_access_code() {
         let credentials = PairCredentials::new(
-            "test_uid".to_owned(),
-            "test_pub_key".to_owned(),
-            "secret_access_code_123".to_owned(),
+            "uid-123".to_owned(),
+            "public-key".to_owned(),
+            "secret-access-code".to_owned(),
         );
         let debug_output = format!("{credentials:?}");
-        assert!(!debug_output.contains("secret_access_code_123"));
-        assert!(debug_output.contains("<redacted>"));
+        assert!(!debug_output.contains("secret-access-code"));
+        assert!(debug_output.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn pair_challenge_and_reveal_debug_redact_nonces() {
+        let challenge = PairChallenge {
+            message_type: "pair_challenge".to_owned(),
+            nonce_d: vec![0x42; NONCE_LEN],
+        };
+        let reveal = PairReveal {
+            message_type: "pair_reveal".to_owned(),
+            nonce_c: vec![0x24; NONCE_LEN],
+        };
+        let challenge_debug = format!("{challenge:?}");
+        let reveal_debug = format!("{reveal:?}");
+
+        assert!(!challenge_debug.contains("66")); // 0x42 = 66
+        assert!(challenge_debug.contains("[REDACTED]"));
+        assert!(!reveal_debug.contains("36")); // 0x24 = 36
+        assert!(reveal_debug.contains("[REDACTED]"));
     }
 }
 

@@ -359,7 +359,11 @@ fn migrate_v1(conn: &Connection) -> SqlResult<()> {
 
 /// Return the highest schema version recorded in the metadata database.
 pub fn schema_version(conn: &Connection) -> SqlResult<i64> {
-    conn.query_row("SELECT COALESCE(MAX(version), 0) FROM schema_migrations", [], |row| row.get(0))
+    conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migrations",
+        [],
+        |row| row.get(0),
+    )
 }
 
 #[cfg(test)]

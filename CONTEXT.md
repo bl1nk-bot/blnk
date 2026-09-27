@@ -119,19 +119,3 @@
 **ImportHandler** — Shared pipeline for every input channel: parse → normalize → validate → policy check → redacted preview → explicit confirmation → stage → commit → receipt.
 
 **Share** — Time-bounded delivery record that references an object or pack, records channel and recipient policy, and tracks opened, verified, consumed, revoked, and expired states.
-
-## TUI
-
-**blnk-tui** — Ratatui-based terminal user interface crate. Provides streaming markdown rendering, URL-aware word wrapping, terminal hyperlink support, and ambient pet images.
-
-**RtOptions** — Builder struct for word wrapping configuration: width, indent, word separator, break behavior. Accepts `usize` as shorthand for width-only.
-
-**HyperlinkLine** — A ratatui `Line` annotated with clickable hyperlink regions (OSC 8). Column offsets remapped after word wrapping.
-
-**StreamingMarkdownRender** — Single-pass markdown output with block boundary metadata. Enables incremental re-rendering of the final block.
-
-**Shimmer** — Time-based sweep animation for branding text. Cosine band gradient using terminal default colors.
-
-**KeyboardCapability** — Terminal keyboard enhancement level: `KittyProtocol` (CSI u), `BasicEnhancement` (modifyOtherKeys), or `None`.
-
-**WorkspaceHeadline** — Short text banner from workspace messages, displayed in TUI header. Refreshed every 5 minutes.

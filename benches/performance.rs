@@ -33,7 +33,10 @@ fn bench_crypto_primitives() {
         assert!(!commit.is_empty());
     }
     let elapsed = start.elapsed();
-    println!("[bench] Commitment Derivation: {} iterations in {:.2?}", iterations, elapsed);
+    println!(
+        "[bench] Commitment Derivation: {} iterations in {:.2?}",
+        iterations, elapsed
+    );
 }
 
 fn main() {
