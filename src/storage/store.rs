@@ -122,6 +122,12 @@ impl SqliteStore {
 
     /// Search only redacted metadata indexed in SQLite FTS5.
     pub fn search(&self, query: &str, limit: u32) -> Result<Vec<ObjectRecord>> {
+        let trimmed = query.trim();
+        if trimmed.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Security: Escape quotes and wrap in double quotes to prevent FTS5 query syntax injection or syntax errors.
+        let safe_query = format!("\"{}\"", trimmed.replace('"', "\"\""));
         let conn = self.lock()?;
         let mut stmt = conn.prepare(
             "SELECT o.id, o.kind, o.schema_version, o.title, o.description, o.sensitivity,
@@ -132,7 +138,7 @@ impl SqliteStore {
              WHERE object_search MATCH ?1 AND o.status != 'deleted'
              ORDER BY o.updated_at DESC LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![query, limit.max(1)], row_to_object)?;
+        let rows = stmt.query_map(params![safe_query, limit.max(1)], row_to_object)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
@@ -395,5 +401,23 @@ mod tests {
         store.update_object(&fixture("o1", 2), "edit").unwrap();
         assert_eq!(store.get_object("o1").unwrap().unwrap().current_revision, 2);
         assert!(store.update_object(&fixture("o1", 2), "stale").is_err());
+    }
+
+    #[test]
+    fn search_handles_empty_queries_and_special_fts_characters() {
+        let store = SqliteStore::open_in_memory().unwrap();
+        store.insert_object(&fixture("o1", 1), "created").unwrap();
+
+        // Empty or whitespace query returns empty result without FTS syntax error
+        assert_eq!(store.search("", 10).unwrap().len(), 0);
+        assert_eq!(store.search("   ", 10).unwrap().len(), 0);
+
+        // Special FTS characters and syntax operators do not trigger FTS syntax errors
+        assert_eq!(store.search("\"", 10).unwrap().len(), 0);
+        assert_eq!(store.search("nonexistent*", 10).unwrap().len(), 0);
+        assert_eq!(store.search("research\"", 10).unwrap().len(), 1);
+
+        // Normal search matches expected terms
+        assert_eq!(store.search("research", 10).unwrap().len(), 1);
     }
 }
