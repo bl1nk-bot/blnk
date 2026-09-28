@@ -14,7 +14,7 @@ P2P remote access ผ่าน WebRTC — ไม่ต้องสมัคร�
 - **Loopback Browser Control** — `blnk web` สำหรับควบคุม lifecycle/status ผ่าน HTTP/WS บน loopback เท่านั้น
 - **Proxy Streams** — TCP/WebSocket/HTTP ผ่าน `ProxyStreamService` ที่บังคับใช้ `ProxyPolicy` แบบ deny-by-default (dispatch เข้า session อยู่ใน Issue #42)
 - **Encrypted Vault** — secret ที่ต้องการ confidentiality-at-rest เก็บใน `EncryptedVault` (XChaCha20-Poly1305)
-- **Braintrust Telemetry** — session telemetry ส่งไป Braintrust ผ่าน OTLP/HTTP (opt-in)
+- **Braintrust Telemetry** — session และ stream telemetry (shell/file/proxy แบบ nested span) ส่งไป Braintrust ผ่าน OTLP/HTTP (opt-in)
 
 ## การติดตั้ง
 

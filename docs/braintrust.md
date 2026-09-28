@@ -19,16 +19,32 @@ propagate to the CLI exit code.
 
 ## What gets exported
 
-One span per remote session:
+One session-level span per remote session, with stream-level child spans nested
+under it (shared `traceId`, child `parentSpanId` = session `spanId`):
 
 - `session.serve` — inbound `blnk serve` sessions (`SpanKind::Session`)
 - `session.connect` — outbound shell sessions (`SpanKind::Shell`)
 - `session.copy` — outbound file transfers (`SpanKind::File`)
 
+Stream-level child spans recorded where streams actually execute:
+
+- `stream.shell` — one shell command execution (server dispatcher and the
+  `blnk connect` client)
+- `stream.file` — one file upload/download (server dispatcher and the
+  `blnk cp` client)
+- `stream.proxy` — TCP/WebSocket/HTTP proxy stream (span model ready and unit
+  tested; proxy dispatch is not wired into the session dispatcher yet —
+  Issue #42)
+
+Each stream span carries the SWSP `stream_id` it belongs to, so a long-running
+`serve` session with multiple commands or transfers produces one parent span
+plus one child span per stream operation.
+
 Attributes: `blnk.session_id`, `blnk.span_kind`, `blnk.peer_id` (client or
 target id), `blnk.stream_id` (when relevant), `blnk.success`, and
-`error.message` on failure. Spans are batched (max 128 per request, well under
-Braintrust's 10 MB OTLP payload limit) and exported with a 5-second timeout.
+`error.message` on failure. Parent and children are exported together as a
+single batch (max 128 spans per request, well under Braintrust's 10 MB OTLP
+payload limit) with a 5-second timeout.
 
 ## Getting a key
 
