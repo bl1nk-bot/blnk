@@ -305,10 +305,14 @@ mod tests {
         let challenge_debug = format!("{challenge:?}");
         let reveal_debug = format!("{reveal:?}");
 
-        assert!(!challenge_debug.contains("66")); // 0x42 = 66
-        assert!(challenge_debug.contains("[REDACTED]"));
-        assert!(!reveal_debug.contains("36")); // 0x24 = 36
-        assert!(reveal_debug.contains("[REDACTED]"));
+        assert_eq!(
+            challenge_debug,
+            r#"PairChallenge { message_type: "pair_challenge", nonce_d: "[REDACTED]" }"#
+        );
+        assert_eq!(
+            reveal_debug,
+            r#"PairReveal { message_type: "pair_reveal", nonce_c: "[REDACTED]" }"#
+        );
     }
 }
 
