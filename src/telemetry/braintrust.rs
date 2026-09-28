@@ -506,12 +506,12 @@ mod tests {
         let spans = collector.into_spans();
         assert_eq!(spans.len(), 3);
         assert_eq!(spans[0].name, "session.serve");
-        assert_eq!(spans[0].success, true);
+        assert!(spans[0].success);
         assert_eq!(spans[1].name, "stream.shell");
         assert_eq!(spans[1].stream_id, Some(1));
-        assert_eq!(spans[1].success, true);
+        assert!(spans[1].success);
         assert_eq!(spans[2].name, "stream.file");
-        assert_eq!(spans[2].success, false);
+        assert!(!spans[2].success);
         assert_eq!(spans[2].error.as_deref(), Some("read-only root"));
 
         let parent_id = spans[0].span_id.clone().expect("parent span id");
