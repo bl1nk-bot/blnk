@@ -4,13 +4,6 @@
 //! SDKs we implement a minimal OTLP/HTTP (JSON) trace exporter that forwards
 //! per-session telemetry spans to the Braintrust-hosted OpenTelemetry endpoint.
 //!
-//! Span model: one session-level span (`session.serve`, `session.connect`,
-//! `session.copy`) per CLI run, with stream-level child spans (`stream.shell`,
-//! `stream.file`, `stream.proxy`) nested under it via OTLP `traceId` +
-//! `parentSpanId`. Child spans are recorded where streams actually execute
-//! (the server dispatcher and the client shell/file ops) and exported together
-//! with their parent as a single batch once the command outcome is known.
-//!
 //! Configuration (environment variables):
 //! - `BRAINTRUST_API_KEY` — required; used for `Authorization: Bearer`
 //! - `BRAINTRUST_PROJECT_ID` — required; target project (`x-bt-parent` header)
@@ -22,7 +15,7 @@
 //! returns `Ok(None)` and callers should silently skip export — telemetry must
 //! never break a session (fail-open, like the rest of blnk's observability).
 
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -54,16 +47,6 @@ pub struct TelemetrySpan {
     pub duration_ms: u64,
     pub success: bool,
     pub error: Option<String>,
-    /// OTLP trace id (32 hex chars). Assigned for session spans; child spans
-    /// inherit it so parent and children join into one trace.
-    pub trace_id: Option<String>,
-    /// OTLP span id (16 hex chars). Assigned for session and child spans so
-    /// children can reference their parent.
-    pub span_id: Option<String>,
-    /// Span id of the parent span, when this span is nested.
-    pub parent_span_id: Option<String>,
-    /// Monotonic timer captured at creation for millisecond durations.
-    pub started: Instant,
 }
 
 impl TelemetrySpan {
@@ -81,117 +64,7 @@ impl TelemetrySpan {
             duration_ms: 0,
             success: true,
             error: None,
-            trace_id: None,
-            span_id: None,
-            parent_span_id: None,
-            started: Instant::now(),
         }
-    }
-
-    /// A session-level root span: owns its trace and span ids.
-    pub fn session_span(
-        name: impl Into<String>,
-        kind: SpanKind,
-        session_id: impl Into<String>,
-    ) -> Self {
-        let mut span = Self::new(name, kind, session_id);
-        span.trace_id = Some(trace_id());
-        span.span_id = Some(span_id());
-        span
-    }
-
-    /// A stream-level child span nested under a session span: inherits the
-    /// parent's trace id and links via `parentSpanId`.
-    pub fn child_span(parent: &Self, name: &str, kind: SpanKind, stream_id: u32) -> Self {
-        let session_id = parent.session_id.clone();
-        let mut span = Self::new(name, kind, session_id);
-        span.trace_id = Some(parent.trace_id.clone().unwrap_or_else(trace_id));
-        span.parent_span_id = parent.span_id.clone();
-        span.span_id = Some(span_id());
-        span.stream_id = Some(stream_id);
-        span
-    }
-}
-
-/// Collects stream-level child spans under an optional session parent.
-///
-/// The CLI builds one collector per session: the parent is the session span
-/// (`session.serve` / `session.connect` / `session.copy`) and every shell,
-/// file, or proxy stream executed inside the session records a child span.
-/// When telemetry is disabled the collector stays parent-less and every
-/// operation becomes a no-op.
-#[derive(Debug, Default)]
-pub struct SpanCollector {
-    parent: Option<TelemetrySpan>,
-    children: Vec<TelemetrySpan>,
-}
-
-impl SpanCollector {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Enable the session-level parent span; it owns its trace/span ids so
-    /// stream children can nest under it.
-    pub fn enable_parent(
-        &mut self,
-        name: impl Into<String>,
-        kind: SpanKind,
-        session_id: impl Into<String>,
-    ) {
-        self.parent = Some(TelemetrySpan::session_span(name, kind, session_id));
-    }
-
-    /// Start a stream-level child span under the session parent. Returns
-    /// `None` when telemetry is disabled (no parent), making the caller's
-    /// recording work a no-op.
-    pub fn start_child(&self, name: &str, kind: SpanKind, stream_id: u32) -> Option<TelemetrySpan> {
-        self.parent
-            .as_ref()
-            .map(|parent| TelemetrySpan::child_span(parent, name, kind, stream_id))
-    }
-
-    /// Finalize a child span started by [`start_child`], recording duration
-    /// and outcome. No-op when telemetry is disabled.
-    pub fn finish_child(
-        &mut self,
-        span: Option<TelemetrySpan>,
-        success: bool,
-        error: Option<String>,
-    ) {
-        if let Some(mut span) = span {
-            span.duration_ms = span.started.elapsed().as_millis().min(u64::MAX as u128) as u64;
-            span.success = success;
-            span.error = error.filter(|message| !message.is_empty());
-            self.children.push(span);
-        }
-    }
-
-    /// Finalize the session parent with the command outcome (duration in
-    /// milliseconds measured by the caller, success flag, and error message).
-    pub fn finish_parent(&mut self, duration_ms: u64, success: bool, error: Option<String>) {
-        if let Some(parent) = &mut self.parent {
-            parent.duration_ms = duration_ms;
-            parent.success = success;
-            parent.error = error.filter(|message| !message.is_empty());
-        }
-    }
-
-    /// Attach the peer/client id to the session parent before export.
-    pub fn set_parent_peer(&mut self, peer_id: impl Into<String>) {
-        if let Some(parent) = &mut self.parent {
-            parent.peer_id = Some(peer_id.into());
-        }
-    }
-
-    /// All spans for export: parent first, then children in completion order.
-    pub fn into_spans(self) -> Vec<TelemetrySpan> {
-        let mut spans = Vec::with_capacity(self.children.len() + 1);
-        if let Some(parent) = self.parent {
-            spans.push(parent);
-        }
-        spans.extend(self.children);
-        spans
     }
 }
 
@@ -309,9 +182,9 @@ impl BraintrustExporter {
             attributes.push(string_attr("error.message", error));
         }
 
-        let mut value = json!({
-            "traceId": span.trace_id.clone().unwrap_or_else(trace_id),
-            "spanId": span.span_id.clone().unwrap_or_else(span_id),
+        json!({
+            "traceId": trace_id(),
+            "spanId": span_id(),
             "name": span.name,
             "kind": 1,
             "startTimeUnixNano": span.started_at_unix.saturating_mul(1_000_000_000),
@@ -325,11 +198,7 @@ impl BraintrustExporter {
             } else {
                 json!({ "code": 2, "message": span.error.clone().unwrap_or_default() })
             },
-        });
-        if let Some(parent) = &span.parent_span_id {
-            value["parentSpanId"] = json!(parent);
-        }
-        value
+        })
     }
 }
 
@@ -369,15 +238,6 @@ fn span_id() -> String {
 mod tests {
     use super::*;
 
-    fn test_exporter() -> BraintrustExporter {
-        BraintrustExporter {
-            endpoint: "https://otel.test/v1/traces".to_owned(),
-            api_key: "key".to_owned(),
-            project_id: "project".to_owned(),
-            client: reqwest::Client::new(),
-        }
-    }
-
     fn sample_span() -> TelemetrySpan {
         let mut span = TelemetrySpan::new("session.ready", SpanKind::Session, "session-1");
         span.peer_id = Some("peer-9".to_owned());
@@ -399,7 +259,12 @@ mod tests {
 
     #[test]
     fn encode_span_maps_all_fields_to_otlp_shape() {
-        let exporter = test_exporter();
+        let exporter = BraintrustExporter {
+            endpoint: "https://otel.test/v1/traces".to_owned(),
+            api_key: "key".to_owned(),
+            project_id: "project".to_owned(),
+            client: reqwest::Client::new(),
+        };
         let span = sample_span();
         let value = exporter.encode_span(&span);
 
@@ -408,7 +273,6 @@ mod tests {
         assert_eq!(value["status"]["code"], 1);
         assert_eq!(value["traceId"].as_str().unwrap().len(), 32);
         assert_eq!(value["spanId"].as_str().unwrap().len(), 16);
-        assert!(value.get("parentSpanId").is_none());
         let expected_start = span.started_at_unix.saturating_mul(1_000_000_000);
         let expected_end = span
             .started_at_unix
@@ -434,7 +298,12 @@ mod tests {
 
     #[test]
     fn encode_span_marks_failed_status_and_error_attribute() {
-        let exporter = test_exporter();
+        let exporter = BraintrustExporter {
+            endpoint: "https://otel.test/v1/traces".to_owned(),
+            api_key: "key".to_owned(),
+            project_id: "project".to_owned(),
+            client: reqwest::Client::new(),
+        };
         let mut span = sample_span();
         span.success = false;
         span.error = Some("pin rejected".to_owned());
@@ -456,101 +325,5 @@ mod tests {
         assert!(trace.chars().all(|c| c.is_ascii_hexdigit()));
         let span = span_id();
         assert!(span.chars().all(|c| c.is_ascii_hexdigit()));
-    }
-
-    #[test]
-    fn session_span_and_child_share_trace_id_with_parent_link() {
-        let parent = TelemetrySpan::session_span("session.connect", SpanKind::Shell, "device-1");
-        let child = TelemetrySpan::child_span(&parent, "stream.shell", SpanKind::Shell, 5);
-
-        assert_eq!(child.trace_id, parent.trace_id);
-        assert_eq!(child.parent_span_id.as_deref(), parent.span_id.as_deref());
-        assert_eq!(child.stream_id, Some(5));
-        assert_eq!(child.session_id, "device-1");
-        assert!(parent.parent_span_id.is_none());
-        assert!(parent.span_id.is_some());
-
-        let exporter = test_exporter();
-        let parent_value = exporter.encode_span(&parent);
-        let child_value = exporter.encode_span(&child);
-        assert!(parent_value.get("parentSpanId").is_none());
-        assert_eq!(
-            child_value["parentSpanId"],
-            parent.span_id.as_deref().unwrap()
-        );
-        assert_eq!(child_value["traceId"], parent_value["traceId"]);
-        assert_ne!(child_value["spanId"], parent_value["spanId"]);
-    }
-
-    #[test]
-    fn collector_is_noop_without_parent() {
-        let mut collector = SpanCollector::new();
-        let child = collector.start_child("stream.file", SpanKind::File, 2);
-        assert!(child.is_none());
-        collector.finish_child(child, true, None);
-        collector.finish_parent(10, true, None);
-        assert!(collector.into_spans().is_empty());
-    }
-
-    #[test]
-    fn collector_nests_children_under_session_parent() {
-        let mut collector = SpanCollector::new();
-        collector.enable_parent("session.serve", SpanKind::Session, "client-7");
-
-        let shell = collector.start_child("stream.shell", SpanKind::Shell, 1);
-        collector.finish_child(shell, true, None);
-        let file = collector.start_child("stream.file", SpanKind::File, 2);
-        collector.finish_child(file, false, Some("read-only root".to_owned()));
-
-        collector.finish_parent(120, true, None);
-        let spans = collector.into_spans();
-        assert_eq!(spans.len(), 3);
-        assert_eq!(spans[0].name, "session.serve");
-        assert!(spans[0].success);
-        assert_eq!(spans[1].name, "stream.shell");
-        assert_eq!(spans[1].stream_id, Some(1));
-        assert!(spans[1].success);
-        assert_eq!(spans[2].name, "stream.file");
-        assert!(!spans[2].success);
-        assert_eq!(spans[2].error.as_deref(), Some("read-only root"));
-
-        let parent_id = spans[0].span_id.clone().expect("parent span id");
-        assert_eq!(spans[1].parent_span_id.as_deref(), Some(parent_id.as_str()));
-        assert_eq!(spans[2].parent_span_id.as_deref(), Some(parent_id.as_str()));
-
-        let exporter = test_exporter();
-        let encoded: Vec<_> = spans
-            .iter()
-            .map(|span| exporter.encode_span(span))
-            .collect();
-        assert!(encoded[0].get("parentSpanId").is_none());
-        assert_eq!(encoded[1]["parentSpanId"], parent_id);
-        assert_eq!(encoded[2]["status"]["code"], 2);
-    }
-
-    #[test]
-    fn proxy_child_spans_encode_with_proxy_kind() {
-        // Proxy dispatch is not wired into the session dispatcher yet
-        // (Issue #42); the span model must still encode proxy streams.
-        let mut collector = SpanCollector::new();
-        collector.enable_parent("session.serve", SpanKind::Session, "client-9");
-        let proxy = collector.start_child("stream.proxy", SpanKind::Proxy, 4);
-        collector.finish_child(proxy, true, None);
-        collector.finish_parent(30, true, None);
-
-        let spans = collector.into_spans();
-        let exporter = test_exporter();
-        let value = exporter.encode_span(&spans[1]);
-        let attrs = value["attributes"].as_array().unwrap();
-        let kind = attrs
-            .iter()
-            .find(|attr| attr["key"] == "blnk.span_kind")
-            .expect("span kind attribute");
-        assert_eq!(kind["value"]["stringValue"], "proxy");
-        let stream = attrs
-            .iter()
-            .find(|attr| attr["key"] == "blnk.stream_id")
-            .expect("stream id attribute");
-        assert_eq!(stream["value"]["intValue"], 4);
     }
 }
