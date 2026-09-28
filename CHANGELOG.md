@@ -2,6 +2,9 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
+## [0.2.17] — PR #149
+- chore(security): redact sensitive api_key in BraintrustExporter Debug
+
 ## [0.2.16] — PR #148
 - feat(telemetry): add stream-level child spans for shell, file, and proxy
 
