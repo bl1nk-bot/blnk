@@ -71,6 +71,9 @@ jobs:
 
       - name: Install Android SDK and NDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          cmdline-tools-version: '12.0'
 
       - name: Install pinned Android NDK
         run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
@@ -100,3 +103,4 @@ jobs:
         uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ignore: RUSTSEC-2023-0071

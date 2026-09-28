@@ -39,7 +39,6 @@ use crate::{
             decode_open_frame, decode_output_frame,
         },
     },
-    telemetry::braintrust::{SpanCollector, SpanKind},
     utils::error::BlnkError,
 };
 
@@ -326,20 +325,9 @@ pub async fn serve_session(session: ServerSession, root: impl AsRef<Path>) -> Si
 
 /// Runs the dispatcher until a terminal frame, disconnect, or cancellation.
 pub async fn serve_session_with_shutdown(
-    session: ServerSession,
-    root: impl AsRef<Path>,
-    shutdown: CancellationToken,
-) -> SignalingResult<()> {
-    serve_session_collected(session, root, shutdown, &mut SpanCollector::new()).await
-}
-
-/// Runs the dispatcher with a telemetry collector that records stream-level
-/// child spans under the caller's session parent span.
-pub async fn serve_session_collected(
     mut session: ServerSession,
     root: impl AsRef<Path>,
     shutdown: CancellationToken,
-    collector: &mut SpanCollector,
 ) -> SignalingResult<()> {
     let root = root.as_ref().to_path_buf();
     let result = async {
@@ -378,27 +366,11 @@ pub async fn serve_session_collected(
         }
 
         if let Ok(command) = decode_open_frame(&frame) {
-            let stream_span = collector.start_child("stream.shell", SpanKind::Shell, frame.stream_id);
-            let dispatch_result =
-                dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await;
-            collector.finish_child(
-                stream_span,
-                dispatch_result.is_ok(),
-                dispatch_result.as_ref().err().map(|error| error.to_string()),
-            );
-            dispatch_result?;
+            dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await?;
             continue;
         }
         if let Ok(request) = decode_request_frame(&frame) {
-            let stream_span = collector.start_child("stream.file", SpanKind::File, frame.stream_id);
-            let dispatch_result =
-                dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await;
-            collector.finish_child(
-                stream_span,
-                dispatch_result.is_ok(),
-                dispatch_result.as_ref().err().map(|error| error.to_string()),
-            );
-            dispatch_result?;
+            dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await?;
             continue;
         }
             break Err(BlnkError::Protocol(format!(
@@ -421,50 +393,25 @@ pub async fn run_shell_client(
     runtime: &mut SessionRuntime,
     command: &ShellCommand,
 ) -> SignalingResult<i32> {
-    run_shell_client_collected(runtime, command, &mut SpanCollector::new()).await
-}
-
-/// Executes one remote shell command with a telemetry collector that records
-/// the stream-level child span under the caller's session parent span.
-pub async fn run_shell_client_collected(
-    runtime: &mut SessionRuntime,
-    command: &ShellCommand,
-    collector: &mut SpanCollector,
-) -> SignalingResult<i32> {
     let stream = runtime.open_shell_stream("/")?;
     let stream_id = stream.id();
-    let stream_span = collector.start_child("stream.shell", SpanKind::Shell, stream_id);
     runtime.send_shell_open(stream_id, command).await?;
-    let shell_result = loop {
-        let frame = match runtime.recv_shell_frame().await {
-            Ok(frame) => frame,
-            Err(error) => break Err(error),
-        };
+    loop {
+        let frame = runtime.recv_shell_frame().await?;
         if frame.flags.is_fin() {
             if let Ok(exit) = decode_exit_frame(&frame) {
                 let _ = runtime.close_shell_stream(stream_id).await;
-                break Ok(exit.code);
+                return Ok(exit.code);
             }
             let message = decode_error_frame(&frame)
                 .map(|error| error.message)
                 .unwrap_or_else(|_| "remote shell failed".to_owned());
             let _ = runtime.close_shell_stream(stream_id).await;
-            break Err(BlnkError::Stream(format!("remote shell error: {message}")));
+            return Err(BlnkError::Stream(format!("remote shell error: {message}")));
         }
-        let output = match decode_output_frame(&frame) {
-            Ok(output) => output,
-            Err(error) => break Err(error),
-        };
-        if let Err(error) = write_stdout(&output.data) {
-            break Err(error);
-        }
-    };
-    collector.finish_child(
-        stream_span,
-        shell_result.is_ok(),
-        shell_result.as_ref().err().map(|error| error.to_string()),
-    );
-    shell_result
+        let output = decode_output_frame(&frame)?;
+        write_stdout(&output.data)?;
+    }
 }
 
 /// Performs upload/download over an authenticated remote file stream.
@@ -473,25 +420,6 @@ pub async fn run_file_client(
     source: &str,
     destination: &str,
     overwrite: bool,
-) -> SignalingResult<()> {
-    run_file_client_collected(
-        runtime,
-        source,
-        destination,
-        overwrite,
-        &mut SpanCollector::new(),
-    )
-    .await
-}
-
-/// Performs upload/download with a telemetry collector that records the
-/// stream-level child span under the caller's session parent span.
-pub async fn run_file_client_collected(
-    runtime: &mut SessionRuntime,
-    source: &str,
-    destination: &str,
-    overwrite: bool,
-    collector: &mut SpanCollector,
 ) -> SignalingResult<()> {
     let download_path = source.strip_prefix("remote:");
     let (request, upload, local_destination) = if let Some(remote_path) = download_path {
@@ -511,67 +439,57 @@ pub async fn run_file_client_collected(
 
     let stream = runtime.open_file_stream("/")?;
     let stream_id = stream.id();
-    let stream_span = collector.start_child("stream.file", SpanKind::File, stream_id);
-    let file_result: SignalingResult<()> = async {
-        runtime.send_file_request(stream_id, &request).await?;
-        if request.operation == FileOperation::Put {
-            if upload.is_empty() {
-                runtime.send_file_chunk(stream_id, Vec::new(), true).await?;
-            } else {
-                for (index, chunk) in upload
-                    .chunks(crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN)
-                    .enumerate()
-                {
-                    runtime
-                        .send_file_chunk(
-                            stream_id,
-                            chunk.to_vec(),
-                            (index + 1) * crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN
-                                >= upload.len(),
-                        )
-                        .await?;
-                }
-            }
-        }
-
-        let mut received_data = Vec::new();
-        let mut metadata_seen = false;
-        loop {
-            let frame = runtime.recv_file_frame().await?;
-            if !metadata_seen {
-                let metadata = decode_response_metadata(&request, &frame)?;
-                metadata_seen = true;
-                if let FileTransferResponse::Download { info, .. } = metadata {
-                    println!("received={} bytes={}", info.name, info.size);
-                }
-            } else if request.operation == FileOperation::Get {
-                received_data.extend_from_slice(&frame.payload);
-            }
-            if frame.flags.is_fin() {
-                break;
-            }
-        }
-
-        if let Some(destination) = local_destination {
-            if let Some(parent) = destination.parent()
-                && !parent.as_os_str().is_empty()
-            {
-                std::fs::create_dir_all(parent).map_err(BlnkError::Io)?;
-            }
-            std::fs::write(&destination, received_data).map_err(BlnkError::Io)?;
-            println!("copied {} -> {}", source, destination.display());
+    runtime.send_file_request(stream_id, &request).await?;
+    if request.operation == FileOperation::Put {
+        if upload.is_empty() {
+            runtime.send_file_chunk(stream_id, Vec::new(), true).await?;
         } else {
-            println!("copied {} -> remote:{}", source, destination);
+            for (index, chunk) in upload
+                .chunks(crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN)
+                .enumerate()
+            {
+                runtime
+                    .send_file_chunk(
+                        stream_id,
+                        chunk.to_vec(),
+                        (index + 1) * crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN
+                            >= upload.len(),
+                    )
+                    .await?;
+            }
         }
-        runtime.close_file_stream(stream_id).await.map(|_| ())
     }
-    .await;
-    collector.finish_child(
-        stream_span,
-        file_result.is_ok(),
-        file_result.as_ref().err().map(|error| error.to_string()),
-    );
-    file_result
+
+    let mut received_data = Vec::new();
+    let mut metadata_seen = false;
+    loop {
+        let frame = runtime.recv_file_frame().await?;
+        if !metadata_seen {
+            let metadata = decode_response_metadata(&request, &frame)?;
+            metadata_seen = true;
+            if let FileTransferResponse::Download { info, .. } = metadata {
+                println!("received={} bytes={}", info.name, info.size);
+            }
+        } else if request.operation == FileOperation::Get {
+            received_data.extend_from_slice(&frame.payload);
+        }
+        if frame.flags.is_fin() {
+            break;
+        }
+    }
+
+    if let Some(destination) = local_destination {
+        if let Some(parent) = destination.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent).map_err(BlnkError::Io)?;
+        }
+        std::fs::write(&destination, received_data).map_err(BlnkError::Io)?;
+        println!("copied {} -> {}", source, destination.display());
+    } else {
+        println!("copied {} -> remote:{}", source, destination);
+    }
+    runtime.close_file_stream(stream_id).await.map(|_| ())
 }
 
 async fn dispatch_shell(
