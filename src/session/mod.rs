@@ -51,10 +51,19 @@ impl Default for AuthRequiredMessage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AuthMessage {
     pub message_type: String,
     pub pin: String,
+}
+
+impl std::fmt::Debug for AuthMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthMessage")
+            .field("message_type", &self.message_type)
+            .field("pin", &"[REDACTED]")
+            .finish()
+    }
 }
 
 impl AuthMessage {
@@ -555,5 +564,13 @@ mod tests {
                 .is_some()
         );
         assert!(session.begin_authentication().is_err());
+    }
+
+    #[test]
+    fn auth_message_debug_redacts_pin() {
+        let auth = AuthMessage::new("123456").expect("valid auth message");
+        let debug_str = format!("{auth:?}");
+        assert!(debug_str.contains("[REDACTED]"));
+        assert!(!debug_str.contains("123456"));
     }
 }
