@@ -2,7 +2,7 @@
 
 ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
 
-## [0.2.17] — PR #149
+## [0.2.17] — PR #160
 - chore(security): redact api_key in BraintrustExporter Debug formatting
 
 ## [0.2.16] — PR #136, #148
