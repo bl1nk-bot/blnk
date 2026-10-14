@@ -802,9 +802,9 @@ mod tests {
         let debug_output = format!("{identity:?}");
 
         assert!(debug_output.contains("Identity"));
-        assert!(debug_output.contains(&identity.uid()));
-        assert!(!debug_output.contains(&identity.pairing_code()));
-        assert!(!debug_output.contains(&identity.access_code()));
+        assert!(debug_output.contains(identity.uid()));
+        assert!(!debug_output.contains(identity.pairing_code()));
+        assert!(!debug_output.contains(identity.access_code()));
         assert!(debug_output.contains("[REDACTED]"));
     }
 
