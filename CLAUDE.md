@@ -1,30 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when writing code in this repository.
-
-## Session Lifecycle (MANDATORY)
-
-### Session Start — SELF-STARTING
-Plugin hook injects FULL PREPARATION on first turn: git state, TODO, build, blocking.
-You receive this context. Do NOT wait for user instructions.
-
-1. Read injected context (branch, dirty, TODO, build, blocking)
-2. Decide what to work on based on TODO state
-3. Present plan: what, why, expected outcome
-4. If build FAIL or BLOCKING → fix first
-5. If clean → propose next TODO item
-6. Begin work after user confirms
-
-### Session End — EXECUTE CLOSEOUT
-Do NOT wait. Execute immediately when session ending.
-
-1. `cargo check` — verify build
-2. Update `TODO.md` — mark done [-], note in-progress
-3. Git commit with conventional message
-4. Memory — 200 chars: done, next, blockers
-
-### You are self-starting.
-Think, decide, propose — then work. Don't wait to be told.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Quick Start
 
@@ -40,36 +16,6 @@ just bump <pr> "msg"  # version bump via scripts/bump_version.py
 **Toolchain**: Rust 1.97.0 (pinned). **Primary target**: `x86_64-unknown-linux-gnu`. Cross-compile: `aarch64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`, `aarch64-linux-android` (compile-only).
 
 **Pre-push hook** runs `just ci` — can timeout on slow machines. Use `git push --no-verify` to bypass when CI already passed.
-
-## Workspace Structure
-
-```
-blnk/                     # Root workspace
-├── Cargo.toml            # Workspace definition + blnk core crate
-├── src/                  # blnk core (CLI + P2P engine)
-├── crates/
-│   └── blnk-tui/         # TUI crate (ratatui-based terminal UI)
-│       ├── Cargo.toml
-│       └── src/
-├── proto/                # Protobuf schemas
-├── tools/
-│   └── argument-comment-lint/  # Dylint lint (excluded from workspace)
-├── specs/                # Specifications
-├── docs/                 # Documentation
-└── scripts/              # Build/release scripts
-```
-
-### Workspace Members
-
-- `blnk` — core crate (lib + bin): P2P remote access, CLI, signaling, WebRTC, streams
-- `blnk-tui` — TUI crate: ratatui-based terminal UI with markdown rendering, URL-aware wrapping
-
-### Adding New Crates
-
-1. Create `crates/<name>/` with `Cargo.toml` + `src/lib.rs`
-2. Add to `members` in root `Cargo.toml`
-3. Use `version.workspace = true`, `edition.workspace = true`, `license.workspace = true`
-4. Dependencies: use `{ workspace = true }` for shared deps
 
 ## Architecture
 
@@ -93,7 +39,7 @@ Stream Multiplexer (shell | file | proxy | tcp | websocket)
 
 Commit-reveal pairing with 6-digit SAS. PIN auth via `subtle::ConstantTimeEq` — never short-circuit.
 
-### Core Modules
+### Modules
 
 | Module | Role |
 |---|---|
@@ -106,28 +52,8 @@ Commit-reveal pairing with 6-digit SAS. PIN auth via `subtle::ConstantTimeEq` �
 | `protocol` | Wire protocol: `pairing` (commitment, SAS), `swsp` (Frame) |
 | `stream` | Multiplexer + handlers: `shell`, `file`, `proxy`, `proxy_handler` |
 | `web` | Loopback-only Axum server (browser control surface) |
-| `utils` | `BlnkError` (thiserror), QR rendering, terminal detection, hyperlinks |
+| `utils` | `BlnkError` (thiserror), QR rendering |
 | `proto_generated` | Auto-generated protobuf bindings from `proto/*.proto` |
-
-### TUI Modules (blnk-tui)
-
-| Module | Role |
-|---|---|
-| `tui` | Terminal lifecycle: init, restore, draw, alt-screen |
-| `wrapping` | URL-aware word wrapping with sound mark projection |
-| `render/markdown` | Streaming markdown rendering with block tracking |
-| `render/records` | Vertical table rendering (grid→key/value fallback) |
-| `terminal_hyperlinks` | OSC 8 hyperlink annotation for ratatui Lines |
-| `terminal_palette` | Terminal default fg/bg color detection |
-| `shimmer` | Time-based sweep animation for branding |
-| `color` | RGB math: blend, luma, perceptual distance |
-| `width` | Display width calculation with sound mark support |
-| `keyboard_modes` | Kitty keyboard protocol detection |
-| `windows_console` | Win32 console state management |
-| `notifications` | Desktop notifications (peer connect/disconnect) |
-| `pets` | Sixel/Kitty image rendering (ambient pet) |
-| `workspace_messages` | Workspace headline extraction from protobuf |
-| `proto` | Protobuf type stubs (replace with prost-generated) |
 
 ### Conventions
 

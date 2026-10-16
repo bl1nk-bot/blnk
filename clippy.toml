@@ -16,22 +16,3 @@ large-error-threshold = 256
 # These are documented safety targets. Actual clippy enforcement depends on
 # the configured lint set; if you want compile-time bans, add
 # `disallowed-methods` / `disallowed-types` rules here or in the CI config.
-
-# ── TUI Style Guide (ratatui) ──────────────────────────────────────────
-# Colors ALLOWED as foreground:
-#   cyan  = user input tips, selection, status indicators
-#   green = success, additions
-#   red   = errors, failures, deletions
-#   magenta = "blnk" brand text
-#   reset/default = most of the time
-#
-# Colors BANNED as foreground:
-#   black, white → use default/reset instead (terminal theme handles contrast)
-#   blue, yellow → not in style guide
-#
-# Rules below enforce via disallowed-types.
-# Rationale: https://github.com/bl1nk-bot/blnk/blob/main/STYLE.md
-
-[[disallowed-types]]
-path = "ratatui::style::Color"
-reason = "TUI style: use `crate::color::ThemeColor` instead of raw `ratatui::style::Color` to enforce theme contrast (STYLE.md)"

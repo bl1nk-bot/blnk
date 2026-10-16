@@ -309,7 +309,7 @@ pub struct SessionRuntime { /* Session state machine + PeerHandle control channe
 
 ## 6.4 TCP Stream
 
-`src/stream/proxy_handler.rs` มี concrete service แล้ว แต่ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง
+Issue #42 เพิ่ม concrete service ใน `src/stream/proxy_handler.rs`; ยังไม่ผูก dispatch เข้า `SessionRuntime` โดยตรง
 
 ```rust
 pub struct ProxyStreamService { /* policy + bounded concurrency */ }
@@ -391,7 +391,7 @@ pub struct HttpProxyResponse {
 }
 ```
 
-HTTP ใช้ one-request transcript ไม่ใช่ full-duplex body stream ปิด automatic redirects และ validate ทุก redirect ด้วย `ProxyPolicy`; hop-by-hop headers และ caller-supplied `content-length` ถูกตัดออก และ response body/headers อยู่ภายใต้ limits/redaction boundary
+HTTP ใช้ one-request transcript ใน Issue #42 ไม่ใช่ full-duplex body stream ปิด automatic redirects และ validate ทุก redirect ด้วย `ProxyPolicy`; hop-by-hop headers และ caller-supplied `content-length` ถูกตัดออก และ response body/headers อยู่ภายใต้ limits/redaction boundary
 
 > หมายเหตุ: proto type คือ `HttpRequest`, `HttpResponse`, `HttpData` (proto ใช้ `HTTPRequest`/`HTTPResponse`/`HTTPData`)
 

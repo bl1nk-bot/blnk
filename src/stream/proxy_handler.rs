@@ -3,13 +3,7 @@
 //! The handlers are transport adapters, not a new session state machine. Callers
 //! must allocate the stream in `Session`/`SessionRuntime` and pass the resulting
 //! stream id here. Every outbound connection is resolved and checked once through
-//! [`ProxyPolicy`']; retries use only that pinned answer set.
-//!
-//! FIXME: ProxyStreamService exists but is NOT wired into ConnectionSupervisor
-//! dispatch. The proxy openers (TCP/WebSocket/HTTP) are blocked at
-//! SessionRuntime::open_stream() with "proxy stream dispatch is not implemented".
-//! Until this is connected, spec requirements 4.3 (Web Proxy), 4.4 (TCP Forwarding),
-//! and 4.10 (WebSocket Bridging) remain incomplete.
+//! [`ProxyPolicy`]; retries use only that pinned answer set.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -94,7 +88,9 @@ fn encode_frame(stream_id: u32, flags: FrameFlags, message: impl Message) -> Fra
 
 fn validate_wire_type(actual: &str, expected: &str) -> ProxyHandlerResult<()> {
     if !actual.is_empty() && actual != expected {
-        return Err(protocol_error(format!("proxy message type must be {expected}")));
+        return Err(protocol_error(format!(
+            "proxy message type must be {expected}"
+        )));
     }
     Ok(())
 }
@@ -274,8 +270,11 @@ impl ProxyStreamService {
                 }
             };
             let request = websocket_request(&target, &open.headers)?;
-            match time::timeout(self.policy.limits().connect_timeout, client_async(request, socket))
-                .await
+            match time::timeout(
+                self.policy.limits().connect_timeout,
+                client_async(request, socket),
+            )
+            .await
             {
                 Ok(Ok((socket, _response))) => {
                     return Ok(WebSocketProxyStream {
@@ -487,7 +486,9 @@ impl TcpProxyStream {
         Ok(encode_frame(
             self.stream_id,
             dat_more_flags(),
-            wire::TcpData { data: buffer[..read].to_vec() },
+            wire::TcpData {
+                data: buffer[..read].to_vec(),
+            },
         ))
     }
 
@@ -541,10 +542,13 @@ impl WebSocketProxyStream {
             1 => WebSocketMessage::binary(message.data),
             _ => return Err(protocol_error("unknown WebSocket message type")),
         };
-        time::timeout(self.limits.idle_timeout, self.socket.send(websocket_message))
-            .await
-            .map_err(|_| transport_error("WebSocket write timeout"))?
-            .map_err(|error| transport_error(format!("WebSocket write failed: {error}")))?;
+        time::timeout(
+            self.limits.idle_timeout,
+            self.socket.send(websocket_message),
+        )
+        .await
+        .map_err(|_| transport_error("WebSocket write timeout"))?
+        .map_err(|error| transport_error(format!("WebSocket write failed: {error}")))?;
         Ok(false)
     }
 
@@ -621,7 +625,9 @@ impl HttpProxyResponse {
             frames.push(encode_frame(
                 stream_id,
                 dat_more_flags(),
-                wire::HttpData { data: chunk.to_vec() },
+                wire::HttpData {
+                    data: chunk.to_vec(),
+                },
             ));
         }
         frames.push(Frame::new(stream_id, FrameFlags::FIN, Vec::new()));
@@ -726,7 +732,9 @@ mod tests {
             )
             .await
             .expect("open TCP");
-        let payload = wire::TcpData { data: b"payload".to_vec() };
+        let payload = wire::TcpData {
+            data: b"payload".to_vec(),
+        };
         let incoming = Frame::new(9, dat_more_flags(), payload.encode_to_vec());
         assert!(!stream.handle_frame(incoming).await.expect("write frame"));
         let outgoing = stream.read_frame().await.expect("read frame");

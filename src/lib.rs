@@ -8,6 +8,7 @@ pub mod session;
 pub mod signaling;
 pub mod storage;
 pub mod stream;
+pub mod telemetry;
 pub mod utils;
 pub mod vault;
 pub mod web;

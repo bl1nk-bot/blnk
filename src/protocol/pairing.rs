@@ -24,12 +24,30 @@ pub struct PairChallenge {
     pub nonce_d: Vec<u8>,
 }
 
+impl std::fmt::Debug for PairChallenge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairChallenge")
+            .field("message_type", &self.message_type)
+            .field("nonce_d", &"[REDACTED]")
+            .finish()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairReveal {
     #[serde(rename = "type")]
     pub message_type: String,
     #[serde(with = "base64_bytes")]
     pub nonce_c: Vec<u8>,
+}
+
+impl std::fmt::Debug for PairReveal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairReveal")
+            .field("message_type", &self.message_type)
+            .field("nonce_c", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -94,6 +112,17 @@ impl PairCredentials {
     }
 }
 
+impl std::fmt::Debug for PairCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairCredentials")
+            .field("message_type", &self.message_type)
+            .field("uid", &self.uid)
+            .field("public_key", &self.public_key)
+            .field("access_code", &"[REDACTED]")
+            .finish()
+    }
+}
+
 pub fn generate_nonce() -> Result<Vec<u8>, BlnkError> {
     let mut nonce = vec![0_u8; NONCE_LEN];
     getrandom::fill(&mut nonce)
@@ -135,7 +164,9 @@ pub fn compute_sas(input: &SasInput) -> Result<SasResult, BlnkError> {
             .map_err(|_| BlnkError::Protocol("SAS digest is too short".to_owned()))?,
     ) % 1_000_000;
 
-    Ok(SasResult { sas: format!("{value:06}") })
+    Ok(SasResult {
+        sas: format!("{value:06}"),
+    })
 }
 
 fn validate_nonce(nonce: &[u8]) -> Result<(), BlnkError> {
@@ -220,7 +251,10 @@ mod tests {
         };
         let encoded = serde_json::to_value(&challenge).expect("challenge should serialize");
         assert_eq!(encoded["type"], "pair_challenge");
-        assert_eq!(encoded["nonce_d"], STANDARD_NO_PAD.encode([0x01; NONCE_LEN]));
+        assert_eq!(
+            encoded["nonce_d"],
+            STANDARD_NO_PAD.encode([0x01; NONCE_LEN])
+        );
         assert!(
             !encoded["nonce_d"]
                 .as_str()
@@ -244,6 +278,41 @@ mod tests {
 
         assert_eq!(credentials.message_type, "pair_credentials");
         assert_eq!(credentials.access_code, "access-code");
+    }
+
+    #[test]
+    fn pair_credentials_debug_redacts_access_code() {
+        let credentials = PairCredentials::new(
+            "uid-123".to_owned(),
+            "public-key".to_owned(),
+            "secret-access-code".to_owned(),
+        );
+        let debug_output = format!("{credentials:?}");
+        assert!(!debug_output.contains("secret-access-code"));
+        assert!(debug_output.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn pair_challenge_and_reveal_debug_redact_nonces() {
+        let challenge = PairChallenge {
+            message_type: "pair_challenge".to_owned(),
+            nonce_d: vec![0x42; NONCE_LEN],
+        };
+        let reveal = PairReveal {
+            message_type: "pair_reveal".to_owned(),
+            nonce_c: vec![0x24; NONCE_LEN],
+        };
+        let challenge_debug = format!("{challenge:?}");
+        let reveal_debug = format!("{reveal:?}");
+
+        assert_eq!(
+            challenge_debug,
+            r#"PairChallenge { message_type: "pair_challenge", nonce_d: "[REDACTED]" }"#
+        );
+        assert_eq!(
+            reveal_debug,
+            r#"PairReveal { message_type: "pair_reveal", nonce_c: "[REDACTED]" }"#
+        );
     }
 }
 
