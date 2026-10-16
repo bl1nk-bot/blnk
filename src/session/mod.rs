@@ -389,7 +389,7 @@ impl Session {
     }
 }
 
-fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
+pub(crate) fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
     let mut expected_fixed = [0_u8; PIN_LEN];
     let mut provided_fixed = [0_u8; PIN_LEN];
     let expected_copy_len = expected.len().min(PIN_LEN);
