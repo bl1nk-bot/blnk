@@ -214,8 +214,10 @@ impl ShellPolicy {
             self.root_dir.join(&command.cwd)
         };
 
-        let canonical_root = std::fs::canonicalize(&self.root_dir).map_err(BlnkError::Io)?;
-        let canonical_cwd = std::fs::canonicalize(&cwd).map_err(BlnkError::Io)?;
+        // Use path::canonicalize to avoid Windows UNC path prefix (\\?\) inconsistencies in containment checks
+        let canonical_root =
+            crate::utils::path::canonicalize(&self.root_dir).map_err(BlnkError::Io)?;
+        let canonical_cwd = crate::utils::path::canonicalize(&cwd).map_err(BlnkError::Io)?;
         if !canonical_cwd.starts_with(&canonical_root) || !canonical_cwd.is_dir() {
             return Err(BlnkError::Stream(
                 "shell working directory escapes policy root".into(),

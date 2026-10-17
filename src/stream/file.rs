@@ -248,9 +248,8 @@ pub struct FileTransferConfig {
 
 impl FileTransferConfig {
     pub fn new(root: impl Into<PathBuf>) -> StreamResult<Self> {
-        let root = root
-            .into()
-            .canonicalize()
+        // Use path::canonicalize to avoid Windows UNC path prefix (\\?\) inconsistencies
+        let root = crate::utils::path::canonicalize(root.into())
             .map_err(|error| io_error("canonicalize file-transfer root", error))?;
         if !root.is_dir() {
             return Err(BlnkError::Stream(
@@ -546,8 +545,8 @@ impl FileTransferService {
         if metadata.file_type().is_symlink() {
             return Err(BlnkError::Stream("symlink paths are not allowed".into()));
         }
-        let resolved = candidate
-            .canonicalize()
+        // Use path::canonicalize to avoid Windows UNC path prefix (\\?\) inconsistencies
+        let resolved = crate::utils::path::canonicalize(&candidate)
             .map_err(|error| io_error("canonicalize file path", error))?;
         if !resolved.starts_with(&self.config.root) {
             return Err(BlnkError::Stream(
@@ -582,8 +581,8 @@ impl FileTransferService {
             let parent = candidate
                 .parent()
                 .ok_or_else(|| BlnkError::Stream("file path has no parent".into()))?;
-            let canonical_parent = parent
-                .canonicalize()
+            // Use path::canonicalize to avoid Windows UNC path prefix (\\?\) inconsistencies
+            let canonical_parent = crate::utils::path::canonicalize(parent)
                 .map_err(|error| io_error("canonicalize file parent", error))?;
             if !canonical_parent.starts_with(&self.config.root) {
                 return Err(BlnkError::Stream(
