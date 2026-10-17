@@ -30,6 +30,17 @@ pub struct Identity {
     access_code: String,
 }
 
+impl std::fmt::Debug for Identity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Identity")
+            .field("uid", &self.uid)
+            .field("pairing_code", &"[REDACTED]")
+            .field("access_code", &"[REDACTED]")
+            .field("private_key", &"[REDACTED]")
+            .finish()
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct PersistedIdentity {
     private_key_pem: String,
@@ -799,5 +810,17 @@ mod tests {
                 .expect("decryption should succeed"),
             plaintext
         );
+    }
+
+    #[test]
+    fn identity_debug_redacts_sensitive_fields() {
+        let identity = Identity::generate().expect("identity generation should succeed");
+        let debug_output = format!("{identity:?}");
+
+        assert!(debug_output.contains("Identity"));
+        assert!(debug_output.contains(identity.uid()));
+        assert!(!debug_output.contains(identity.pairing_code()));
+        assert!(!debug_output.contains(identity.access_code()));
+        assert!(debug_output.contains("[REDACTED]"));
     }
 }
