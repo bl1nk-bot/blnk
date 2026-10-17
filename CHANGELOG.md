@@ -3,6 +3,9 @@
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
+## [0.2.17] — PR #167
+- security(auth): use constant-time PIN comparison for duplicate PIN detection
+
 ## [0.2.16] — PR #136, #148
 - feat(telemetry): add stream-level child spans for shell, file, and proxy
 - chore(security): redact nonces in PairChallenge and PairReveal Debug formatting

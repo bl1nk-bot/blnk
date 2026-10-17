@@ -791,7 +791,9 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                if let Some(ref last_pin) = self.last_auth_pin
+                    && super::constant_time_pin_eq(last_pin.as_bytes(), message.pin.as_bytes())
+                {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());
@@ -1051,6 +1053,27 @@ mod tests {
         assert!(client_result.is_err());
         assert_eq!(server.state(), SessionState::Closed);
         assert_eq!(client.state(), SessionState::Closed);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn duplicate_auth_pin_is_rejected_using_constant_time_comparison() {
+        let harness = TwoPeerHarness::new("duplicate-auth")
+            .await
+            .expect("local peer harness should connect");
+        let server_config =
+            SessionRuntimeConfig::server("123456").with_session_config(SessionConfig {
+                pin_fail_delay: Duration::ZERO,
+                ..SessionConfig::default()
+            });
+        let client_config = SessionRuntimeConfig::client("654321")
+            .with_auth_pins(vec!["654321".into(), "654321".into()]);
+        let mut server = SessionRuntime::new(harness.offerer, server_config).expect("server");
+        let mut client = SessionRuntime::new(harness.answerer, client_config).expect("client");
+
+        let (server_result, client_result) = tokio::join!(server.handshake(), client.handshake());
+        let error = server_result.expect_err("duplicate PIN auth must fail server handshake");
+        assert!(error.to_string().contains("duplicate auth control message"));
+        assert!(client_result.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
