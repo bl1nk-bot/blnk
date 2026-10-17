@@ -196,12 +196,23 @@ impl SpanCollector {
 }
 
 /// Minimal OTLP/HTTP exporter for the Braintrust-hosted endpoint.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BraintrustExporter {
     endpoint: String,
     api_key: String,
     project_id: String,
     client: reqwest::Client,
+}
+
+impl std::fmt::Debug for BraintrustExporter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BraintrustExporter")
+            .field("endpoint", &self.endpoint)
+            .field("api_key", &"[REDACTED]")
+            .field("project_id", &self.project_id)
+            .field("client", &self.client)
+            .finish()
+    }
 }
 
 impl BraintrustExporter {
@@ -526,6 +537,15 @@ mod tests {
         assert!(encoded[0].get("parentSpanId").is_none());
         assert_eq!(encoded[1]["parentSpanId"], parent_id);
         assert_eq!(encoded[2]["status"]["code"], 2);
+    }
+
+    #[test]
+    fn braintrust_exporter_debug_redacts_api_key() {
+        let mut exporter = test_exporter();
+        exporter.api_key = "secret_api_key_12345".to_owned();
+        let debug = format!("{exporter:?}");
+        assert!(debug.contains("[REDACTED]"));
+        assert!(!debug.contains("secret_api_key_12345"));
     }
 
     #[test]
