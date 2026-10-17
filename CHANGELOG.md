@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.17] — PR #168
+- fix(telemetry): redact API key in BraintrustExporter Debug formatting
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
