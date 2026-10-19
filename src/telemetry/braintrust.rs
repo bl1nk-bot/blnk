@@ -207,7 +207,7 @@ pub struct BraintrustExporter {
 impl std::fmt::Debug for BraintrustExporter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BraintrustExporter")
-            .field("endpoint", &self.endpoint)
+            .field("endpoint", &"<configured>")
             .field("api_key", &"<redacted>")
             .field("project_id", &self.project_id)
             .field("client", &self.client)
@@ -568,9 +568,12 @@ mod tests {
     #[test]
     fn braintrust_exporter_debug_redacts_api_key() {
         let mut exporter = test_exporter();
+        exporter.endpoint = "https://user:secret@example.test/traces?token=url-secret".to_owned();
         exporter.api_key = "secret_api_key_12345".to_owned();
         let debug_str = format!("{exporter:?}");
         assert!(!debug_str.contains("secret_api_key_12345"));
+        assert!(!debug_str.contains("url-secret"));
+        assert!(debug_str.contains("<configured>"));
         assert!(debug_str.contains("<redacted>"));
     }
 }

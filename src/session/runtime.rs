@@ -39,7 +39,7 @@ pub enum SessionRole {
 }
 
 /// A typed representation of the control messages on SWSP stream 0.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ControlMessage {
     Connect(wire::ConnectMessage),
     AuthRequired(wire::AuthRequiredMessage),
@@ -47,6 +47,22 @@ pub enum ControlMessage {
     AuthResult(wire::AuthResultMessage),
     Ready(wire::ReadyMessage),
     Error(wire::ErrorMessage),
+}
+
+impl std::fmt::Debug for ControlMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connect(message) => f.debug_tuple("Connect").field(message).finish(),
+            Self::AuthRequired(message) => f.debug_tuple("AuthRequired").field(message).finish(),
+            Self::Auth(_) => f
+                .debug_tuple("Auth")
+                .field(&"<redacted PIN>")
+                .finish(),
+            Self::AuthResult(message) => f.debug_tuple("AuthResult").field(message).finish(),
+            Self::Ready(message) => f.debug_tuple("Ready").field(message).finish(),
+            Self::Error(message) => f.debug_tuple("Error").field(message).finish(),
+        }
+    }
 }
 
 impl ControlMessage {
@@ -919,6 +935,14 @@ mod tests {
         decode_cancel_frame, decode_exit_frame, decode_input_frame, decode_open_frame,
         decode_output_frame,
     };
+
+    #[test]
+    fn control_message_debug_redacts_wire_pin() {
+        let message = ControlMessage::auth("123456").expect("valid PIN");
+        let debug_output = format!("{message:?}");
+        assert!(!debug_output.contains("123456"));
+        assert!(debug_output.contains("<redacted PIN>"));
+    }
 
     fn fixture_shell_program() -> String {
         #[cfg(windows)]

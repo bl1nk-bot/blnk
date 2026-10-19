@@ -1,4 +1,4 @@
-# บันทึกการรวม PR และการจัดการ branch — 2026-10-20
+# บันทึกการรวม PR และการจัดการ branch — 2026-10-19 (UTC)
 
 ## หลักการปฏิบัติ
 
@@ -44,13 +44,15 @@
 
 | เวลา | รายการ | สถานะ | หลักฐาน |
 |---|---|---|---|
-| 2026-10-20 | fetch PR heads เป็น local refs | เสร็จ | `refs/remotes/pr/*` |
-| 2026-10-20 | สร้าง branch audit จาก `origin/main` | เสร็จ | branch `ops/consolidate-prs-2026-10-20` |
-| 2026-10-20 | ติดป้าย PR เดิม | เสร็จสำหรับกลุ่ม A | `consolidation-candidate`, `duplicate`, `superseded-by-consolidated-pr` |
-| 2026-10-20 | เปิด PR ใหม่ชุด A | เสร็จ | PR #171, branch `consolidate/security-redaction-a`, commit `9482bf8` |
-| 2026-10-20 | ปิด PR เดิมชุด A หลังมี PR ใหม่ | เสร็จ | PR #170 และ #168 ปิดพร้อม comment ลิงก์กลับไป #171 |
-| 2026-10-20 | ตรวจ local Rust TDD gate | ติดขัด | environment นี้ไม่มี `cargo`/Rust toolchain; ให้ CI ของ PR #171 เป็น gate |
-| 2026-10-20 | เปิด PR ใหม่ชุด B/C | ยังไม่เริ่ม | ต้องคัด patch และเพิ่ม test ก่อน |
+| 2026-10-19 | fetch PR heads เป็น local refs | เสร็จ | `refs/remotes/pr/*` |
+| 2026-10-19 | สร้าง branch audit จาก `origin/main` | เสร็จ | branch `ops/consolidate-prs-2026-10-20` |
+| 2026-10-19 | ติดป้าย PR เดิม | เสร็จสำหรับกลุ่ม A | `consolidation-candidate`, `duplicate`, `superseded-by-consolidated-pr` |
+| 2026-10-19 | เปิด PR ใหม่ชุด A | เสร็จ | PR #171, branch `consolidate/security-redaction-a`, commit `9482bf8` |
+| 2026-10-19 | ปิด PR เดิมชุด A หลังมี PR ใหม่ | เสร็จ | PR #170 และ #168 ปิดพร้อม comment ลิงก์กลับไป #171 |
+| 2026-10-19 | ตรวจ local Rust TDD gate | ติดขัด | environment นี้ไม่มี `cargo`/Rust toolchain; ให้ CI ของ PR #171 เป็น gate |
+| 2026-10-19 | บันทึก CI/review gate ของ PR #171 | ติดขัด | Linux test/clippy/format/release, CodeQL และ Qodana ผ่าน; Android SDK setup ล้มเหลวที่ package `tools`, RustSec พบ advisories, CodeRabbit changes requested |
+| 2026-10-19 | แก้ review ที่ยืนยันได้ | กำลังดำเนินการ | runtime wire PIN และ Braintrust endpoint URL ต้องมี regression tests ใน commit ถัดไป |
+| 2026-10-19 | เปิด PR ใหม่ชุด B/C | ยังไม่เริ่ม | ห้ามเริ่มจนกว่า PR #171 ผ่าน required checks/review |
 
 ## วิธี rollback
 
