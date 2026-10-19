@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.17] — PR #149
+- chore(security): redact PIN in AuthMessage Debug formatting
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
