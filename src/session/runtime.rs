@@ -54,10 +54,7 @@ impl std::fmt::Debug for ControlMessage {
         match self {
             Self::Connect(message) => f.debug_tuple("Connect").field(message).finish(),
             Self::AuthRequired(message) => f.debug_tuple("AuthRequired").field(message).finish(),
-            Self::Auth(_) => f
-                .debug_tuple("Auth")
-                .field(&"<redacted PIN>")
-                .finish(),
+            Self::Auth(_) => f.debug_tuple("Auth").field(&"<redacted PIN>").finish(),
             Self::AuthResult(message) => f.debug_tuple("AuthResult").field(message).finish(),
             Self::Ready(message) => f.debug_tuple("Ready").field(message).finish(),
             Self::Error(message) => f.debug_tuple("Error").field(message).finish(),
