@@ -1,6 +1,7 @@
 # Changelog
 
 ## [0.2.17] — PR #171
+
 - security: รวมการปิดบัง PIN ใน `AuthMessage` และ API key ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
 
 ## [0.2.10]

@@ -52,6 +52,7 @@
 | 2026-10-19 | ตรวจ local Rust TDD gate | ติดขัด | environment นี้ไม่มี `cargo`/Rust toolchain; ให้ CI ของ PR #171 เป็น gate |
 | 2026-10-19 | บันทึก CI/review gate ของ PR #171 | ติดขัด | Linux test/clippy/format/release, CodeQL และ Qodana ผ่าน; Android SDK setup ล้มเหลวที่ package `tools`, RustSec พบ advisories, CodeRabbit changes requested |
 | 2026-10-19 | แก้ review ที่ยืนยันได้ | กำลังดำเนินการ | runtime wire PIN และ Braintrust endpoint URL ต้องมี regression tests ใน commit ถัดไป |
+| 2026-10-21 | แก้ release-gate blockers | กำลังตรวจซ้ำ | lock `quinn-proto` เป็น `0.11.18`, `rustls` เป็น `0.23.46`, Android setup ระบุ `packages: platform-tools`, และคง RSA advisory exception ที่มีอยู่ใน CI |
 | 2026-10-19 | เปิด PR ใหม่ชุด B/C | ยังไม่เริ่ม | ห้ามเริ่มจนกว่า PR #171 ผ่าน required checks/review |
 
 ## วิธี rollback
