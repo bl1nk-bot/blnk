@@ -184,6 +184,7 @@
 - Modify: `docs/implementation-status.md`
 - Modify: `TODO.md`
 - Modify: `CHANGELOG.md`
+- Release metadata: for each behavior-changing implementation PR, run `just bump <pr_number> "<message>"`; confirm the next semantic version, synchronized `Cargo.lock`, and a `CHANGELOG.md` entry under `## [0.2.x]`. Do not repeat the version bump for a documentation-only commit.
 - Test: documentation examples, `just ci`, and release/PR checks
 
 **Interfaces:**
