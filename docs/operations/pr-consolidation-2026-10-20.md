@@ -53,7 +53,7 @@
 | 2026-10-19 | บันทึก CI/review gate ของ PR #171 | ติดขัด | Linux test/clippy/format/release, CodeQL และ Qodana ผ่าน; Android SDK setup ล้มเหลวที่ package `tools`, RustSec พบ advisories, CodeRabbit changes requested |
 | 2026-10-19 | แก้ review ที่ยืนยันได้ | เสร็จ | `ControlMessage` wire PIN และ Braintrust endpoint มี custom Debug + regression tests ใน commit `fa9fa82` |
 | 2026-10-21 | แก้ release-gate blockers | กำลังตรวจซ้ำ | lock `quinn-proto` เป็น `0.11.18`, `rustls` เป็น `0.23.46`, Android setup ระบุ `packages: platform-tools`, และนำ RSA exception ออกจาก release gate |
-| 2026-10-21 | ตรวจ RSA advisory ใน release gate | ติด blocker โดยตั้งใจ | ไม่ allowlist `RUSTSEC-2023-0071` เพราะ `identity.decrypt` รับข้อมูลจาก signaling ภายนอก; ต้องแยกงานแก้ crypto boundary ก่อน release ผ่าน |
+| 2026-10-21 | ตรวจ RSA advisory ใน release gate | ติด blocker โดยตั้งใจ | ไม่ allowlist `RUSTSEC-2023-0071` เพราะ `identity.decrypt` รับข้อมูลจาก signaling ภายนอก; ติดตามงานแก้ crypto boundary ที่ Issue #173 ก่อน release ผ่าน |
 | 2026-10-19 | เปิด PR ใหม่ชุด B/C | ยังไม่เริ่ม | ห้ามเริ่มจนกว่า PR #171 ผ่าน required checks/review |
 
 ## วิธี rollback
