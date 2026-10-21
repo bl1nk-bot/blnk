@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.17] — PR #149
+## [0.2.17] — PR #174
 - fix(config): redact PIN and bootstrap token in CLI args Debug formatting
 
 ## [0.2.10]
