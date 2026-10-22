@@ -214,8 +214,8 @@ impl ShellPolicy {
             self.root_dir.join(&command.cwd)
         };
 
-        let canonical_root = std::fs::canonicalize(&self.root_dir).map_err(BlnkError::Io)?;
-        let canonical_cwd = std::fs::canonicalize(&cwd).map_err(BlnkError::Io)?;
+        let canonical_root = canonicalize_path(&self.root_dir)?;
+        let canonical_cwd = canonicalize_path(&cwd)?;
         if !canonical_cwd.starts_with(&canonical_root) || !canonical_cwd.is_dir() {
             return Err(BlnkError::Stream(
                 "shell working directory escapes policy root".into(),
@@ -358,6 +358,21 @@ fn reserve_output(total: &AtomicUsize, amount: usize, limit: usize) -> StreamRes
             Err(observed) => current = observed,
         }
     }
+}
+
+fn canonicalize_path(path: &Path) -> StreamResult<PathBuf> {
+    let canonical = std::fs::canonicalize(path).map_err(BlnkError::Io)?;
+    #[cfg(windows)]
+    {
+        let path_str = canonical.to_string_lossy();
+        if let Some(stripped) = path_str.strip_prefix(r"\\?\UNC\") {
+            return Ok(PathBuf::from(format!(r"\\{stripped}")));
+        }
+        if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
+            return Ok(PathBuf::from(stripped));
+        }
+    }
+    Ok(canonical)
 }
 
 fn exit_status(status: std::process::ExitStatus) -> (Option<i32>, bool) {
