@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.17] — PR #175
+- fix(shell): strip UNC prefixes from canonicalized shell policy paths
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
