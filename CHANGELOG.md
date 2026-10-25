@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.17] — PR #171
+
+- security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
 
