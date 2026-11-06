@@ -804,7 +804,10 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                // Enforce constant-time comparison between duplicate client PIN submissions for consistent execution timing
+                if let Some(ref last_pin) = self.last_auth_pin
+                    && super::constant_time_string_eq(last_pin, &message.pin)
+                {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());
@@ -1072,6 +1075,32 @@ mod tests {
         assert!(client_result.is_err());
         assert_eq!(server.state(), SessionState::Closed);
         assert_eq!(client.state(), SessionState::Closed);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn duplicate_arbitrary_length_pin_fails_handshake_immediately() {
+        let harness = TwoPeerHarness::new("dup-pin")
+            .await
+            .expect("local peer harness should connect");
+        let server_config =
+            SessionRuntimeConfig::server("123456").with_session_config(SessionConfig {
+                pin_fail_delay: Duration::ZERO,
+                ..SessionConfig::default()
+            });
+        let client_config =
+            SessionRuntimeConfig::client("12").with_auth_pins(vec!["12".into(), "12".into()]);
+        let mut server = SessionRuntime::new(harness.offerer, server_config).expect("server");
+        let mut client = SessionRuntime::new(harness.answerer, client_config).expect("client");
+
+        let (server_result, client_result) = tokio::join!(server.handshake(), client.handshake());
+        let server_err = server_result.expect_err("duplicate PIN must fail server handshake");
+        assert!(
+            server_err
+                .to_string()
+                .contains("duplicate auth control message")
+        );
+        assert!(client_result.is_err());
+        assert_eq!(server.state(), SessionState::Closed);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
