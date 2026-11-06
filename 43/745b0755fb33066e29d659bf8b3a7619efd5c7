@@ -1,0 +1,29 @@
+.jules/sentinel-history.jsonl
+  s_8ff5ced6f58140::t_5eeb305158b21f 17
+src/session/mod.rs
+  s_8ff5ced6f58140::t_c4fdbcca45b366 5,417-422,570-582
+Cargo.toml
+  s_8ff5ced6f58140::t_18cd56fe6d15ae 3
+src/session/runtime.rs
+  s_8ff5ced6f58140::t_c4fdbcca45b366 807-810,1080-1105
+CHANGELOG.md
+  s_8ff5ced6f58140::t_18cd56fe6d15ae 3-5
+Cargo.lock
+  s_8ff5ced6f58140::t_9db1d0ce399d45 365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43745b0755fb33066e29d659bf8b3a7619efd5c7",
+  "prompts": {},
+  "sessions": {
+    "s_8ff5ced6f58140": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c86a50d-cfcb-4f76-829d-06785959b146",
+        "model": "gemini-3.8-flash-n"
+      },
+      "human_author": "billlzzz18 <billlzzz1808@gmail.com>"
+    }
+  }
+}
