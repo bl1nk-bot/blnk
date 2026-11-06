@@ -1,7 +1,17 @@
 # Changelog
 
+## [0.2.18] — PR #134
+- security: prevent timing side-channel in duplicate PIN comparison
+
+## [0.2.17] — PR #171
+
+- security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
+
 ## [0.2.10]
 - chore(security): prevent bootstrap token leak in debug logs
+
+## [0.2.17] — PR #165
+- chore(security): prevent credential leak in Identity Debug output
 
 ## [0.2.16] — PR #136, #148
 - feat(telemetry): add stream-level child spans for shell, file, and proxy
