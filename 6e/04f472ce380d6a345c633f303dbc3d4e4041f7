@@ -1,0 +1,37 @@
+src/signaling/orchestration.rs
+  s_8ff5ced6f58140::t_bd181bed78ba19 803
+src/web/mod.rs
+  s_8ff5ced6f58140::t_dbe0a8f4a324ea 864
+src/session/runtime.rs
+  s_8ff5ced6f58140::t_5fa2574385df13 807
+  s_8ff5ced6f58140::t_c4fdbcca45b366 808-810,1080-1105
+.jules/sentinel-history.jsonl
+  s_8ff5ced6f58140::t_a322be5b09eb4b 17
+src/utils/mod.rs
+  s_8ff5ced6f58140::t_46ab637f84b66e 3-11
+CHANGELOG.md
+  s_8ff5ced6f58140::t_18cd56fe6d15ae 3-5
+Cargo.toml
+  s_8ff5ced6f58140::t_18cd56fe6d15ae 3
+src/session/mod.rs
+  s_8ff5ced6f58140::t_f351e4aec7a961 416
+  s_8ff5ced6f58140::t_c4fdbcca45b366 417,565-577
+Cargo.lock
+  s_8ff5ced6f58140::t_9db1d0ce399d45 365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e04f472ce380d6a345c633f303dbc3d4e4041f7",
+  "prompts": {},
+  "sessions": {
+    "s_8ff5ced6f58140": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c86a50d-cfcb-4f76-829d-06785959b146",
+        "model": "gemini-3.8-flash-n"
+      },
+      "human_author": null
+    }
+  }
+}
