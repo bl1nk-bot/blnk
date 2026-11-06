@@ -1,0 +1,60 @@
+{
+  "effortLevel": "medium",
+  "env": {
+    "ANTHROPIC_API_KEY": "sk-8f10d362a036da41-4pcjre-1b7514cf",
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:20128/v1",
+    "ANTHROPIC_MODEL": "ag3.8-xmtp2.5-ocmuse1.3-krclaudesonnet-5a",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "xmtp/mimo-v2.5[1M]"
+  },
+  "mcpServers": {
+    "caveman": {
+      "args": [],
+      "command": "C:\\Users\\Admin\\.caveman\\bin\\caveman-mcp.exe"
+    },
+    "context7": {
+      "cache_ttl_hours": 24,
+      "strict_matching": true,
+      "url": "https://mcp.context7.com/mcp"
+    },
+    "dlog": {
+      "args": [],
+      "command": "D:/01WORK/Active/orgs/bl1nk-bot/dlog/target/release/dlog-mcp.exe",
+      "ledger_path": "D:/01WORK/Active/orgs/bl1nk-bot/dlog",
+      "strict_audit": true,
+      "sync_mode": "wal"
+    },
+    "rea": {
+      "args": [
+        "/d",
+        "/c",
+        "npx",
+        "-y",
+        "rea-agents@6.5.0",
+        "mcp"
+      ],
+      "command": "cmd.exe",
+      "startup_timeout_sec": 30
+    },
+    "serena": {
+      "args": [
+        "start-mcp-server",
+        "--context",
+        "hermes",
+        "--project-from-cwd"
+      ],
+      "command": "C:\\Users\\Admin\\.local\\bin\\serena.exe"
+    },
+    "subagent-gateway": {
+      "args": [
+        "D:/01WORK/Active/orgs/bl1nk-bot/subagent-gateway/index.mjs"
+      ],
+      "command": "node",
+      "env": {
+        "SYSTEMONE_URL": "http://localhost:11434/v1/systemone"
+      },
+      "strict_mode": true,
+      "systemone_url": "http://localhost:11434/v1/systemone",
+      "timeout_seconds": 30
+    }
+  }
+}
