@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.18] — PR #134
+- security: prevent timing side-channel in duplicate PIN comparison
+
 ## [0.2.17] — PR #171
 
 - security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR

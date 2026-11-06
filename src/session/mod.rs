@@ -413,6 +413,8 @@ fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
     (contents_match & expected_len_match & provided_len_match).into()
 }
 
+pub(super) use crate::utils::constant_time_string_eq;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,6 +560,19 @@ mod tests {
         let now = Instant::now();
         session.authenticate("bad", now).expect("rejection");
         assert!(session.authenticate("123456", now).is_err());
+    }
+
+    #[test]
+    fn constant_time_string_eq_handles_arbitrary_lengths() {
+        assert!(constant_time_string_eq("123456", "123456"));
+        assert!(constant_time_string_eq("12", "12"));
+        assert!(constant_time_string_eq(
+            "very_long_pin_string",
+            "very_long_pin_string"
+        ));
+        assert!(!constant_time_string_eq("12", "13"));
+        assert!(!constant_time_string_eq("12", "123"));
+        assert!(!constant_time_string_eq("123456", "123457"));
     }
 
     #[test]
