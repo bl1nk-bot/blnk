@@ -1,11 +1,19 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:8ef78be3735a32e8101f1eaba079f3745b7aa75d2d236d837f2755fb6124a727 -->
+
 # Changelog
 
+## [0.2.19] — PR #147
+- fix(security): sanitize FTS5 search query input in SqliteStore
+
+
+<!-- /coderabbit-ai-generated:v1 -->
 ## [0.2.18] — PR #134
 - security: prevent timing side-channel in duplicate PIN comparison
 
 
-## [0.2.17] — PR #147
-- fix(security): sanitize FTS5 search query input in SqliteStore
+## [0.2.17] — PR #171
 - security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
 - chore(security): prevent credential leak in Identity Debug output
 
