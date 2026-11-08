@@ -978,6 +978,17 @@ mod tests {
                 .expect_err("wrong nonce must be rejected");
         assert!(error.to_string().contains("pending challenge"));
 
+        let mut suffix_nonce = nonce.clone();
+        let last = suffix_nonce.pop().expect("nonce has a final character");
+        suffix_nonce.push(if last == '0' { '1' } else { '0' });
+        let suffix_request =
+            encrypted_session_request(&fingerprint, &suffix_nonce, "123456", &public_key)
+                .expect("suffix-nonce request");
+        let error =
+            validate_encrypted_request(&identity, &suffix_request, &nonce, "123456", &fingerprint)
+                .expect_err("suffix mismatch must be rejected");
+        assert!(error.to_string().contains("pending challenge"));
+
         let wrong_fingerprint = encrypted_session_request(
             &fingerprint_for_sdp("other-answer"),
             &nonce,
