@@ -943,12 +943,12 @@ mod tests {
     fn encrypted_request_is_non_empty_and_does_not_expose_identity_key() {
         let identity = Identity::generate().expect("identity");
         let fingerprint = fingerprint_for_sdp("answer");
-        let nonce = "nonce-1";
+        let nonce = uuid::Uuid::new_v4().to_string();
         let encoded =
-            encrypted_session_request(&fingerprint, nonce, "123456", &identity.public_key())
+            encrypted_session_request(&fingerprint, &nonce, "123456", &identity.public_key())
                 .expect("request");
         assert!(!encoded.is_empty());
-        validate_encrypted_request(&identity, &encoded, nonce, "123456", &fingerprint)
+        validate_encrypted_request(&identity, &encoded, &nonce, "123456", &fingerprint)
             .expect("request decrypts and validates");
         assert!(!encoded.contains(identity.uid()));
         assert!(!encoded.contains("PRIVATE KEY"));
@@ -959,26 +959,28 @@ mod tests {
         let identity = Identity::generate().expect("identity");
         let public_key = identity.public_key();
         let fingerprint = fingerprint_for_sdp("answer");
-        let nonce = "nonce-1";
+        let nonce = uuid::Uuid::new_v4().to_string();
 
-        let wrong_pin = encrypted_session_request(&fingerprint, nonce, "654321", &public_key)
+        let wrong_pin = encrypted_session_request(&fingerprint, &nonce, "654321", &public_key)
             .expect("wrong-pin request");
         let error =
-            validate_encrypted_request(&identity, &wrong_pin, nonce, "123456", &fingerprint)
+            validate_encrypted_request(&identity, &wrong_pin, &nonce, "123456", &fingerprint)
                 .expect_err("wrong PIN must be rejected");
         assert!(error.to_string().contains("PIN rejected"));
         assert!(!error.to_string().contains("654321"));
 
-        let wrong_nonce = encrypted_session_request(&fingerprint, "nonce-2", "123456", &public_key)
-            .expect("wrong-nonce request");
+        let other_nonce = uuid::Uuid::new_v4().to_string();
+        let wrong_nonce =
+            encrypted_session_request(&fingerprint, &other_nonce, "123456", &public_key)
+                .expect("wrong-nonce request");
         let error =
-            validate_encrypted_request(&identity, &wrong_nonce, nonce, "123456", &fingerprint)
+            validate_encrypted_request(&identity, &wrong_nonce, &nonce, "123456", &fingerprint)
                 .expect_err("wrong nonce must be rejected");
         assert!(error.to_string().contains("pending challenge"));
 
         let wrong_fingerprint = encrypted_session_request(
             &fingerprint_for_sdp("other-answer"),
-            nonce,
+            &nonce,
             "123456",
             &public_key,
         )
@@ -986,7 +988,7 @@ mod tests {
         let error = validate_encrypted_request(
             &identity,
             &wrong_fingerprint,
-            nonce,
+            &nonce,
             "123456",
             &fingerprint,
         )
@@ -998,11 +1000,16 @@ mod tests {
     fn request_challenge_is_single_use_even_after_validation_failure() {
         let identity = Identity::generate().expect("identity");
         let fingerprint = fingerprint_for_sdp("answer");
-        let encoded =
-            encrypted_session_request(&fingerprint, "nonce-1", "654321", &identity.public_key())
-                .expect("request");
+        let challenge = RequestChallenge::new();
+        let encoded = encrypted_session_request(
+            &fingerprint,
+            &challenge.nonce,
+            "654321",
+            &identity.public_key(),
+        )
+        .expect("request");
         let mut challenge = RequestChallenge {
-            nonce: "nonce-1".into(),
+            nonce: challenge.nonce,
             consumed: false,
         };
         assert!(

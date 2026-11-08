@@ -212,8 +212,12 @@ mod tests {
 
     #[test]
     fn sas_is_six_digits_and_changes_with_nonce() {
-        let nonce_c = generate_nonce().expect("nonce_c generation should succeed");
-        let nonce_d = generate_nonce().expect("nonce_d generation should succeed");
+        let nonce_c = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(1))
+            .collect::<Vec<_>>();
+        let nonce_d = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(2))
+            .collect::<Vec<_>>();
         let input = SasInput {
             nonce_c,
             nonce_d,
@@ -221,7 +225,9 @@ mod tests {
             remote_fp: "remote".to_owned(),
         };
         let result = compute_sas(&input).expect("SAS should compute");
-        let nonce_c_alt = generate_nonce().expect("alt nonce generation should succeed");
+        let nonce_c_alt = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(3))
+            .collect::<Vec<_>>();
         let changed = compute_sas(&SasInput {
             nonce_c: nonce_c_alt,
             ..input.clone()
