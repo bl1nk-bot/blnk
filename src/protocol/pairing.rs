@@ -24,12 +24,30 @@ pub struct PairChallenge {
     pub nonce_d: Vec<u8>,
 }
 
+impl std::fmt::Debug for PairChallenge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairChallenge")
+            .field("message_type", &self.message_type)
+            .field("nonce_d", &"[REDACTED]")
+            .finish()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PairReveal {
     #[serde(rename = "type")]
     pub message_type: String,
     #[serde(with = "base64_bytes")]
     pub nonce_c: Vec<u8>,
+}
+
+impl std::fmt::Debug for PairReveal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PairReveal")
+            .field("message_type", &self.message_type)
+            .field("nonce_c", &"[REDACTED]")
+            .finish()
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -272,6 +290,29 @@ mod tests {
         let debug_output = format!("{credentials:?}");
         assert!(!debug_output.contains("secret-access-code"));
         assert!(debug_output.contains("[REDACTED]"));
+    }
+
+    #[test]
+    fn pair_challenge_and_reveal_debug_redact_nonces() {
+        let challenge = PairChallenge {
+            message_type: "pair_challenge".to_owned(),
+            nonce_d: vec![0x42; NONCE_LEN],
+        };
+        let reveal = PairReveal {
+            message_type: "pair_reveal".to_owned(),
+            nonce_c: vec![0x24; NONCE_LEN],
+        };
+        let challenge_debug = format!("{challenge:?}");
+        let reveal_debug = format!("{reveal:?}");
+
+        assert_eq!(
+            challenge_debug,
+            r#"PairChallenge { message_type: "pair_challenge", nonce_d: "[REDACTED]" }"#
+        );
+        assert_eq!(
+            reveal_debug,
+            r#"PairReveal { message_type: "pair_reveal", nonce_c: "[REDACTED]" }"#
+        );
     }
 }
 

@@ -1,0 +1,16 @@
+{
+    "name": "blnk-devcontainer",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/devcontainers/features/go:1": {
+            "version": "1.18"
+        },
+        "ghcr.io/devcontainers/features/rust:1": {
+            "version": "lastest"
+        },  
+        "ghcr.io/devcontainers/features/docker-in-docker:1": {
+            "version": "latest",
+            "moby": true
+        }
+    }
+}

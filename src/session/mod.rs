@@ -51,10 +51,19 @@ impl Default for AuthRequiredMessage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct AuthMessage {
     pub message_type: String,
     pub pin: String,
+}
+
+impl std::fmt::Debug for AuthMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AuthMessage")
+            .field("message_type", &self.message_type)
+            .field("pin", &"<redacted>")
+            .finish()
+    }
 }
 
 impl AuthMessage {
@@ -404,9 +413,19 @@ fn constant_time_pin_eq(expected: &[u8], provided: &[u8]) -> bool {
     (contents_match & expected_len_match & provided_len_match).into()
 }
 
+pub(super) use crate::utils::constant_time_string_eq;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn auth_message_debug_redacts_pin() {
+        let msg = AuthMessage::new("123456").expect("valid pin");
+        let debug_output = format!("{msg:?}");
+        assert!(!debug_output.contains("123456"));
+        assert!(debug_output.contains("<redacted>"));
+    }
 
     #[test]
     fn whitespace_expected_pin_is_rejected() {
@@ -541,6 +560,19 @@ mod tests {
         let now = Instant::now();
         session.authenticate("bad", now).expect("rejection");
         assert!(session.authenticate("123456", now).is_err());
+    }
+
+    #[test]
+    fn constant_time_string_eq_handles_arbitrary_lengths() {
+        assert!(constant_time_string_eq("123456", "123456"));
+        assert!(constant_time_string_eq("12", "12"));
+        assert!(constant_time_string_eq(
+            "very_long_pin_string",
+            "very_long_pin_string"
+        ));
+        assert!(!constant_time_string_eq("12", "13"));
+        assert!(!constant_time_string_eq("12", "123"));
+        assert!(!constant_time_string_eq("123456", "123457"));
     }
 
     #[test]

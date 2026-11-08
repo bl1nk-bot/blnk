@@ -1,9 +1,17 @@
 # Changelog
 
-ทุกรุ่นด้านล่างเป็นบันทึก release ย้อนหลังตามลำดับที่ PR ถูก merge เข้า `main` แต่ละรุ่นเพิ่ม patch หนึ่งครั้ง (`0.0.1`) และ tag ชี้ merge commit ของ PR นั้นโดยตรง
+## [0.2.18] — PR #134
+- security: prevent timing side-channel in duplicate PIN comparison
+
 
 ## [0.2.17] — PR #147
 - fix(security): sanitize FTS5 search query input in SqliteStore
+- security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
+- chore(security): prevent credential leak in Identity Debug output
+
+## [0.2.16] — PR #136, #148
+- feat(telemetry): add stream-level child spans for shell, file, and proxy
+- chore(security): redact nonces in PairChallenge and PairReveal Debug formatting
 
 ## [0.2.15] — PR #145
 - feat(telemetry): add opt-in Braintrust OTLP session spans (serve/connect/cp)
@@ -28,6 +36,7 @@
 
 ## [0.2.8] — PR #106
 - docs: เพิ่ม demo animation (.gif) และ terminal screen captures (.png) พร้อมปรับปรุง README สื่อสารความสามารถหลักของโครงการให้ชัดเจน
+
 ## [0.2.7] — PR #102
 - feat(installer): เพิ่ม one-line install & update scripts (`install.ps1`, `update.ps1`, `install.sh`) และปรับปรุง CI/Release workflows ให้ประหยัดโควตา
 - docs: อัปเดต `TODO.md` และ `README.md` พร้อมคู่มือการติดตั้งและสถานะ roadmap ล่าสุด

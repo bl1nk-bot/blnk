@@ -19,13 +19,11 @@ use axum::routing::{get, post};
 use axum::{Router, serve};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -57,6 +55,23 @@ pub struct BrowserControlConfig {
     pub max_body_bytes: usize,
     pub max_frame_bytes: usize,
     pub handshake_timeout: Duration,
+}
+
+impl std::fmt::Debug for BrowserControlConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BrowserControlConfig")
+            .field("bind_addr", &self.bind_addr)
+            .field("allowed_origin", &self.allowed_origin)
+            .field("bootstrap_token", &"<redacted>")
+            .field("session_ttl", &self.session_ttl)
+            .field("max_sessions", &self.max_sessions)
+            .field("max_session_creations", &self.max_session_creations)
+            .field("rate_window", &self.rate_window)
+            .field("max_body_bytes", &self.max_body_bytes)
+            .field("max_frame_bytes", &self.max_frame_bytes)
+            .field("handshake_timeout", &self.handshake_timeout)
+            .finish()
+    }
 }
 
 impl BrowserControlConfig {
@@ -846,11 +861,7 @@ fn add_cors_headers(headers: &mut HeaderMap, config: &BrowserControlConfig) {
     );
 }
 
-fn secure_eq(left: &str, right: &str) -> bool {
-    let left_digest = Sha256::digest(left.as_bytes());
-    let right_digest = Sha256::digest(right.as_bytes());
-    left_digest.ct_eq(&right_digest).into()
-}
+use crate::utils::constant_time_string_eq as secure_eq;
 
 fn random_token() -> Result<String, BlnkError> {
     let mut bytes = [0_u8; 24];
@@ -867,7 +878,9 @@ mod tests {
     use reqwest::header::{HeaderValue as ReqwestHeaderValue, ORIGIN as REQWEST_ORIGIN};
     use reqwest::{Client, StatusCode as ReqwestStatusCode};
     use serde_json::Value;
-    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::{
+        Message as TungsteniteMessage, client::IntoClientRequest,
+    };
 
     fn fixture_config() -> BrowserControlConfig {
         BrowserControlConfig {
@@ -1084,7 +1097,7 @@ mod tests {
             .await
             .expect("websocket connect");
         socket
-            .send(tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "hello", "csrf_token": csrf})
                     .to_string()
                     .into(),
@@ -1100,7 +1113,7 @@ mod tests {
         assert!(ready_text.contains("\"type\":\"ready\""));
 
         socket
-            .send(tungstenite::Message::Text(
+            .send(TungsteniteMessage::Text(
                 serde_json::json!({"type": "status"}).to_string().into(),
             ))
             .await
@@ -1118,11 +1131,19 @@ mod tests {
         );
 
         socket
-            .send(tungstenite::Message::Text("x".repeat(512).into()))
+            .send(TungsteniteMessage::Text("x".repeat(512).into()))
             .await
             .expect("oversized frame send");
         let _ = socket.next().await;
         server.shutdown().await.expect("fixture shutdown");
+    }
+
+    #[test]
+    fn browser_control_config_debug_redacts_bootstrap_token() {
+        let config = BrowserControlConfig::loopback("http://127.0.0.1:3000", "secret-token-123");
+        let debug_output = format!("{config:?}");
+        assert!(!debug_output.contains("secret-token-123"));
+        assert!(debug_output.contains("<redacted>"));
     }
 
     #[test]

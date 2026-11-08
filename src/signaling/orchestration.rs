@@ -718,11 +718,7 @@ fn fingerprint_for_sdp(sdp: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(Sha256::digest(sdp.as_bytes()))
 }
 
-fn constant_time_string_eq(expected: &str, provided: &str) -> bool {
-    let expected_digest = Sha256::digest(expected.as_bytes());
-    let provided_digest = Sha256::digest(provided.as_bytes());
-    expected_digest.ct_eq(&provided_digest).into()
-}
+use crate::utils::constant_time_string_eq;
 
 fn constant_time_pin_eq(expected: &str, provided: &str) -> bool {
     let mut expected_fixed = [0_u8; PIN_LEN];

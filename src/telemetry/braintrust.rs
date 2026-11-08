@@ -69,12 +69,23 @@ impl TelemetrySpan {
 }
 
 /// Minimal OTLP/HTTP exporter for the Braintrust-hosted endpoint.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BraintrustExporter {
     endpoint: String,
     api_key: String,
     project_id: String,
     client: reqwest::Client,
+}
+
+impl std::fmt::Debug for BraintrustExporter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BraintrustExporter")
+            .field("endpoint", &"<configured>")
+            .field("api_key", &"<redacted>")
+            .field("project_id", &self.project_id)
+            .field("client", &self.client)
+            .finish()
+    }
 }
 
 impl BraintrustExporter {
@@ -325,5 +336,113 @@ mod tests {
         assert!(trace.chars().all(|c| c.is_ascii_hexdigit()));
         let span = span_id();
         assert!(span.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn session_span_and_child_share_trace_id_with_parent_link() {
+        let parent = TelemetrySpan::session_span("session.connect", SpanKind::Shell, "device-1");
+        let child = TelemetrySpan::child_span(&parent, "stream.shell", SpanKind::Shell, 5);
+
+        assert_eq!(child.trace_id, parent.trace_id);
+        assert_eq!(child.parent_span_id.as_deref(), parent.span_id.as_deref());
+        assert_eq!(child.stream_id, Some(5));
+        assert_eq!(child.session_id, "device-1");
+        assert!(parent.parent_span_id.is_none());
+        assert!(parent.span_id.is_some());
+
+        let exporter = test_exporter();
+        let parent_value = exporter.encode_span(&parent);
+        let child_value = exporter.encode_span(&child);
+        assert!(parent_value.get("parentSpanId").is_none());
+        assert_eq!(
+            child_value["parentSpanId"],
+            parent.span_id.as_deref().unwrap()
+        );
+        assert_eq!(child_value["traceId"], parent_value["traceId"]);
+        assert_ne!(child_value["spanId"], parent_value["spanId"]);
+    }
+
+    #[test]
+    fn collector_is_noop_without_parent() {
+        let mut collector = SpanCollector::new();
+        let child = collector.start_child("stream.file", SpanKind::File, 2);
+        assert!(child.is_none());
+        collector.finish_child(child, true, None);
+        collector.finish_parent(10, true, None);
+        assert!(collector.into_spans().is_empty());
+    }
+
+    #[test]
+    fn collector_nests_children_under_session_parent() {
+        let mut collector = SpanCollector::new();
+        collector.enable_parent("session.serve", SpanKind::Session, "client-7");
+
+        let shell = collector.start_child("stream.shell", SpanKind::Shell, 1);
+        collector.finish_child(shell, true, None);
+        let file = collector.start_child("stream.file", SpanKind::File, 2);
+        collector.finish_child(file, false, Some("read-only root".to_owned()));
+
+        collector.finish_parent(120, true, None);
+        let spans = collector.into_spans();
+        assert_eq!(spans.len(), 3);
+        assert_eq!(spans[0].name, "session.serve");
+        assert!(spans[0].success);
+        assert_eq!(spans[1].name, "stream.shell");
+        assert_eq!(spans[1].stream_id, Some(1));
+        assert!(spans[1].success);
+        assert_eq!(spans[2].name, "stream.file");
+        assert!(!spans[2].success);
+        assert_eq!(spans[2].error.as_deref(), Some("read-only root"));
+
+        let parent_id = spans[0].span_id.clone().expect("parent span id");
+        assert_eq!(spans[1].parent_span_id.as_deref(), Some(parent_id.as_str()));
+        assert_eq!(spans[2].parent_span_id.as_deref(), Some(parent_id.as_str()));
+
+        let exporter = test_exporter();
+        let encoded: Vec<_> = spans
+            .iter()
+            .map(|span| exporter.encode_span(span))
+            .collect();
+        assert!(encoded[0].get("parentSpanId").is_none());
+        assert_eq!(encoded[1]["parentSpanId"], parent_id);
+        assert_eq!(encoded[2]["status"]["code"], 2);
+    }
+
+    #[test]
+    fn proxy_child_spans_encode_with_proxy_kind() {
+        // Proxy dispatch is not wired into the session dispatcher yet
+        // (Issue #42); the span model must still encode proxy streams.
+        let mut collector = SpanCollector::new();
+        collector.enable_parent("session.serve", SpanKind::Session, "client-9");
+        let proxy = collector.start_child("stream.proxy", SpanKind::Proxy, 4);
+        collector.finish_child(proxy, true, None);
+        collector.finish_parent(30, true, None);
+
+        let spans = collector.into_spans();
+        let exporter = test_exporter();
+        let value = exporter.encode_span(&spans[1]);
+        let attrs = value["attributes"].as_array().unwrap();
+        let kind = attrs
+            .iter()
+            .find(|attr| attr["key"] == "blnk.span_kind")
+            .expect("span kind attribute");
+        assert_eq!(kind["value"]["stringValue"], "proxy");
+        let stream = attrs
+            .iter()
+            .find(|attr| attr["key"] == "blnk.stream_id")
+            .expect("stream id attribute");
+        assert_eq!(stream["value"]["intValue"], 4);
+    }
+
+    #[test]
+    fn braintrust_exporter_debug_redacts_api_key() {
+        let mut exporter = test_exporter();
+        exporter.endpoint = "https://user:secret@example.test/traces?token=url-secret".to_owned();
+        exporter.api_key = "secret_api_key_12345".to_owned();
+        let debug_str = format!("{exporter:?}");
+        assert!(!debug_str.contains("secret_api_key_12345"));
+        assert!(!debug_str.contains("url-secret"));
+        assert!(debug_str.contains("<configured>"));
+        assert!(debug_str.contains("<redacted>"));
     }
 }

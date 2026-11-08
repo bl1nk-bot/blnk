@@ -39,7 +39,7 @@ pub enum SessionRole {
 }
 
 /// A typed representation of the control messages on SWSP stream 0.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum ControlMessage {
     Connect(wire::ConnectMessage),
     AuthRequired(wire::AuthRequiredMessage),
@@ -47,6 +47,19 @@ pub enum ControlMessage {
     AuthResult(wire::AuthResultMessage),
     Ready(wire::ReadyMessage),
     Error(wire::ErrorMessage),
+}
+
+impl std::fmt::Debug for ControlMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Connect(message) => f.debug_tuple("Connect").field(message).finish(),
+            Self::AuthRequired(message) => f.debug_tuple("AuthRequired").field(message).finish(),
+            Self::Auth(_) => f.debug_tuple("Auth").field(&"<redacted PIN>").finish(),
+            Self::AuthResult(message) => f.debug_tuple("AuthResult").field(message).finish(),
+            Self::Ready(message) => f.debug_tuple("Ready").field(message).finish(),
+            Self::Error(message) => f.debug_tuple("Error").field(message).finish(),
+        }
+    }
 }
 
 impl ControlMessage {
@@ -356,6 +369,19 @@ impl SessionRuntime {
         kind: StreamKind,
         connect_path: impl Into<String>,
     ) -> SessionResult<StreamEntry> {
+        if matches!(
+            kind,
+            StreamKind::Tcp | StreamKind::WebSocket | StreamKind::Http
+        ) {
+            // FIXME: ProxyStreamService exists in proxy_handler.rs but is NOT wired
+            // into the ConnectionSupervisor dispatch loop. This blocks spec reqs
+            // 4.3 (Web Proxy), 4.4 (TCP Forwarding), 4.10 (WebSocket Bridging).
+            // See TODO.md "Codex-Inspired Adaptation Backlog" for proxy dispatch task.
+            // TODO: Wire proxy dispatch before enabling these stream kinds.
+            return Err(BlnkError::Stream(
+                "proxy stream dispatch is not implemented".into(),
+            ));
+        }
         self.session.open_stream(kind, connect_path)
     }
 
@@ -778,7 +804,10 @@ impl SessionRuntime {
                 if self.session.state() != SessionState::Authenticating {
                     return self.fail_session("unexpected auth control message").await;
                 }
-                if self.last_auth_pin.as_deref() == Some(message.pin.as_str()) {
+                // Enforce constant-time comparison between duplicate client PIN submissions for consistent execution timing
+                if let Some(ref last_pin) = self.last_auth_pin
+                    && super::constant_time_string_eq(last_pin, &message.pin)
+                {
                     return self.fail_session("duplicate auth control message").await;
                 }
                 self.last_auth_pin = Some(message.pin.clone());
@@ -907,6 +936,14 @@ mod tests {
         decode_output_frame,
     };
 
+    #[test]
+    fn control_message_debug_redacts_wire_pin() {
+        let message = ControlMessage::auth("123456").expect("valid PIN");
+        let debug_output = format!("{message:?}");
+        assert!(!debug_output.contains("123456"));
+        assert!(debug_output.contains("<redacted PIN>"));
+    }
+
     fn fixture_shell_program() -> String {
         #[cfg(windows)]
         {
@@ -988,6 +1025,17 @@ mod tests {
         assert_eq!(client.state(), SessionState::Ready);
         assert_eq!(server.active_streams(), 0);
 
+        for kind in [StreamKind::Tcp, StreamKind::WebSocket, StreamKind::Http] {
+            let error = server
+                .open_stream(kind, "/proxy")
+                .expect_err("unserviced proxy stream must be rejected");
+            assert!(
+                error
+                    .to_string()
+                    .contains("proxy stream dispatch is not implemented")
+            );
+        }
+
         let stream = server
             .open_stream(StreamKind::Shell, "/shell")
             .expect("ready runtime should open stream");
@@ -1027,6 +1075,32 @@ mod tests {
         assert!(client_result.is_err());
         assert_eq!(server.state(), SessionState::Closed);
         assert_eq!(client.state(), SessionState::Closed);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn duplicate_arbitrary_length_pin_fails_handshake_immediately() {
+        let harness = TwoPeerHarness::new("dup-pin")
+            .await
+            .expect("local peer harness should connect");
+        let server_config =
+            SessionRuntimeConfig::server("123456").with_session_config(SessionConfig {
+                pin_fail_delay: Duration::ZERO,
+                ..SessionConfig::default()
+            });
+        let client_config =
+            SessionRuntimeConfig::client("12").with_auth_pins(vec!["12".into(), "12".into()]);
+        let mut server = SessionRuntime::new(harness.offerer, server_config).expect("server");
+        let mut client = SessionRuntime::new(harness.answerer, client_config).expect("client");
+
+        let (server_result, client_result) = tokio::join!(server.handshake(), client.handshake());
+        let server_err = server_result.expect_err("duplicate PIN must fail server handshake");
+        assert!(
+            server_err
+                .to_string()
+                .contains("duplicate auth control message")
+        );
+        assert!(client_result.is_err());
+        assert_eq!(server.state(), SessionState::Closed);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -1080,7 +1154,7 @@ mod tests {
         )
         .await;
         server
-            .open_stream(StreamKind::Tcp, "127.0.0.1:9")
+            .open_stream(StreamKind::File, "test-file")
             .expect("stream should open");
         assert_eq!(server.active_streams(), 1);
 
