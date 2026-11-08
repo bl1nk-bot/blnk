@@ -1,16 +1,24 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:8ef78be3735a32e8101f1eaba079f3745b7aa75d2d236d837f2755fb6124a727 -->
+
 # Changelog
 
+## [0.2.19] — PR #147
+
+- fix(security): sanitize FTS5 search query input in SqliteStore
+
+
+<!-- /coderabbit-ai-generated:v1 -->
+
 ## [0.2.18] — PR #134
+
 - security: prevent timing side-channel in duplicate PIN comparison
 
-## [0.2.17] — PR #171
+
+## [0.2.17] — PR #171, #165
 
 - security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
-
-## [0.2.10]
-- chore(security): prevent bootstrap token leak in debug logs
-
-## [0.2.17] — PR #165
 - chore(security): prevent credential leak in Identity Debug output
 
 ## [0.2.16] — PR #136, #148
@@ -34,6 +42,9 @@
 
 ## [0.2.12] — PR #111
 - fix(web): support multiple cookie headers and quoted session tokens
+
+## [0.2.10]
+- chore(security): prevent bootstrap token leak in debug logs
 
 ## [0.2.9] — PR #107
 - chore: add just bump recipe, git hooks, and fix peer discovery loop
