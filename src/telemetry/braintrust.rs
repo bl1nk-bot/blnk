@@ -266,6 +266,68 @@ mod tests {
         span
     }
 
+    fn find_attr<'a>(value: &'a Value, key: &str) -> &'a Value {
+        value["attributes"]
+            .as_array()
+            .expect("attributes array")
+            .iter()
+            .find(|attr| attr["key"] == key)
+            .unwrap_or_else(|| panic!("attribute '{key}' must exist"))
+    }
+
+    fn assert_attributes(value: &Value, expected: &[(&str, &str, Value)]) {
+        for (key, type_name, expected_val) in expected {
+            let attr = find_attr(value, key);
+            assert_eq!(
+                &attr["value"][*type_name], expected_val,
+                "mismatch for attribute '{key}'"
+            );
+        }
+    }
+
+    fn assert_otlp_envelope(value: &Value, expected_name: &str, span: &TelemetrySpan) {
+        assert_eq!(
+            (
+                value["name"].as_str(),
+                value["kind"].as_i64(),
+                value["status"]["code"].as_i64()
+            ),
+            (Some(expected_name), Some(1), Some(1))
+        );
+        assert_eq!(
+            (
+                value["traceId"].as_str().map(str::len),
+                value["spanId"].as_str().map(str::len)
+            ),
+            (Some(32), Some(16))
+        );
+        let expected_start = span.started_at_unix.saturating_mul(1_000_000_000);
+        let expected_end = span
+            .started_at_unix
+            .saturating_add(span.duration_ms)
+            .saturating_mul(1_000_000_000);
+        assert_eq!(
+            (
+                value["startTimeUnixNano"].as_u64(),
+                value["endTimeUnixNano"].as_u64()
+            ),
+            (Some(expected_start), Some(expected_end))
+        );
+    }
+
+    fn assert_session_span_attributes(value: &Value) {
+        assert_attributes(
+            value,
+            &[
+                ("blnk.session_id", "stringValue", json!("session-1")),
+                ("blnk.span_kind", "stringValue", json!("session")),
+                ("blnk.peer_id", "stringValue", json!("peer-9")),
+                ("blnk.stream_id", "intValue", json!(3)),
+                ("blnk.success", "boolValue", json!(true)),
+            ],
+        );
+    }
+
     #[test]
     fn from_env_is_disabled_without_configuration() {
         // Tests run without Braintrust credentials; the exporter must be
@@ -283,32 +345,8 @@ mod tests {
         let span = sample_span();
         let value = exporter.encode_span(&span);
 
-        assert_eq!(value["name"], "session.ready");
-        assert_eq!(value["kind"], 1);
-        assert_eq!(value["status"]["code"], 1);
-        assert_eq!(value["traceId"].as_str().unwrap().len(), 32);
-        assert_eq!(value["spanId"].as_str().unwrap().len(), 16);
-        let expected_start = span.started_at_unix.saturating_mul(1_000_000_000);
-        let expected_end = span
-            .started_at_unix
-            .saturating_add(span.duration_ms)
-            .saturating_mul(1_000_000_000);
-        assert_eq!(value["startTimeUnixNano"], expected_start);
-        assert_eq!(value["endTimeUnixNano"], expected_end);
-
-        let attrs = value["attributes"].as_array().unwrap();
-        let find = |key: &str| {
-            attrs
-                .iter()
-                .find(|attr| attr["key"] == key)
-                .expect("attribute must exist")
-                .clone()
-        };
-        assert_eq!(find("blnk.session_id")["value"]["stringValue"], "session-1");
-        assert_eq!(find("blnk.span_kind")["value"]["stringValue"], "session");
-        assert_eq!(find("blnk.peer_id")["value"]["stringValue"], "peer-9");
-        assert_eq!(find("blnk.stream_id")["value"]["intValue"], 3);
-        assert_eq!(find("blnk.success")["value"]["boolValue"], true);
+        assert_otlp_envelope(&value, "session.ready", &span);
+        assert_session_span_attributes(&value);
     }
 
     #[test]
@@ -319,14 +357,17 @@ mod tests {
         span.error = Some("pin rejected".to_owned());
 
         let value = exporter.encode_span(&span);
-        assert_eq!(value["status"]["code"], 2);
-        assert_eq!(value["status"]["message"], "pin rejected");
-        let attrs = value["attributes"].as_array().unwrap();
-        let error_attr = attrs
-            .iter()
-            .find(|attr| attr["key"] == "error.message")
-            .expect("error attribute must exist");
-        assert_eq!(error_attr["value"]["stringValue"], "pin rejected");
+        assert_eq!(
+            (
+                value["status"]["code"].as_i64(),
+                value["status"]["message"].as_str()
+            ),
+            (Some(2), Some("pin rejected"))
+        );
+        assert_attributes(
+            &value,
+            &[("error.message", "stringValue", json!("pin rejected"))],
+        );
     }
 
     #[test]
@@ -362,17 +403,13 @@ mod tests {
         span.stream_id = Some(4);
         let exporter = test_exporter();
         let value = exporter.encode_span(&span);
-        let attrs = value["attributes"].as_array().unwrap();
-        let kind = attrs
-            .iter()
-            .find(|attr| attr["key"] == "blnk.span_kind")
-            .expect("span kind attribute");
-        assert_eq!(kind["value"]["stringValue"], "proxy");
-        let stream = attrs
-            .iter()
-            .find(|attr| attr["key"] == "blnk.stream_id")
-            .expect("stream id attribute");
-        assert_eq!(stream["value"]["intValue"], 4);
+        assert_attributes(
+            &value,
+            &[
+                ("blnk.span_kind", "stringValue", json!("proxy")),
+                ("blnk.stream_id", "intValue", json!(4)),
+            ],
+        );
     }
 
     #[test]

@@ -146,11 +146,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
             .context("serve remote session");
         return export_session_span(
             telemetry.as_ref(),
-            "session.serve",
-            SpanKind::Session,
-            "serve",
-            Some(client_id),
-            session_started_at,
+            SessionSpanParams {
+                name: "session.serve",
+                kind: SpanKind::Session,
+                session_id: "serve",
+                peer_id: Some(client_id),
+                started_at: session_started_at,
+            },
             result,
         )
         .await;
@@ -174,11 +176,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     let serve_result = serve_result.await;
     export_session_span(
         telemetry.as_ref(),
-        "session.serve",
-        SpanKind::Session,
-        "serve",
-        Some(client_id),
-        session_started_at,
+        SessionSpanParams {
+            name: "session.serve",
+            kind: SpanKind::Session,
+            session_id: "serve",
+            peer_id: Some(client_id),
+            started_at: session_started_at,
+        },
         serve_result,
     )
     .await
@@ -265,11 +269,13 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
     };
     export_session_span(
         telemetry.as_ref(),
-        "session.connect",
-        SpanKind::Shell,
-        target,
-        Some(session.client_id.clone()),
-        connect_started_at,
+        SessionSpanParams {
+            name: "session.connect",
+            kind: SpanKind::Shell,
+            session_id: target,
+            peer_id: Some(session.client_id.clone()),
+            started_at: connect_started_at,
+        },
         exit_code,
     )
     .await
@@ -324,14 +330,38 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     };
     export_session_span(
         telemetry.as_ref(),
-        "session.copy",
-        SpanKind::File,
-        target,
-        Some(session.client_id.clone()),
-        copy_started_at,
+        SessionSpanParams {
+            name: "session.copy",
+            kind: SpanKind::File,
+            session_id: target,
+            peer_id: Some(session.client_id.clone()),
+            started_at: copy_started_at,
+        },
         copy_result,
     )
     .await
+}
+
+/// Parameters required to construct and export a session-level telemetry span.
+struct SessionSpanParams<'a> {
+    name: &'a str,
+    kind: SpanKind,
+    session_id: &'a str,
+    peer_id: Option<String>,
+    started_at: Instant,
+}
+
+impl<'a> SessionSpanParams<'a> {
+    fn into_span(self, outcome: &anyhow::Result<()>) -> TelemetrySpan {
+        let mut span = TelemetrySpan::new(self.name, self.kind, self.session_id);
+        span.peer_id = self.peer_id;
+        span.duration_ms = self.started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        if let Err(error) = outcome {
+            span.success = false;
+            span.error = Some(error.to_string());
+        }
+        span
+    }
 }
 
 /// Build the Braintrust exporter when telemetry is configured.
@@ -343,21 +373,11 @@ fn load_telemetry() -> anyhow::Result<Option<BraintrustExporter>> {
 /// Telemetry failures never change the command result.
 async fn export_session_span(
     telemetry: Option<&BraintrustExporter>,
-    name: &str,
-    kind: SpanKind,
-    session_id: &str,
-    peer_id: Option<String>,
-    started_at: Instant,
+    params: SessionSpanParams<'_>,
     outcome: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     if let Some(exporter) = telemetry {
-        let mut span = TelemetrySpan::new(name, kind, session_id);
-        span.peer_id = peer_id;
-        span.duration_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
-        if let Err(error) = &outcome {
-            span.success = false;
-            span.error = Some(error.to_string());
-        }
+        let span = params.into_span(&outcome);
         exporter.export(std::slice::from_ref(&span)).await;
     }
     outcome

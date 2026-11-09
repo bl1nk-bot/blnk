@@ -27,8 +27,7 @@ pub struct EncryptedVault {
 }
 
 impl EncryptedVault {
-    pub fn open(path: impl AsRef<std::path::Path>, root_key: [u8; 32]) -> Result<Self> {
-        let conn = Connection::open(path).context("open vault database")?;
+    fn from_connection(conn: Connection, root_key: [u8; 32]) -> Result<Self> {
         initialize(&conn)?;
         let vault = Self {
             conn: Mutex::new(conn),
@@ -38,15 +37,14 @@ impl EncryptedVault {
         Ok(vault)
     }
 
+    pub fn open(path: impl AsRef<std::path::Path>, root_key: [u8; 32]) -> Result<Self> {
+        let conn = Connection::open(path).context("open vault database")?;
+        Self::from_connection(conn, root_key)
+    }
+
     pub fn open_in_memory(root_key: [u8; 32]) -> Result<Self> {
         let conn = Connection::open_in_memory().context("open in-memory vault")?;
-        initialize(&conn)?;
-        let vault = Self {
-            conn: Mutex::new(conn),
-            root_key: Zeroizing::new(root_key),
-        };
-        vault.ensure_key_version()?;
-        Ok(vault)
+        Self::from_connection(conn, root_key)
     }
 
     pub fn put(&self, request: &PutPayloadRequest) -> Result<VaultRecord> {

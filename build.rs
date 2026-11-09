@@ -1,4 +1,7 @@
-use std::{env, fs, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 fn main() {
     println!("cargo:rerun-if-changed=proto");
@@ -18,21 +21,7 @@ fn main() {
     let proto_dir = PathBuf::from("proto");
 
     // Dynamically discover all .proto files in the proto directory to easily support future features
-    let mut proto_files = Vec::new();
-    if proto_dir.exists()
-        && proto_dir.is_dir()
-        && let Ok(entries) = fs::read_dir(&proto_dir)
-    {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|ext| ext.to_str()) == Some("proto") {
-                proto_files.push(path);
-            }
-        }
-    }
-
-    // Sort to ensure deterministic compilation order
-    proto_files.sort();
+    let proto_files = discover_proto_files(&proto_dir);
 
     if !proto_files.is_empty() {
         let mut config = prost_build::Config::new();
@@ -45,4 +34,24 @@ fn main() {
             .compile_protos(&proto_files, &[proto_dir])
             .expect("all protobuf schemas in proto/ must compile successfully");
     }
+}
+
+fn is_proto_file(path: &Path) -> bool {
+    path.is_file() && path.extension().is_some_and(|ext| ext == "proto")
+}
+
+fn discover_proto_files(dir: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+
+    let mut files: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| is_proto_file(path))
+        .collect();
+
+    // Sort to ensure deterministic compilation order
+    files.sort();
+    files
 }

@@ -23,6 +23,7 @@ use webrtc::peer_connection::RTCSessionDescription;
 use crate::{
     identity::Identity,
     peer::PeerHandle,
+    protocol::swsp::Frame,
     session::{SessionRuntime, SessionRuntimeConfig},
     signaling::{
         AnswerMessage, ConnectionRequest, EndpointPolicy, OfferMessage, RegisterRequest,
@@ -323,6 +324,76 @@ pub async fn serve_session(session: ServerSession, root: impl AsRef<Path>) -> Si
     serve_session_with_shutdown(session, root, CancellationToken::new()).await
 }
 
+enum SessionLoopControl {
+    Continue,
+    Finish,
+}
+
+async fn dispatch_stream_opener(
+    runtime: &mut SessionRuntime,
+    frame: &Frame,
+    root: &Path,
+) -> SignalingResult<()> {
+    if !frame.flags.is_syn() || !frame.flags.is_dat() {
+        return Err(BlnkError::Protocol(format!(
+            "stream {} must start with SYN|DAT",
+            frame.stream_id
+        )));
+    }
+
+    if let Ok(command) = decode_open_frame(frame) {
+        return dispatch_shell(runtime, frame.stream_id, command, root).await;
+    }
+    if let Ok(request) = decode_request_frame(frame) {
+        return dispatch_file(runtime, frame.stream_id, request, root).await;
+    }
+
+    Err(BlnkError::Protocol(format!(
+        "unknown stream opener for stream {}",
+        frame.stream_id
+    )))
+}
+
+fn handle_control_frame(frame: &Frame) -> SignalingResult<SessionLoopControl> {
+    if frame.flags.is_fin() {
+        Ok(SessionLoopControl::Finish)
+    } else {
+        Err(BlnkError::Protocol(
+            "unexpected control frame after session handshake".into(),
+        ))
+    }
+}
+
+fn handle_stream_fin(
+    runtime: &mut SessionRuntime,
+    stream_id: u32,
+) -> SignalingResult<SessionLoopControl> {
+    if runtime.stream_kind(stream_id).is_some() {
+        runtime.close_stream(stream_id)?;
+        Ok(SessionLoopControl::Continue)
+    } else {
+        Err(BlnkError::Stream(format!(
+            "FIN for unknown stream id: {stream_id}"
+        )))
+    }
+}
+
+async fn process_session_frame(
+    runtime: &mut SessionRuntime,
+    frame: Frame,
+    root: &Path,
+) -> SignalingResult<SessionLoopControl> {
+    if frame.stream_id == 0 {
+        return handle_control_frame(&frame);
+    }
+    if frame.flags.is_fin() {
+        return handle_stream_fin(runtime, frame.stream_id);
+    }
+
+    dispatch_stream_opener(runtime, &frame, root).await?;
+    Ok(SessionLoopControl::Continue)
+}
+
 /// Runs the dispatcher until a terminal frame, disconnect, or cancellation.
 pub async fn serve_session_with_shutdown(
     mut session: ServerSession,
@@ -332,60 +403,25 @@ pub async fn serve_session_with_shutdown(
     let root = root.as_ref().to_path_buf();
     let result = async {
         loop {
-        let frame = tokio::select! {
-            _ = shutdown.cancelled() => break Ok(()),
-            result = session.runtime.recv_frame() => match result {
-                Ok(frame) => frame,
-                Err(BlnkError::Peer(message)) if message.contains("receive loop closed") => break Ok(()),
-                Err(error) => break Err(error),
-            },
-        };
-        if frame.stream_id == 0 {
-            if frame.flags.is_fin() {
-                break Ok(());
-            }
-            break Err(BlnkError::Protocol(
-                "unexpected control frame after session handshake".into(),
-            ));
-        }
-        if frame.flags.is_fin() {
-            if session.runtime.stream_kind(frame.stream_id).is_some() {
-                session.runtime.close_stream(frame.stream_id)?;
-                continue;
-            }
-            break Err(BlnkError::Stream(format!(
-                "FIN for unknown stream id: {}",
-                frame.stream_id
-            )));
-        }
-        if !frame.flags.is_syn() || !frame.flags.is_dat() {
-            break Err(BlnkError::Protocol(format!(
-                "stream {} must start with SYN|DAT",
-                frame.stream_id
-            )));
-        }
+            let frame = tokio::select! {
+                _ = shutdown.cancelled() => break Ok(()),
+                recv_res = session.runtime.recv_frame() => match recv_res {
+                    Ok(frame) => frame,
+                    Err(BlnkError::Peer(message)) if message.contains("receive loop closed") => break Ok(()),
+                    Err(error) => break Err(error),
+                },
+            };
 
-        if let Ok(command) = decode_open_frame(&frame) {
-            dispatch_shell(&mut session.runtime, frame.stream_id, command, &root).await?;
-            continue;
-        }
-        if let Ok(request) = decode_request_frame(&frame) {
-            dispatch_file(&mut session.runtime, frame.stream_id, request, &root).await?;
-            continue;
-        }
-            break Err(BlnkError::Protocol(format!(
-                "unknown stream opener for stream {}",
-                frame.stream_id
-            )));
+            match process_session_frame(&mut session.runtime, frame, &root).await? {
+                SessionLoopControl::Finish => break Ok(()),
+                SessionLoopControl::Continue => continue,
+            }
         }
     }
     .await;
+
     let close_result = session.runtime.close().await;
-    match (result, close_result) {
-        (Err(error), _) => Err(error),
-        (Ok(()), Err(error)) => Err(error),
-        (Ok(()), Ok(())) => Ok(()),
-    }
+    result.and(close_result)
 }
 
 /// Executes one remote shell command and returns its process status.
@@ -414,58 +450,62 @@ pub async fn run_shell_client(
     }
 }
 
-/// Performs upload/download over an authenticated remote file stream.
-pub async fn run_file_client(
-    runtime: &mut SessionRuntime,
+struct ClientTransferPlan {
+    request: FileTransferRequest,
+    upload_data: Vec<u8>,
+    local_destination: Option<PathBuf>,
+}
+
+fn prepare_file_transfer(
     source: &str,
     destination: &str,
     overwrite: bool,
-) -> SignalingResult<()> {
-    let download_path = source.strip_prefix("remote:");
-    let (request, upload, local_destination) = if let Some(remote_path) = download_path {
-        (
-            FileTransferRequest::get(remote_path, None)?,
-            Vec::new(),
-            Some(PathBuf::from(destination)),
-        )
+) -> SignalingResult<ClientTransferPlan> {
+    if let Some(remote_path) = source.strip_prefix("remote:") {
+        Ok(ClientTransferPlan {
+            request: FileTransferRequest::get(remote_path, None)?,
+            upload_data: Vec::new(),
+            local_destination: Some(PathBuf::from(destination)),
+        })
     } else {
         let data = std::fs::read(source).map_err(BlnkError::Io)?;
-        (
-            FileTransferRequest::put(destination, data.len() as u64, overwrite),
-            data,
-            None,
-        )
-    };
+        Ok(ClientTransferPlan {
+            request: FileTransferRequest::put(destination, data.len() as u64, overwrite),
+            upload_data: data,
+            local_destination: None,
+        })
+    }
+}
 
-    let stream = runtime.open_file_stream("/")?;
-    let stream_id = stream.id();
-    runtime.send_file_request(stream_id, &request).await?;
-    if request.operation == FileOperation::Put {
-        if upload.is_empty() {
-            runtime.send_file_chunk(stream_id, Vec::new(), true).await?;
-        } else {
-            for (index, chunk) in upload
-                .chunks(crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN)
-                .enumerate()
-            {
-                runtime
-                    .send_file_chunk(
-                        stream_id,
-                        chunk.to_vec(),
-                        (index + 1) * crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN
-                            >= upload.len(),
-                    )
-                    .await?;
-            }
-        }
+async fn send_upload_payload(
+    runtime: &mut SessionRuntime,
+    stream_id: u32,
+    payload: &[u8],
+) -> SignalingResult<()> {
+    if payload.is_empty() {
+        return runtime.send_file_chunk(stream_id, Vec::new(), true).await;
     }
 
+    let chunk_size = crate::protocol::swsp::DEFAULT_MAX_PAYLOAD_LEN;
+    for (index, chunk) in payload.chunks(chunk_size).enumerate() {
+        let is_last = (index + 1) * chunk_size >= payload.len();
+        runtime
+            .send_file_chunk(stream_id, chunk.to_vec(), is_last)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn receive_file_response(
+    runtime: &mut SessionRuntime,
+    request: &FileTransferRequest,
+) -> SignalingResult<Vec<u8>> {
     let mut received_data = Vec::new();
     let mut metadata_seen = false;
     loop {
         let frame = runtime.recv_file_frame().await?;
         if !metadata_seen {
-            let metadata = decode_response_metadata(&request, &frame)?;
+            let metadata = decode_response_metadata(request, &frame)?;
             metadata_seen = true;
             if let FileTransferResponse::Download { info, .. } = metadata {
                 println!("received={} bytes={}", info.name, info.size);
@@ -477,15 +517,39 @@ pub async fn run_file_client(
             break;
         }
     }
+    Ok(received_data)
+}
 
-    if let Some(destination) = local_destination {
-        if let Some(parent) = destination.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            std::fs::create_dir_all(parent).map_err(BlnkError::Io)?;
-        }
-        std::fs::write(&destination, received_data).map_err(BlnkError::Io)?;
-        println!("copied {} -> {}", source, destination.display());
+fn save_downloaded_file(destination: &Path, data: &[u8]) -> SignalingResult<()> {
+    if let Some(parent) = destination.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(BlnkError::Io)?;
+    }
+    std::fs::write(destination, data).map_err(BlnkError::Io)
+}
+
+/// Performs upload/download over an authenticated remote file stream.
+pub async fn run_file_client(
+    runtime: &mut SessionRuntime,
+    source: &str,
+    destination: &str,
+    overwrite: bool,
+) -> SignalingResult<()> {
+    let plan = prepare_file_transfer(source, destination, overwrite)?;
+    let stream = runtime.open_file_stream("/")?;
+    let stream_id = stream.id();
+
+    runtime.send_file_request(stream_id, &plan.request).await?;
+    if plan.request.operation == FileOperation::Put {
+        send_upload_payload(runtime, stream_id, &plan.upload_data).await?;
+    }
+
+    let received_data = receive_file_response(runtime, &plan.request).await?;
+
+    if let Some(dest_path) = plan.local_destination {
+        save_downloaded_file(&dest_path, &received_data)?;
+        println!("copied {} -> {}", source, dest_path.display());
     } else {
         println!("copied {} -> remote:{}", source, destination);
     }

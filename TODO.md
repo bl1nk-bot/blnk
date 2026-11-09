@@ -16,6 +16,19 @@
 - WebRTC data-channel test with reference bitbang client cross-machine
 - Baseline fixtures: `tests/compatibility_baseline.rs`, `tests/live_interop.rs`
 
+### Technical Debt & Future Maintenance Backlog
+- **Dependency Upgrades (`rusqlite` & `webrtc` breaking changes)**:
+  - `rusqlite` (0.31 -> 0.41.1+):
+    - Adapt queries to handle strict `ToSql` typing by explicitly casting `u64` timestamps/sizes to `i64` in `src/storage/store.rs` and `src/vault.rs`.
+  - `webrtc` (0.20.0 -> 0.21.1+):
+    - Handle `#[non_exhaustive]` on `DataChannelEvent` with fallback wildcards in `src/peer/mod.rs`.
+    - Refactor `ErrorDataChannel` mock in `src/peer/mod.rs` to adapt to the sealed `DataChannel` trait.
+    - Verify Windows MSVC and Android NDK toolchain dependencies for `aws-lc-sys` (CMake/NASM).
+  - Rust Toolchain: bump `channel` from `1.98.1` to `1.99.1+` after cross-platform matrix verification.
+- **Protobuf & Polyglot Transport Modernization**:
+  - Evaluate `tonic_prost_build` service generation in `build.rs` to expose standard gRPC / ConnectRPC stubs for TypeScript / external agents.
+  - Configure `bytes` zero-copy payload overrides (`c.bytes([...])`) for stream chunks and MCP payloads in `proto/stream.proto`.
+
 ## Resolved
 
 - [x] RUSTSEC-2023-0071: OAEP usage not vulnerable, risk accepted in `.cargo/audit.toml`
