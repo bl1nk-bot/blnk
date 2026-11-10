@@ -82,11 +82,9 @@ Signaling Server ←→ WebSocket (mDNS เป็น fallback บน LAN)
 ดูรายละเอียดเพิ่มเติมได้ที่:
 - `CONTEXT.md` — domain glossary
 - `docs/architecture.md` — module boundary & runtime model
-- `docs/api.md` — API contract ภายใน
-- `docs/blueprint.md` — target product voice card
+- `docs/decisions.md` — บันทึกการตัดสินใจทางสถาปัตยกรรม (ADRs)
 - `docs/implementation-status.md` — สถานะ implementation และ release gate
 - `STYLE.md` — coding conventions
-- `PROTOCOL.md` — wire protocol
 
 ## Development
 

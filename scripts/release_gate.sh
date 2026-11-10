@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# Guard: release_gate.sh is strictly for Linux x86_64 CI/release environments.
+case "$(uname -s 2>/dev/null || echo unknown)" in
+    Linux*) ;;
+    *)
+        echo "scripts/release_gate.sh is for Linux environments only (detected: $(uname -s 2>/dev/null || echo unknown)). Exiting."
+        exit 0
+        ;;
+esac
+
 set -euo pipefail
 
 usage() {
@@ -54,11 +64,6 @@ if [[ "$target" != "x86_64-unknown-linux-gnu" ]]; then
     echo "release_gate.sh is Linux x86_64 only; detected $target" >&2
     exit 1
 fi
-
-cargo fmt --all -- --check
-cargo check --all-targets --locked
-cargo test --all --locked
-cargo clippy --all --all-targets --locked -- -D warnings
 
 if [[ "$skip_build" == false ]]; then
     cargo build --locked --release

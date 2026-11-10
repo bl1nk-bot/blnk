@@ -1,8 +1,6 @@
 # Agent operations
 
-เอกสารนี้คือ operating memory ของ agent สำหรับ repository นี้ ไม่ใช่ working
-report และต้องอ่านร่วมกับ `AGENTS.md` ก่อนเริ่มงานส่งมอบใด ๆ. เป้าหมายคือให้
-process พัฒนาได้จากหลักฐานและข้อผิดพลาด แทนที่จะพึ่งการจำของ agent ใน session.
+เอกสารนี้คือแนวทางการส่งมอบงานและขั้นตอนการทำงานสำหรับ repository นี้ โดยอยู่ภายใต้กฎของผู้ใช้ (User Rules & Memory Protocol) ซึ่งมีอำนาจสูงสุดเสมอ ห้ามนำเอกสารนี้มาขัดแย้งหรือใช้แทนที่หน่วยความจำของผู้ใช้
 
 ## Delivery lifecycle
 
@@ -24,8 +22,8 @@ process พัฒนาได้จากหลักฐานและข้อ
 ## Documents and reports
 
 ไฟล์ context หลักเป็นสินทรัพย์ระยะยาว: `TODO.md`, `specs/spec.md`,
-`docs/architecture.md`, `docs/api.md`, `docs/blueprint.md`,
-`docs/implementation-status.md`, `docs/plans/**`, `AGENTS.md`, และ `.github/**`.
+`docs/architecture.md`,
+`docs/implementation-status.md`, `AGENTS.md`, และ `.github/**`.
 ห้ามลบจากชื่อหรือ location. working report ลบได้เฉพาะหลังพิสูจน์ว่า issue ปิด,
 งานอยู่ใน `main`, และไม่ใช่ context ที่อ้างอิงอยู่.
 
@@ -41,6 +39,18 @@ process พัฒนาได้จากหลักฐานและข้อ
    โดยไม่ต้องอาศัย memory ของ session.
 
 ## Recorded lessons
+
+### 2026-11-10 — scope of verification must match changes
+
+ห้ามรัน test suite เต็มรูปแบบ (`cargo test`) เมื่อการเปลี่ยนแปลงมีผลเฉพาะเอกสาร Markdown หรือ configuration เล็กน้อยที่ไม่ได้แตะโค้ด Rust; ตรวจสอบเฉพาะสิ่งที่เปลี่ยนจริงเพื่อประหยัดเวลาและทรัพยากร.
+
+### 2026-11-10 — reduce vs blind delete & decision preservation
+
+การลดความซ้ำซ้อนของเอกสารต้องแยกให้ออกระหว่าง "เอกสารขยะ/ข้อมูลที่ drift" กับ "บันทึกการตัดสินใจ (Decisions/ADRs) และประวัติศาสตร์"; ห้ามลบเหตุผลในการตัดสินใจทิ้งเพราะจะทำให้ต้องมาตัดสินใจเรื่องเดิมซ้ำ และต้องมีเหตุผลทางเทคนิครองรับ ไม่ใช่ทำตามคำสั่งอย่างไร้เหตุผล.
+
+### 2026-11-10 — CI workflow deduplication and platform guard
+
+รวม GitHub workflows ให้มีหน้าที่ชัดเจน ไม่รัน check ซ้ำซ้อนระหว่าง workflow; scripts ที่ผูกกับ OS เฉพาะ (เช่น `scripts/release_gate.sh` สำหรับ Linux) ต้องมี runtime guard ป้องกันการรันผิดแพลตฟอร์ม.
 
 ### 2026-08-23 — remote merge reconciliation
 

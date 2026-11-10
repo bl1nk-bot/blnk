@@ -69,11 +69,20 @@ Commit-reveal pairing with 6-digit SAS. PIN auth via `subtle::ConstantTimeEq` �
 cargo test <test_name> -- --nocapture  # single test with output
 ```
 
-## CI Gotchas
+## CI & Workflow Architecture
+
+Active workflows in `.github/workflows/`:
+- `ci.yml`: Fast developer feedback (`fmt`, `clippy -D warnings`, `cargo test`).
+- `delivery-contract.yml`: Enforces delivery PR contract (semver bump, changelog entry).
+- `release-gate.yml`: Canonical release packaging, Android verification, and `cargo audit` (ignoring `RUSTSEC-2023-0071`).
+- `scripts/release_gate.sh`: Strictly Linux x86_64; guards against running on Windows/other OSes.
+
+### CI Gotchas
 
 - **Zero clippy warnings** enforced (`-D warnings`)
 - **fmt check** must pass
 - `cargo audit` ignores `RUSTSEC-2023-0071` — OAEP usage not vulnerable (see `.cargo/audit.toml`)
+- **Never run `cargo test`** for pure documentation or markdown changes (tests test Rust code, not docs).
 - GitHub Actions billing failures → `gh pr merge --admin --merge` to bypass
 
 ## Contributing
@@ -85,3 +94,13 @@ Target `main`. Bump patch via `just bump`. Add `CHANGELOG.md` entry under `## [0
 - **RUSTSEC-2023-0071**: See `.cargo/audit.toml` for risk acceptance rationale
 - Proxy: deny-by-default, only explicitly allowed headers forwarded
 - File transfer: null byte rejection in paths
+
+## AI Agent Operational Rules & Context Maintenance
+
+This file and other AI guidance files are the working memory of agents across sessions:
+
+- **Operational Skill**: Load `.github/skills/agent-operations/SKILL.md` for the complete playbook on context compression, proportional verification, decision preservation, and autonomous delivery.
+- **Language Ownership**: This file (`CLAUDE.md`) and `.github/aw/instructions.md` are in English — **AI agents must autonomously maintain and update them**. Do not wait for or expect human maintenance. Thai files (`AGENTS.md`, `docs/agent-operations.md`) allow human collaboration.
+- **Source of Truth**: Rust source in `src/` and Protobuf schemas in `proto/` are the ground truth. When documentation drifts from code, update the documentation or remove stale boilerplate.
+- **Rule Hierarchy**: User Rules & Memory Protocol have absolute precedence over repo files.
+- **Behavior Under Questioning**: When questioned by the user, explain technical rationale calmly and with accountability. Do not panic, flip-flop, or blindly mutate files out of distress.

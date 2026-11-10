@@ -2,13 +2,13 @@
 
 ## Project Delivery Contract
 
-อ่าน `docs/agent-operations.md` ก่อนเริ่มงานส่งมอบเสมอ.
+อ่าน `docs/agent-operations.md` และ skill `.github/skills/agent-operations/SKILL.md` ก่อนเริ่มงานเสมอ เพื่อเข้าใจกระบวนการทำงานและการบำรุงรักษาบริบท.
 
 ### Canonical Context
 
 ไฟล์เหล่านี้เป็น contract ที่ agent รุ่นถัดไปต้องอ่าน — ห้ามลบ/ย้าย/เขียนทับโดยไม่มีคำสั่ง:
 
-`AGENTS.md`, `README.md`, `TODO.md`, `CONTEXT.md`, `STYLE.md`, `specs/spec.md`, `docs/architecture.md`, `docs/api.md`, `docs/blueprint.md`, `docs/implementation-status.md`
+`AGENTS.md`, `README.md`, `TODO.md`, `CONTEXT.md`, `STYLE.md`, `specs/spec.md`, `docs/architecture.md`, `docs/decisions.md`, `docs/implementation-status.md`
 
 working report คือเอกสารผลหลังงานที่ผูกกับ issue/PR เท่านั้น — ไม่ใช่ canonical context.
 
@@ -28,10 +28,14 @@ working report คือเอกสารผลหลังงานที่�
 
 - ใช้ Bash (POSIX shell) สำหรับ git, cargo, just, gh commands
 - ใช้ PowerShell สำหรับ Windows-specific commands เท่านั้น
-- ใช้เอกสารเพื่อจัดการสถานะ — อย่าพึ่งพา memory ใน context
 
 ### Behavior
 
-- เก็บข้อมูลสำคัญไว้ในเอกสารแทนที่จะหวังว่ามันจะอยู่รอด
 - รักษาการแก้ไขให้สอดคล้องกัน — เขียนเอกสารฉบับเต็ม ไม่ใช่เพิ่มชิ้นส่วนที่ขัดแย้งกัน
-- ปฏิบัติต่อเอกสารของตัวแทนเป็นสมุดบันทึก หน่วยความจำ และพื้นผิวการกำหนดค่า
+- กฎของผู้ใช้ (User Rules & Memory Protocol) มีลำดับความสำคัญสูงสุดเหนือเอกสารโปรเจกต์เสมอ ห้ามนำเอกสารโปรเจกต์มาขัดแย้งหรือแทนที่กฎของผู้ใช้
+
+### AI Context & Handoff
+
+- เมื่อมีการเปลี่ยนแปลงสถาปัตยกรรม, CI workflow, build scripts หรือ tooling ต้องอัปเดตไฟล์สำหรับ AI ทันที (`AGENTS.md`, `CLAUDE.md`, `docs/agent-operations.md`)
+- ไฟล์ภาษาไทยเขียนให้กระชับเพื่อให้ผู้ใช้ร่วมตรวจสอบได้ ส่วนไฟล์ภาษาอังกฤษ (`CLAUDE.md`) AI ต้องรับผิดชอบเนื้อหาให้ตรงกับสภาพจริงของโค้ด 100% โดยไม่ต้องรอให้ผู้ใช้มาเขียนแทน
+- เมื่อผู้ใช้ถามหรือตรวจสอบงาน ให้ตอบด้วยเหตุผลทางเทคนิคอย่างสุขุม รับผิดชอบการตัดสินใจ ห้ามแพนิคหรือแก้โค้ด/ลบข้อมูลมั่วซั่วเพียงเพราะตกใจคำถาม

@@ -11,9 +11,39 @@ permissions:
 
 jobs:
   verify:
-    name: Issue, documentation, and review contract
+    name: Issue, documentation, review, and release metadata contract
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin ${{ github.event.pull_request.base.ref }}
+          base_ref="origin/${{ github.event.pull_request.base.ref }}"
+          base_version="$(git show "$base_ref:Cargo.toml" | sed -n 's/^version = "\([^"]*\)"/\1/p' | head -n1)"
+          version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n1)"
+          node -e '
+            const parse = value => {
+              const parts = value.split(".").map(Number);
+              if (parts.length !== 3 || parts.some(part => !Number.isSafeInteger(part) || part < 0)) process.exit(1);
+              return parts;
+            };
+            const [major, minor, patch] = parse(process.argv[1]);
+            const [nextMajor, nextMinor, nextPatch] = parse(process.argv[2]);
+            const valid =
+              (nextMajor === major && nextMinor === minor && nextPatch === patch + 1) ||
+              (nextMajor === major && nextMinor === minor + 1 && nextPatch === 0) ||
+              (nextMajor === major + 1 && nextMinor === 0 && nextPatch === 0);
+            if (!valid) process.exit(1);
+          ' "$base_version" "$version" || { echo "expected the next patch, minor, or major semantic version after $base_version; got $version"; exit 1; }
+          git diff --exit-code "$base_ref" -- Cargo.lock >/dev/null && { echo 'Cargo.lock must be updated with Cargo.toml'; exit 1; }
+          grep -Fq "## [$version] — PR #${{ github.event.pull_request.number }}" CHANGELOG.md || { echo "CHANGELOG.md needs heading for PR #${{ github.event.pull_request.number }} and $version"; exit 1; }
+
       - name: Enforce delivery lifecycle evidence
         uses: actions/github-script@v7
         with:

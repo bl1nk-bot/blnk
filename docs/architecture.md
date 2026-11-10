@@ -14,7 +14,7 @@ blnk Rust ใช้สถาปัตยกรรมแบบ modular async CLI 
 
 เอกสารนี้เป็น **canonical architecture** สำหรับ module boundary, runtime model และ data flow ของ Rust implementation ส่วนสถานะว่า module ใด implement แล้วให้ยึด [`docs/implementation-status.md`](implementation-status.md) ไม่ใช่จากการที่ชื่อ module ปรากฏอยู่ในเอกสารหรือ schema
 
-เมื่อเอกสารขัดแย้งกัน ให้ใช้ลำดับ `docs/architecture.md` > `specs/spec.md` > `docs/api.md` > `STYLE.md` > `README.md` > `TODO.md` ตามที่ระบุใน foundation plan โดยการเปลี่ยน protocol semantics ต้องมี decision record และ compatibility test รองรับ
+เมื่อเอกสารขัดแย้งกัน ให้ใช้ลำดับ `docs/architecture.md` > `specs/spec.md` > `STYLE.md` > `README.md` > `TODO.md` โดยการเปลี่ยน protocol semantics ต้องมี decision record และ compatibility test รองรับ
 
 ---
 
@@ -169,8 +169,7 @@ blnk/
 ├── tests/                     # Integration tests
 └── docs/                      # Documentation
     ├── architecture.md        # (เอกสารนี้)
-    ├── api.md
-    ├── blueprint.md
+    ├── decisions.md           # Architectural Decision Records (ADRs)
     └── implementation-status.md
 ```
 
