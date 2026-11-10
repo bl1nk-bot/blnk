@@ -174,7 +174,9 @@ pub(crate) fn render_records(
             }
         }
         if row_index + 1 < rows.len() {
-            let width = options.available_width.unwrap_or_else(|| widest_line_width(&out));
+            let width = options
+                .available_width
+                .unwrap_or_else(|| widest_line_width(&out));
             out.push(HyperlinkLine::new(Line::from(Span::styled(
                 TABLE_BODY_SEPARATOR_CHAR.to_string().repeat(width),
                 options.separator_style,
@@ -228,7 +230,10 @@ fn render_stacked_field(
         .unwrap_or_else(|| display_width(&header.plain_text()).max(1));
     let label = Line::from(Span::styled(header.plain_text(), options.label_style));
     let mut wrapped_labels = Vec::new();
-    push_owned_lines(&word_wrap_line(&label, RtOptions::new(label_width)), &mut wrapped_labels);
+    push_owned_lines(
+        &word_wrap_line(&label, RtOptions::new(label_width)),
+        &mut wrapped_labels,
+    );
     for label_line in wrapped_labels {
         let mut spans = vec![Span::raw(" ".repeat(FIELD_LEADING_PADDING))];
         spans.extend(label_line.spans);

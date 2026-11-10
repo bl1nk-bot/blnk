@@ -166,6 +166,8 @@ blnk/
 │   ├── web/                   # Loopback browser control surface
 │   │   └── mod.rs             # BrowserControlServer, BrowserControlConfig
 │   └── proto_generated.rs     # Generated protobuf types
+├── apps/                      # Applications
+│   └── blnk-tui/              # Terminal User Interface (Ratatui)
 ├── tests/                     # Integration tests
 └── docs/                      # Documentation
     ├── architecture.md        # (เอกสารนี้)

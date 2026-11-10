@@ -129,7 +129,8 @@ impl ProjectedTextBuilder {
             self.projected.push('\u{2060}');
         }
         self.projected.push(ch);
-        self.source_boundaries.push((self.projected.len(), source_end));
+        self.source_boundaries
+            .push((self.projected.len(), source_end));
     }
 
     fn finish(self) -> ProjectedText {
@@ -401,12 +402,12 @@ fn match_wrapped_chars_to_source(text: &str, start: usize, wrapped: &str, cursor
     let mut chars = wrapped.chars().peekable();
 
     while let Some(ch) = chars.next() {
-        if let Some(src) = text.get(end..).and_then(|s| s.chars().next()) {
-            if ch == src {
-                end += src.len_utf8();
-                saw_source_char = true;
-                continue;
-            }
+        if let Some(src) = text.get(end..).and_then(|s| s.chars().next())
+            && ch == src
+        {
+            end += src.len_utf8();
+            saw_source_char = true;
+            continue;
         }
 
         if ch == '-' && chars.peek().is_none() {
@@ -542,7 +543,10 @@ fn is_absolute_url_like(token: &str) -> bool {
 
     if let Ok(url) = url::Url::parse(token) {
         let scheme = url.scheme().to_ascii_lowercase();
-        if matches!(scheme.as_str(), "http" | "https" | "ftp" | "ftps" | "ws" | "wss") {
+        if matches!(
+            scheme.as_str(),
+            "http" | "https" | "ftp" | "ftps" | "ws" | "wss"
+        ) {
             return url.host_str().is_some();
         }
         return true;
@@ -593,7 +597,7 @@ fn is_valid_bare_host_and_port(host: &str, port: Option<&str>) -> bool {
     if host.is_empty() {
         return false;
     }
-    port.map_or(true, is_valid_port)
+    port.is_none_or(is_valid_port)
 }
 
 fn is_supported_host(host: &str) -> bool {
@@ -727,27 +731,45 @@ impl<'a> RtOptions<'a> {
     }
 
     pub fn initial_indent(self, initial_indent: Line<'a>) -> Self {
-        RtOptions { initial_indent, ..self }
+        RtOptions {
+            initial_indent,
+            ..self
+        }
     }
 
     pub fn subsequent_indent(self, subsequent_indent: Line<'a>) -> Self {
-        RtOptions { subsequent_indent, ..self }
+        RtOptions {
+            subsequent_indent,
+            ..self
+        }
     }
 
     pub fn break_words(self, break_words: bool) -> Self {
-        RtOptions { break_words, ..self }
+        RtOptions {
+            break_words,
+            ..self
+        }
     }
 
     pub fn word_separator(self, word_separator: textwrap::WordSeparator) -> RtOptions<'a> {
-        RtOptions { word_separator, ..self }
+        RtOptions {
+            word_separator,
+            ..self
+        }
     }
 
     pub fn wrap_algorithm(self, wrap_algorithm: textwrap::WrapAlgorithm) -> RtOptions<'a> {
-        RtOptions { wrap_algorithm, ..self }
+        RtOptions {
+            wrap_algorithm,
+            ..self
+        }
     }
 
     pub fn word_splitter(self, word_splitter: textwrap::WordSplitter) -> RtOptions<'a> {
-        RtOptions { word_splitter, ..self }
+        RtOptions {
+            word_splitter,
+            ..self
+        }
     }
 }
 
@@ -1063,7 +1085,9 @@ impl<'a> MixedUrlLineBuilder<'a> {
     }
 
     fn empty_line_piece_limit(&self) -> usize {
-        self.line_limit.saturating_sub(self.empty_line_prefix_width()).max(1)
+        self.line_limit
+            .saturating_sub(self.empty_line_prefix_width())
+            .max(1)
     }
 
     fn can_resplit_piece(&self, piece: &MixedUrlWord) -> bool {
@@ -1118,7 +1142,11 @@ impl<'a> MixedUrlLineBuilder<'a> {
     fn append_piece(&mut self, piece: &MixedUrlWord) {
         let piece_width = piece.width(self.text);
         if self.is_empty_line() {
-            let start = if self.is_first_line() { 0 } else { piece.range.start };
+            let start = if self.is_first_line() {
+                0
+            } else {
+                piece.range.start
+            };
             self.line_start = Some(start);
             self.line_width = if self.is_first_line() {
                 self.leading_space_width + piece_width

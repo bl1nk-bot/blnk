@@ -1,16 +1,16 @@
-# Source Trust Analysis — Codex CLI (openai/codex) → blnk-tui
-
-**Date**: 2026-09-17
-**Author**: Hermes Agent (automated analysis)
-**Scope**: Extract TUI-related patterns from Codex CLI, map to blnk-tui architecture
-**Focus**: Terminal lifecycle, rendering, notifications, keyboard handling
-
+---
+name: source-trust-codex
+created: 2026-09-17
+author: Hermes Agent (automated analysis)
+scope: Extract TUI-related patterns from Codex CLI, map to blnk-tui architecture
+focus: Terminal lifecycle, rendering, notifications, keyboard handling
+updated: 2026-11-10
 ---
 
 ## 1. Reusable Code (adopt directly)
 
 | Pattern | Codex Source | blnk-tui Target | Effort |
-|---------|-------------|-----------------|--------|
+| --------- | ------------- | ----------------- | -------- |
 | **TUI lifecycle** | `tui/tui.rs` — init/restore/draw/alt-screen with synchronized update | `tui.rs` ✅ already implemented | Done |
 | **Shimmer animation** | `tui/shimmer.rs` — cosine band + true-color blend | `shimmer.rs` ✅ already implemented | Done |
 | **Terminal detection** | `codex-terminal-detection` crate — TERM_PROGRAM/VTE_VERSION/WT_SESSION parsing | `terminal_detection.rs` ✅ already in blnk core | Done |
@@ -68,7 +68,7 @@
 ### 3.1 What We Already Have (from Codex)
 
 | blnk-tui Module | Codex Equivalent | Status |
-|-----------------|-----------------|--------|
+| ----------------- | ----------------- | -------- |
 | `tui.rs` | `tui/tui.rs` | ✅ Implemented |
 | `shimmer.rs` | `shimmer.rs` | ✅ Implemented |
 | `terminal_hyperlinks.rs` | `terminal_hyperlinks.rs` | ✅ Implemented |
@@ -82,7 +82,7 @@
 ### 3.2 What We Need (from Codex)
 
 | blnk-tui Module | Codex Equivalent | Effort | Priority |
-|-----------------|-----------------|--------|----------|
+| ----------------- | ----------------- | -------- | ---------- |
 | `notifications/` | `notifications/` | Medium | Phase 2 |
 | `keyboard_modes.rs` | `keymap/` + `keymap_setup/` | Medium | Phase 2 |
 | `windows_console.rs` | `windows_console.rs` | Small | Phase 2 |
@@ -98,11 +98,13 @@
 ## 4. Tasks (added to TODO.md)
 
 ### Phase 2: Platform Integration (from Codex patterns)
+
 - [ ] Implement notification backend: OSC9 + PowerShell (from Codex `notifications/`)
 - [ ] Implement kitty keyboard protocol detection (from Codex `keymap/`)
 - [ ] Implement Windows console state management (from Codex `windows_console.rs`)
 
 ### Phase 3: blnk Remote Access TUI (from Codex patterns)
+
 - [ ] Add `app_event.rs` — TuiEvent enum with blnk-specific events
 - [ ] Add `event_stream.rs` — TuiEventStream combining crossterm + broadcast
 - [ ] Add `status/` — status bar (peer info, latency, streams)
@@ -115,7 +117,7 @@
 ## 5. Key Differences: Codex vs blnk-tui
 
 | Aspect | Codex | blnk-tui |
-|--------|-------|----------|
+| -------- | ------- | ---------- |
 | **Domain** | AI coding agent | P2P remote access |
 | **Primary flow** | User → AI → tool execution | User → peer → shell/file/proxy |
 | **Session** | Single agent session | Multiple peer sessions |
@@ -131,6 +133,7 @@
 ## 6. Impact Assessment
 
 **Immediate (this session)**:
+
 - ✅ TUI lifecycle implemented
 - ✅ Shimmer animation implemented
 - ✅ URL-aware wrapping implemented
@@ -138,11 +141,13 @@
 - ✅ Markdown rendering stubbed
 
 **Short-term (Phase 2)**:
+
 - Implement notifications (OSC9 + PowerShell)
 - Implement keyboard modes (kitty protocol)
 - Implement Windows console
 
 **Medium-term (Phase 3)**:
+
 - Event system (app_event + event_stream)
 - Status display
 - History cell

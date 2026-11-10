@@ -1,8 +1,12 @@
-# Architectural Decision Records (ADRs)
-
-เอกสารสรุปรวมการตัดสินใจทางสถาปัตยกรรม (Condensed Decision Ledger) เพื่อรักษาประวัติศาสตร์และเหตุผลเบื้องหลัง โดยไม่ต้องคงไฟล์ draft แยกย่อย
-
 ---
+name: decisions
+description: Architectural Decision Records for blnk
+created: 2026-11-10
+author: bl1nk18
+version: 1.0.0
+---
+
+
 
 ## ADR-0001: Non-Trickle ICE (Vanilla ICE)
 

@@ -47,33 +47,35 @@ jobs:
             const releaseLine = latest
               ? `[#${latest.tag_name} ${esc(latest.name || latest.tag_name)}](${latest.html_url})`
               : 'ยังไม่มี release';
-            const body = `<!-- blnk-status-dashboard: managed by .github/workflows/status-dashboard.yml -->
-
-# Project status
-
-อัปเดตอัตโนมัติจาก GitHub เมื่อ ${new Date().toISOString()} — ไม่ใช่ agent report
-
-## งานที่ยังเปิด
-
-${issueLines}
-
-## PR ที่ต้องตัดสินใจ
-
-${prLines}
-
-## Release ล่าสุด
-
-${releaseLine}
-
-## Main
-
-\`${branch.data.commit.sha}\`
-
-## สิ่งที่ระบบบังคับ
-
-- ทุก delivery PR ต้อง target \`main\`, link issue, ระบุเอกสาร/หลักฐาน และไม่มี review thread ค้าง
-- PR ต้อง bump patch version พร้อม Cargo.lock/CHANGELOG
-- หลัง merge จะตรวจว่าอยู่ใน \`main\` และสร้าง tag/release
-
-ดูรายละเอียดกติกาที่ [AGENTS.md](https://github.com/${owner}/${repo}/blob/main/AGENTS.md) และ workflow checks ใน PR.`;
+            const body = [
+              '<!-- blnk-status-dashboard: managed by .github/workflows/status-dashboard.yml -->',
+              '',
+              '# Project status',
+              '',
+              `อัปเดตอัตโนมัติจาก GitHub เมื่อ ${new Date().toISOString()} — ไม่ใช่ agent report`,
+              '',
+              '## งานที่ยังเปิด',
+              '',
+              issueLines,
+              '',
+              '## PR ที่ต้องตัดสินใจ',
+              '',
+              prLines,
+              '',
+              '## Release ล่าสุด',
+              '',
+              releaseLine,
+              '',
+              '## Main',
+              '',
+              `\`${branch.data.commit.sha}\``,
+              '',
+              '## สิ่งที่ระบบบังคับ',
+              '',
+              '- ทุก delivery PR ต้อง target `main`, link issue, ระบุเอกสาร/หลักฐาน และไม่มี review thread ค้าง',
+              '- PR ต้อง bump patch version พร้อม Cargo.lock/CHANGELOG',
+              '- หลัง merge จะตรวจว่าอยู่ใน `main` และสร้าง tag/release',
+              '',
+              `ดูรายละเอียดกติกาที่ [AGENTS.md](https://github.com/${owner}/${repo}/blob/main/AGENTS.md) และ workflow checks ใน PR.`
+            ].join('\n');
             await github.rest.issues.update({ owner, repo, issue_number: dashboardIssue, body });

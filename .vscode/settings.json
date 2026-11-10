@@ -1,5 +1,7 @@
 {
     "github.copilot.enable": {
         "markdown": true
-    }
+    },
+    "terminal.integrated.defaultProfile.windows": "PowerShell 7",
+    "powershell.powerShellDefaultVersion": "PowerShell 7"
 }

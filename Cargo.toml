@@ -1,13 +1,39 @@
-[package]
-name = "blnk"
+[workspace]
+resolver = "2"
+members = [
+    ".",
+    "apps/blnk-tui",
+]
+
+[workspace.package]
 version = "0.2.19"
 edition = "2024"
 authors = ["Dollawatt Chidjai"]
-description = "Remote access multitool in Rust"
 license = "MIT"
-readme = "README.md"
 homepage = "https://github.com/bl1nk-bot/blnk"
 repository = "https://github.com/bl1nk-bot/blnk"
+
+[workspace.dependencies]
+ratatui = "0.29.0"
+crossterm = "0.28.1"
+textwrap = "0.16.2"
+unicode-segmentation = "1.12.0"
+unicode-width = "0.2.0"
+supports-color = "3.0.2"
+pulldown-cmark = "0.12.2"
+tracing = "0.1"
+url = "2.0"
+
+[package]
+name = "blnk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Remote access multitool in Rust"
+license.workspace = true
+readme = "README.md"
+homepage.workspace = true
+repository.workspace = true
 
 [lib]
 name = "blnk"

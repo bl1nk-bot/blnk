@@ -39,6 +39,11 @@ Stream Multiplexer (shell | file | proxy | tcp | websocket)
 
 Commit-reveal pairing with 6-digit SAS. PIN auth via `subtle::ConstantTimeEq` — never short-circuit.
 
+### Workspace & Applications
+
+- **Root crate (`blnk`)**: Core daemon, CLI, protocol, and loopback web server.
+- **`apps/blnk-tui`**: Terminal user interface client built with Ratatui/Crossterm. Current feature inventory recorded in `docs/tui-feature-inventory.md`.
+
 ### Modules
 
 | Module | Role |

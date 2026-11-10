@@ -8,7 +8,7 @@
 
 ไฟล์เหล่านี้เป็น contract ที่ agent รุ่นถัดไปต้องอ่าน — ห้ามลบ/ย้าย/เขียนทับโดยไม่มีคำสั่ง:
 
-`AGENTS.md`, `README.md`, `TODO.md`, `CONTEXT.md`, `STYLE.md`, `specs/spec.md`, `docs/architecture.md`, `docs/decisions.md`, `docs/implementation-status.md`
+`AGENTS.md`, `README.md`, `TODO.md`, `CONTEXT.md`, `STYLE.md`, `specs/spec.md`, `docs/architecture.md`, `docs/decisions.md`, `docs/implementation-status.md`, `docs/tui-feature-inventory.md`
 
 working report คือเอกสารผลหลังงานที่ผูกกับ issue/PR เท่านั้น — ไม่ใช่ canonical context.
 

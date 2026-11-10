@@ -56,3 +56,4 @@ Because sessions start without persistent memory, AI context files act as the pr
 5. Bump semantic version (`just bump <pr> "msg"`) and record in `CHANGELOG.md`.
 6. Open PR with `Closes #<issue>`.
 7. After merge, verify the merge commit is present in `origin/main`.
+
