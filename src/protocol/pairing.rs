@@ -204,24 +204,32 @@ mod tests {
         tampered[0] ^= 1;
 
         assert!(!verify_commitment(&commit.commit, &tampered).expect("verification should run"));
-        assert!(verify_commitment(&commit.commit, &[0_u8; 8]).is_err());
-        assert!(PairCommit::from_nonce(&[0_u8; 8]).is_err());
-        assert!(PairReveal::from_nonce(&[0_u8; 8]).is_err());
+        let short_nonce = &nonce[..8];
+        assert!(verify_commitment(&commit.commit, short_nonce).is_err());
+        assert!(PairCommit::from_nonce(short_nonce).is_err());
+        assert!(PairReveal::from_nonce(short_nonce).is_err());
     }
 
     #[test]
     fn sas_is_six_digits_and_changes_with_nonce() {
-        let nonce_c = vec![1_u8; NONCE_LEN];
-        let nonce_d = vec![2_u8; NONCE_LEN];
+        let nonce_c = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(1))
+            .collect::<Vec<_>>();
+        let nonce_d = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(2))
+            .collect::<Vec<_>>();
         let input = SasInput {
-            nonce_c: nonce_c.clone(),
-            nonce_d: nonce_d.clone(),
+            nonce_c,
+            nonce_d,
             local_fp: "local".to_owned(),
             remote_fp: "remote".to_owned(),
         };
         let result = compute_sas(&input).expect("SAS should compute");
+        let nonce_c_alt = (0..NONCE_LEN)
+            .map(|i| (i as u8).wrapping_add(3))
+            .collect::<Vec<_>>();
         let changed = compute_sas(&SasInput {
-            nonce_c: vec![3_u8; NONCE_LEN],
+            nonce_c: nonce_c_alt,
             ..input.clone()
         })
         .expect("SAS should compute");

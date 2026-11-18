@@ -1,0 +1,127 @@
+{
+  "hash": "295de61ae7027d8528884e893eec0657aee16df6e7349eb3f20006e95337fc7e",
+  "mcpServers": {
+    "caveman": {
+      "config": {
+        "args": [],
+        "command": "C:\\Users\\Admin\\.caveman\\bin\\caveman-mcp.exe"
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "*"
+        ]
+      }
+    },
+    "context7": {
+      "config": {
+        "cache_ttl_hours": 24,
+        "strict_matching": true,
+        "url": "https://mcp.context7.com/mcp"
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "resolve-library-id",
+          "query-docs"
+        ]
+      }
+    },
+    "dlog": {
+      "config": {
+        "args": [],
+        "command": "D:/01WORK/Active/orgs/bl1nk-bot/dlog/target/release/dlog-mcp.exe",
+        "ledger_path": "D:/01WORK/Active/orgs/bl1nk-bot/dlog",
+        "strict_audit": true,
+        "sync_mode": "wal"
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "*"
+        ]
+      }
+    },
+    "rea": {
+      "config": {
+        "args": [
+          "/d",
+          "/c",
+          "npx",
+          "-y",
+          "rea-agents@6.5.0",
+          "mcp"
+        ],
+        "command": "cmd.exe",
+        "startup_timeout_sec": 30
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "*"
+        ]
+      }
+    },
+    "serena": {
+      "config": {
+        "args": [
+          "start-mcp-server",
+          "--context",
+          "hermes",
+          "--project-from-cwd"
+        ],
+        "command": "C:\\Users\\Admin\\.local\\bin\\serena.exe"
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "*"
+        ]
+      }
+    },
+    "subagent-gateway": {
+      "config": {
+        "args": [
+          "D:/01WORK/Active/orgs/bl1nk-bot/subagent-gateway/index.mjs"
+        ],
+        "command": "node",
+        "env": {
+          "SYSTEMONE_URL": "http://localhost:11434/v1/systemone"
+        },
+        "strict_mode": true,
+        "systemone_url": "http://localhost:11434/v1/systemone",
+        "timeout_seconds": 30
+      },
+      "secrets": [],
+      "status": "enabled",
+      "tools": {
+        "disable": [],
+        "enable": [
+          "subagent-decide",
+          "subagent-reply",
+          "codex",
+          "codex-reply"
+        ]
+      }
+    }
+  },
+  "profile": "blnk",
+  "rules": [
+    "rules/bl1nk-cto-standards.md"
+  ],
+  "skills": [
+    "skills/bl1nk-profile",
+    "skills/profile-craft",
+    "skills/antigravity-cli"
+  ]
+}

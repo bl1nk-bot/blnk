@@ -1,0 +1,31 @@
+[package]
+name = "blnk-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Terminal User Interface (TUI) for blnk"
+
+[lib]
+name = "blnk_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "blnk-tui"
+path = "src/main.rs"
+
+[[bin]]
+name = "md-events"
+path = "src/bin/md-events.rs"
+
+[dependencies]
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+textwrap = { workspace = true }
+unicode-segmentation = { workspace = true }
+unicode-width = { workspace = true }
+supports-color = { workspace = true }
+pulldown-cmark = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }

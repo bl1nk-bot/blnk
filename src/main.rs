@@ -7,11 +7,10 @@ use blnk::session::{SessionRuntime, SessionRuntimeConfig};
 use blnk::signaling::EndpointPolicy;
 use blnk::signaling::orchestration::{
     DEFAULT_ORCHESTRATION_TIMEOUT, accept_server_session, connect_target, run_file_client,
-    run_file_client_collected, run_shell_client, run_shell_client_collected,
-    serve_session_collected, serve_session_with_shutdown,
+    run_shell_client, serve_session_with_shutdown,
 };
 use blnk::stream::shell::ShellCommand;
-use blnk::telemetry::braintrust::{BraintrustExporter, SpanCollector, SpanKind};
+use blnk::telemetry::braintrust::{BraintrustExporter, SpanKind, TelemetrySpan};
 use blnk::web::{BrowserControlConfig, BrowserControlServer};
 use clap::{Parser, Subcommand};
 use std::net::SocketAddr;
@@ -141,24 +140,15 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     println!("serve_status=connected; client_id={}", session.client_id);
     let root = std::env::current_dir().context("get serve root")?;
     let client_id = session.client_id.clone();
-    let mut collector = session_collector(
-        telemetry.as_ref(),
-        "session.serve",
-        SpanKind::Session,
-        "serve",
-    );
     if args.once {
-        let result = blnk::signaling::orchestration::serve_session_collected(
-            session,
-            root,
-            CancellationToken::new(),
-            &mut collector,
-        )
-        .await
-        .context("serve remote session");
+        let result = blnk::signaling::orchestration::serve_session(session, root)
+            .await
+            .context("serve remote session");
         return export_session_span(
             telemetry.as_ref(),
-            collector,
+            "session.serve",
+            SpanKind::Session,
+            "serve",
             Some(client_id),
             session_started_at,
             result,
@@ -169,11 +159,9 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
     println!("serve_status=running; press Ctrl-C to stop");
     let client_id = session.client_id.clone();
     let shutdown = CancellationToken::new();
-    // Scope the pinned serve future so its borrow of the collector ends
-    // before the collector is consumed by the export below.
+    let session_task = serve_session_with_shutdown(session, root, shutdown.clone());
+    tokio::pin!(session_task);
     let serve_result = async {
-        let session_task = serve_session_collected(session, root, shutdown.clone(), &mut collector);
-        tokio::pin!(session_task);
         tokio::select! {
             result = &mut session_task => result.context("serve remote session"),
             signal = tokio::signal::ctrl_c() => {
@@ -182,11 +170,13 @@ async fn run_serve(args: ServeArgs) -> Result<()> {
                 session_task.await.context("serve remote session")
             }
         }
-    }
-    .await;
+    };
+    let serve_result = serve_result.await;
     export_session_span(
         telemetry.as_ref(),
-        collector,
+        "session.serve",
+        SpanKind::Session,
+        "serve",
         Some(client_id),
         session_started_at,
         serve_result,
@@ -259,14 +249,8 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
     .await
     .context("establish remote signaling/WebRTC session")?;
     let telemetry = load_telemetry()?;
-    let mut collector = session_collector(
-        telemetry.as_ref(),
-        "session.connect",
-        SpanKind::Shell,
-        target,
-    );
     let command = shell_command_from_args(&args.command)?;
-    let result = run_shell_client_collected(&mut session.runtime, &command, &mut collector).await;
+    let result = run_shell_client(&mut session.runtime, &command).await;
     let close_result = session.runtime.close().await;
     let exit_code = match (result, close_result) {
         (Err(error), _) => Err(error.into()),
@@ -279,11 +263,12 @@ async fn run_connect(args: ConnectArgs) -> Result<()> {
             }
         }
     };
-    let client_id = session.client_id.clone();
     export_session_span(
         telemetry.as_ref(),
-        collector,
-        Some(client_id),
+        "session.connect",
+        SpanKind::Shell,
+        target,
+        Some(session.client_id.clone()),
         connect_started_at,
         exit_code,
     )
@@ -324,14 +309,11 @@ async fn run_cp(args: CpArgs) -> Result<()> {
     .await
     .context("establish remote signaling/WebRTC session")?;
     let telemetry = load_telemetry()?;
-    let mut collector =
-        session_collector(telemetry.as_ref(), "session.copy", SpanKind::File, target);
-    let result = run_file_client_collected(
+    let result = run_file_client(
         &mut session.runtime,
         &args.source,
         &args.destination,
         args.overwrite,
-        &mut collector,
     )
     .await;
     let close_result = session.runtime.close().await;
@@ -340,11 +322,12 @@ async fn run_cp(args: CpArgs) -> Result<()> {
         (Ok(()), Err(error)) => Err(error.into()),
         (Ok(()), Ok(())) => Ok(()),
     };
-    let client_id = session.client_id.clone();
     export_session_span(
         telemetry.as_ref(),
-        collector,
-        Some(client_id),
+        "session.copy",
+        SpanKind::File,
+        target,
+        Some(session.client_id.clone()),
         copy_started_at,
         copy_result,
     )
@@ -356,43 +339,26 @@ fn load_telemetry() -> anyhow::Result<Option<BraintrustExporter>> {
     BraintrustExporter::from_env().context("init braintrust telemetry")
 }
 
-/// Create the session span collector; the session-level parent span is
-/// enabled only when telemetry is configured, so without credentials the
-/// collector stays a no-op.
-fn session_collector(
+/// Export one session-level span, then forward the original outcome.
+/// Telemetry failures never change the command result.
+async fn export_session_span(
     telemetry: Option<&BraintrustExporter>,
     name: &str,
     kind: SpanKind,
     session_id: &str,
-) -> SpanCollector {
-    let mut collector = SpanCollector::new();
-    if telemetry.is_some() {
-        collector.enable_parent(name, kind, session_id);
-    }
-    collector
-}
-
-/// Finalize the session parent span (stream children were already recorded
-/// into the collector), export parent + children as one trace batch, then
-/// forward the original outcome. Telemetry failures never change the
-/// command result.
-async fn export_session_span(
-    telemetry: Option<&BraintrustExporter>,
-    mut collector: SpanCollector,
     peer_id: Option<String>,
     started_at: Instant,
     outcome: anyhow::Result<()>,
 ) -> anyhow::Result<()> {
     if let Some(exporter) = telemetry {
-        collector.finish_parent(
-            started_at.elapsed().as_millis().min(u64::MAX as u128) as u64,
-            outcome.is_ok(),
-            outcome.as_ref().err().map(|error| error.to_string()),
-        );
-        if let Some(peer_id) = peer_id {
-            collector.set_parent_peer(peer_id);
+        let mut span = TelemetrySpan::new(name, kind, session_id);
+        span.peer_id = peer_id;
+        span.duration_ms = started_at.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        if let Err(error) = &outcome {
+            span.success = false;
+            span.error = Some(error.to_string());
         }
-        exporter.export(&collector.into_spans()).await;
+        exporter.export(std::slice::from_ref(&span)).await;
     }
     outcome
 }

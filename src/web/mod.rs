@@ -19,13 +19,11 @@ use axum::routing::{get, post};
 use axum::{Router, serve};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::{HashMap, VecDeque};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
@@ -863,11 +861,7 @@ fn add_cors_headers(headers: &mut HeaderMap, config: &BrowserControlConfig) {
     );
 }
 
-fn secure_eq(left: &str, right: &str) -> bool {
-    let left_digest = Sha256::digest(left.as_bytes());
-    let right_digest = Sha256::digest(right.as_bytes());
-    left_digest.ct_eq(&right_digest).into()
-}
+use crate::utils::constant_time_string_eq as secure_eq;
 
 fn random_token() -> Result<String, BlnkError> {
     let mut bytes = [0_u8; 24];

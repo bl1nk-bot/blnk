@@ -7,7 +7,7 @@
 ## 1. Subsystem Implementation Map
 
 | Subsystem | Source Path | State & Behavior | Evidence / Test File |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | **CLI & Commands** | `src/main.rs`, `src/config/args.rs` | รองรับ subcommands: `serve`, `connect`, `cp`, `devices`, `web`, `version` | `src/main.rs:tests` |
 | **Protobuf Codegen** | `build.rs`, `proto/`, `src/proto_generated.rs` | คอมไพล์ schema สำหรับ signaling, control, identity, stream | `proto_generated::tests` |
 | **Identity Management** | `src/identity/key.rs` | รองรับ RSA-2048 คีย์คู่, OAEP encryption, SHA256 signing, โหลด/เซฟทั้ง JSON และ PEM | `src/identity/key.rs:tests` |
@@ -18,6 +18,7 @@
 | **Session State Machine** | `src/session/` | PIN authentication (constant-time check), session timeouts, active stream lifecycle | `session::tests` |
 | **Stream Handlers** | `src/stream/` | `shell.rs` (PTY/cancellation), `file.rs` (sandboxed ops), `proxy.rs` (SSRF-protected HTTP/TCP/WS) | `stream::*::tests` |
 | **Web Control Surface** | `src/web/` | Axum loopback surface, CSRF/Cookie origin protection, WebSocket status streaming | `web::tests` |
+| **Terminal UI Surface (WIP)** | `apps/blnk-tui/` | Native TUI surface (Ratatui/Crossterm) with planned NSH integration, cataloged in `docs/tui-feature-inventory.md` | `apps/blnk-tui/src/wrapping.rs:tests` |
 
 ---
 

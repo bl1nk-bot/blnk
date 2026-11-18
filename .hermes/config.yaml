@@ -1,0 +1,253 @@
+_config_version: 50
+model:
+  default: ag/gemini-3.8-flash
+  provider: 9router
+  base_url: http://127.0.0.1:20128/v1
+  api_mode: codex_responses
+  key_env: HERMES_CUSTOM_9ROUTER_API_KEY
+custom_providers:
+- api_mode: codex_responses
+  base_url: http://127.0.0.1:20128/v1
+  key_env: HERMES_CUSTOM_9ROUTER_API_KEY
+  model: ag/gemini-3.8-flash
+  name: 9router
+providers:
+  9router:
+    name: 9router
+    api: http://127.0.0.1:20128/v1
+    base_url: http://127.0.0.1:20128/v1
+    key_env: HERMES_CUSTOM_9ROUTER_API_KEY
+    default_model: ag/gemini-3.8-flash
+    discover_models: true
+    models: {}
+  ollama-launch:
+    name: Ollama
+    api: http://127.0.0.1:11434/v1
+    base_url: http://127.0.0.1:11434/v1
+    default_model: all-minilm
+    discover_models: true
+    models: {}
+fallback_providers:
+- provider: custom:9router
+  model: kgw/kilo-auto/free
+  base_url: http://127.0.0.1:20128/v1
+delegation:
+  model: kc/nvidia/nemotron-3-ultra-550b-a55b:free
+  provider: 9router
+  base_url: http://127.0.0.1:20128/v1
+  key_env: HERMES_CUSTOM_9ROUTER_API_KEY
+  max_iterations: 250
+  child_timeout_seconds: 600
+  reasoning_effort: low
+  max_concurrent_children: 5
+auxiliary:
+  compression:
+    provider: 9router
+    model: ag/gemini-3.7-flash-low
+  curator:
+    provider: 9router
+    model: ag/claude-sonnet-5-5-high
+  goal_judge:
+    provider: 9router
+    model: gh/grok-code-fast-1
+  monitor:
+    provider: 9router
+    model: ag/claude-sonnet-5-5-low
+  review:
+    provider: 9router
+    model: ag/claude-sonnet-5-5-low
+  mcp:
+    provider: 9router
+    model: ag/gemini-3.8-flash-low
+database:
+  journal_mode: wal
+terminal:
+  backend: local
+  cwd: .
+  timeout: 180
+  home_mode: auto
+agent:
+  max_turns: 90
+  run_budget_seconds: 9000
+  gateway_timeout: 1798
+  service_tier: auto
+  reasoning_effort: medium
+  tool_use_enforcement: true
+compression:
+  enabled: true
+  threshold: 0.5
+  threshold_tokens: 150000
+  target_ratio: 0.2
+  protect_last_n: 10
+  min_tail_user_messages: 1
+tool_loop_guardrails:
+  warnings_enabled: true
+  hard_stop_enabled: false
+  warn_after:
+    exact_failure: 2
+    idempotent_no_progress: 2
+    same_tool_failure: 3
+  hard_stop_after:
+    exact_failure: 5
+    idempotent_no_progress: 5
+    same_tool_failure: 8
+memory:
+  memory_enabled: true
+  user_profile_enabled: true
+  memory_char_limit: 7000
+  user_char_limit: 1375
+  nudge_interval: 10
+  provider: skillsearch
+  flush_min_turns: 6
+telemetry:
+  shared_metrics:
+    enabled: true
+    send: false
+cron:
+  allow_agent_scheduling: true
+kanban:
+  review_dispatch: true
+code_execution:
+  max_tool_calls: 50
+  timeout: 300
+browser:
+  inactivity_timeout: 120
+  use_real_profile: true
+  cloud_provider: local
+moa:
+  enabled: true
+  fanout: user_turn
+  max_tokens: 4096
+  presets:
+    default:
+      aggregator:
+        model: gpt-5.6-luna
+        provider: openai-codex
+      degraded_reference_policy: loud
+      fanout: user_turn
+      reference_models:
+      - enabled: true
+        model: gpt-5.5
+        provider: openai-codex
+      - enabled: true
+        model: upstage/solar-pro4:free
+        provider: nous
+skills:
+  creation_nudge_interval: 15
+  guard_agent_created: true
+  inline_shell: true
+  trusted_project_dirs:
+  - C:\Users\Admin\.agents\skills
+  - C:\Users\Admin\.minimax\skills
+  - D:\01work\Active\workspace\bl1nk-kept
+  - D:\01work\Active\Internal\bl1nk-memory
+  write_approval: true
+plugins:
+  disabled: []
+  enabled:
+  - a2a-platform
+  - basic
+  - browser-browser-use
+  - disk-cleanup
+  - drain
+  - everme
+  - feishu-platform
+  - hermes-memory-ui
+  - langfuse
+  - line-platform
+  - memory-wiki
+  - nous
+  - observability/langfuse
+  - openai-codex
+  - photon-platform
+  - rtk-rewrite
+  - security-guidance
+  - self-hosted
+  - slack-platform
+  - telegram-platform
+  - web-exa
+platforms:
+  line:
+    enabled: true
+  telegram:
+    enabled: true
+  webhook:
+    enabled: true
+hooks:
+  pre_llm_call:
+  - command: command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 1 --max-time 2 "http://localhost:2208/api/notify?type=working&sessionId=$NINE_REMOTE_SESSION_ID&tool=hermes" > /dev/null 2>&1 & true
+    timeout: 5
+  pre_tool_call:
+  - command: command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 1 --max-time 2 "http://localhost:2208/api/notify?type=working&sessionId=$NINE_REMOTE_SESSION_ID&tool=hermes" > /dev/null 2>&1 & true
+    timeout: 5
+  post_tool_call:
+  - command: command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 1 --max-time 2 "http://localhost:2208/api/notify?type=working&sessionId=$NINE_REMOTE_SESSION_ID&tool=hermes" > /dev/null 2>&1 & true
+    timeout: 5
+  pre_approval_request:
+  - command: command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 1 --max-time 2 "http://localhost:2208/api/notify?type=blocked&sessionId=$NINE_REMOTE_SESSION_ID&tool=hermes" > /dev/null 2>&1 & true
+    timeout: 5
+  post_llm_call:
+  - command: command -v curl >/dev/null 2>&1 && curl -s --connect-timeout 1 --max-time 2 "http://localhost:2208/api/notify?type=done&sessionId=$NINE_REMOTE_SESSION_ID&tool=hermes" > /dev/null 2>&1 & true
+    timeout: 5
+computer_use:
+  backend: cua
+streaming:
+  enabled: false
+security:
+  redact_secrets: true
+mcp_servers:
+  subagent-gateway:
+    args:
+    - D:/01WORK/Active/orgs/bl1nk-bot/subagent-gateway/index.mjs
+    command: node
+    enabled: true
+    env:
+      SYSTEMONE_URL: http://localhost:11434/v1/systemone
+    strict_mode: true
+    systemone_url: http://localhost:11434/v1/systemone
+    timeout_seconds: 30
+    tools:
+      include:
+      - subagent-decide
+      - subagent-reply
+      - codex
+      - codex-reply
+  dlog:
+    args: []
+    command: D:/01WORK/Active/orgs/bl1nk-bot/dlog/target/release/dlog-mcp.exe
+    enabled: true
+    ledger_path: D:/01WORK/Active/orgs/bl1nk-bot/dlog
+    strict_audit: true
+    sync_mode: wal
+  context7:
+    cache_ttl_hours: 24
+    enabled: true
+    strict_matching: true
+    tools:
+      include:
+      - resolve-library-id
+      - query-docs
+    url: https://mcp.context7.com/mcp
+  rea:
+    args:
+    - /d
+    - /c
+    - npx
+    - -y
+    - rea-agents@6.5.0
+    - mcp
+    command: cmd.exe
+    enabled: true
+    startup_timeout_sec: 30
+  caveman:
+    args: []
+    command: C:\Users\Admin\.caveman\bin\caveman-mcp.exe
+    enabled: true
+  serena:
+    args:
+    - start-mcp-server
+    - --context
+    - hermes
+    - --project-from-cwd
+    command: C:\Users\Admin\.local\bin\serena.exe
+    enabled: true

@@ -1,8 +1,8 @@
 # blnk agentic-workflow contract
 
 The repository's canonical context is `AGENTS.md`, `TODO.md`,
-`specs/spec.md`, `docs/architecture.md`, `docs/api.md`,
-`docs/blueprint.md`, `docs/implementation-status.md`, `docs/plans/**`, and
+`specs/spec.md`, `docs/architecture.md`,
+`docs/implementation-status.md`, and
 `.github/**`. Never treat those files as disposable reports.
 
 Read `docs/agent-operations.md` before delivery work. It is the persistent

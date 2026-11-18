@@ -101,7 +101,7 @@ jobs:
         with:
           ref: ${{ needs.metadata.outputs.tag }}
           persist-credentials: false
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
       - name: Install Android NDK
         shell: bash
         run: sdkmanager "platform-tools" "platforms;android-35" "ndk;27.2.12479018"
