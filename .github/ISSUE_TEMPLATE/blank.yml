@@ -1,6 +1,5 @@
 name: Blank
 description: เปิด Issue เปล่าสำหรับกรณีที่ไม่เข้ากับ Feature, Bug, Documentation หรือ Question
-title: ""
 body:
   - type: markdown
     attributes:
