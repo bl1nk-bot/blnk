@@ -4,6 +4,7 @@
 
 # Changelog
 
+
 ## [0.2.19] — PR #147
 
 - fix(security): sanitize FTS5 search query input in SqliteStore
@@ -16,10 +17,11 @@
 - security: prevent timing side-channel in duplicate PIN comparison
 
 
-## [0.2.17] — PR #171, #165
+## [0.2.17] — PR #174, #171, #165
 
 - security: รวมการปิดบัง PIN ใน `AuthMessage` และ runtime `ControlMessage`, API key และ endpoint ใน `BraintrustExporter` พร้อม tests และ ledger การรวม PR
 - chore(security): prevent credential leak in Identity Debug output
+- fix(config): redact PIN and bootstrap token in CLI args Debug formatting
 
 ## [0.2.16] — PR #136, #148
 - feat(telemetry): add stream-level child spans for shell, file, and proxy
